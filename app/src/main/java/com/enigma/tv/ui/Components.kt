@@ -8,12 +8,13 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
@@ -62,64 +63,84 @@ fun EnigmaHeader(
     onSearch: () -> Unit,
     onMenuClick: (() -> Unit)? = null
 ) {
-    Row(
+    Column(
         modifier = Modifier
             .fillMaxWidth()
             .background(BgHeader)
-            .padding(horizontal = 12.dp, vertical = 12.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(8.dp)
+            .statusBarsPadding()
+            .padding(horizontal = 12.dp, vertical = 10.dp)
     ) {
-        if (onMenuClick != null) {
-            IconButton(onClick = onMenuClick) {
-                Icon(Icons.Default.Menu, contentDescription = "Menu", tint = TextPrimary)
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            if (onMenuClick != null) {
+                IconButton(
+                    onClick = onMenuClick,
+                    modifier = Modifier.size(40.dp)
+                ) {
+                    Icon(Icons.Default.Menu, contentDescription = "Menu", tint = TextPrimary)
+                }
             }
-        }
-        Column(modifier = Modifier.width(if (onMenuClick != null) 88.dp else 100.dp)) {
-            Text(
-                text = ENIGMA_TV_BRAND,
-                color = accent,
-                fontSize = 18.sp,
-                fontWeight = FontWeight.Black,
-                letterSpacing = 1.5.sp,
-                maxLines = 1
-            )
-            sectionLabel?.let { label ->
+            Column(modifier = Modifier.weight(1f)) {
                 Text(
-                    text = label,
-                    color = EnigmaPink.copy(alpha = 0.85f),
-                    fontSize = 10.sp,
-                    fontWeight = FontWeight.Medium,
+                    text = ENIGMA_TV_BRAND,
+                    color = accent,
+                    fontSize = 20.sp,
+                    fontWeight = FontWeight.Black,
                     letterSpacing = 0.5.sp,
                     maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
+                    overflow = TextOverflow.Clip
                 )
+                sectionLabel?.let { label ->
+                    Text(
+                        text = label,
+                        color = EnigmaPink.copy(alpha = 0.9f),
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Medium,
+                        maxLines = 1
+                    )
+                }
             }
         }
-        OutlinedTextField(
-            value = query,
-            onValueChange = onQueryChange,
-            modifier = Modifier.weight(1f),
-            placeholder = { Text(placeholder, color = TextSecondary.copy(alpha = 0.6f)) },
-            singleLine = true,
-            colors = OutlinedTextFieldDefaults.colors(
-                focusedContainerColor = SearchBg,
-                unfocusedContainerColor = SearchBg,
-                focusedBorderColor = Color.Transparent,
-                unfocusedBorderColor = Color.Transparent,
-                focusedTextColor = TextPrimary,
-                unfocusedTextColor = TextPrimary,
-                cursorColor = accent
-            ),
-            shape = RoundedCornerShape(4.dp)
-        )
-        IconButton(
-            onClick = onSearch,
-            modifier = Modifier
-                .background(accent, RoundedCornerShape(4.dp))
-                .size(44.dp)
+        Spacer(Modifier.height(10.dp))
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            Icon(Icons.Default.Search, contentDescription = "Search", tint = TextPrimary)
+            OutlinedTextField(
+                value = query,
+                onValueChange = onQueryChange,
+                modifier = Modifier.weight(1f),
+                placeholder = {
+                    Text(
+                        placeholder,
+                        color = TextSecondary.copy(alpha = 0.6f),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                },
+                singleLine = true,
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedContainerColor = SearchBg,
+                    unfocusedContainerColor = SearchBg,
+                    focusedBorderColor = Color.Transparent,
+                    unfocusedBorderColor = Color.Transparent,
+                    focusedTextColor = TextPrimary,
+                    unfocusedTextColor = TextPrimary,
+                    cursorColor = accent
+                ),
+                shape = RoundedCornerShape(8.dp)
+            )
+            IconButton(
+                onClick = onSearch,
+                modifier = Modifier
+                    .background(accent, RoundedCornerShape(8.dp))
+                    .size(48.dp)
+            ) {
+                Icon(Icons.Default.Search, contentDescription = "Search", tint = TextPrimary)
+            }
         }
     }
 }

@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -55,6 +56,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.enigma.tv.data.ContentType
+import com.enigma.tv.data.ContinueWatchingEntry
 import com.enigma.tv.data.FavoriteItem
 import com.enigma.tv.data.MovieItem
 import com.enigma.tv.data.TvItem
@@ -93,6 +95,7 @@ fun EnigmaShell(viewModel: EnigmaViewModel = viewModel()) {
                 Column(
                     modifier = Modifier
                         .fillMaxHeight()
+                        .statusBarsPadding()
                         .padding(vertical = 24.dp)
                 ) {
                     Text(
@@ -138,7 +141,7 @@ fun EnigmaShell(viewModel: EnigmaViewModel = viewModel()) {
             Column(Modifier.fillMaxSize()) {
                 EnigmaHeader(
                     sectionLabel = state.section.title,
-                    placeholder = "Search movies & TV on EnigmaTV…",
+                    placeholder = "Search movies & TV…",
                     query = query,
                     onQueryChange = { query = it },
                     onSearch = { viewModel.search(query) },
@@ -242,24 +245,7 @@ private fun UnifiedHomeContent(state: EnigmaUiState, vm: EnigmaViewModel) {
                 Text("No results found.", color = TextSecondary, modifier = Modifier.padding(24.dp))
             }
         } else {
-            if (state.continueWatching.isNotEmpty()) {
-                ContentSection("▶ Continue Watching") {
-                    PosterRow {
-                        state.continueWatching.take(6).forEach { entry ->
-                            PosterCard(
-                                title = entry.name,
-                                posterUrl = entry.poster.ifBlank { null },
-                                accent = TvAccent,
-                                badge = "TV",
-                                subtitle = "S${entry.season}E${entry.episode}",
-                                onClick = {
-                                    vm.selectShow(entry.id, entry.name, entry.season, entry.episode)
-                                }
-                            )
-                        }
-                    }
-                }
-            }
+            ContinueWatchingSection(state.continueWatching, vm)
             ContentSection("🔥 Trending Movies") {
                 PosterRow { state.trendingMovies.take(8).forEach { MediaMovieCard(it, vm) } }
             }
@@ -301,26 +287,42 @@ private fun FavoritesContent(state: EnigmaUiState, vm: EnigmaViewModel) {
 }
 
 @Composable
-private fun ContinueContent(state: EnigmaUiState, vm: EnigmaViewModel) {
-    ScrollableContent {
-        if (state.continueWatching.isEmpty()) {
-            Text("Nothing in progress yet.", color = TextSecondary, modifier = Modifier.padding(24.dp))
+private fun ContinueWatchingSection(entries: List<ContinueWatchingEntry>, vm: EnigmaViewModel) {
+    ContentSection("▶ Continue Watching") {
+        if (entries.isEmpty()) {
+            Text(
+                "Titles you play will appear here — movies and TV.",
+                color = TextSecondary,
+                fontSize = 13.sp,
+                modifier = Modifier.padding(horizontal = 4.dp, vertical = 8.dp)
+            )
         } else {
-            ContentSection("▶ Pick up where you left off") {
-                PosterRow {
-                    state.continueWatching.forEach { entry ->
-                        PosterCard(
-                            title = entry.name,
-                            posterUrl = entry.poster.ifBlank { null },
-                            accent = TvAccent,
-                            badge = "TV",
-                            subtitle = "S${entry.season}E${entry.episode}",
-                            onClick = { vm.selectShow(entry.id, entry.name, entry.season, entry.episode) }
-                        )
-                    }
-                }
+            PosterRow {
+                entries.forEach { entry -> ContinueWatchingCard(entry, vm) }
             }
         }
+    }
+}
+
+@Composable
+private fun ContinueWatchingCard(entry: ContinueWatchingEntry, vm: EnigmaViewModel) {
+    val accent = if (entry.type == ContentType.MOVIE) MovieAccent else TvAccent
+    val badge = if (entry.type == ContentType.MOVIE) "MOVIE" else "TV"
+    val subtitle = if (entry.type == ContentType.TV) "S${entry.season}E${entry.episode}" else "Resume"
+    PosterCard(
+        title = entry.name,
+        posterUrl = entry.poster.ifBlank { null },
+        accent = accent,
+        badge = badge,
+        subtitle = subtitle,
+        onClick = { vm.resumeContinue(entry) }
+    )
+}
+
+@Composable
+private fun ContinueContent(state: EnigmaUiState, vm: EnigmaViewModel) {
+    ScrollableContent {
+        ContinueWatchingSection(state.continueWatching, vm)
     }
 }
 

@@ -201,6 +201,25 @@ class EnigmaViewModel(application: Application) : AndroidViewModel(application) 
                 sourceLabel = "$name (1/${StreamSources.movieSources.size})"
             )
         }
+        viewModelScope.launch {
+            cwStore.addOrUpdate(
+                ContinueWatchingEntry(
+                    id = movie.id,
+                    name = movie.title,
+                    poster = movie.posterUrl ?: "",
+                    season = 0,
+                    episode = 0,
+                    type = ContentType.MOVIE
+                )
+            )
+        }
+    }
+
+    fun resumeContinue(entry: ContinueWatchingEntry) {
+        when (entry.type) {
+            ContentType.MOVIE -> playMovie(MovieItem(id = entry.id, title = entry.name))
+            ContentType.TV -> selectShow(entry.id, entry.name, entry.season, entry.episode)
+        }
     }
 
     fun playFavorite(item: FavoriteItem) {
@@ -235,7 +254,14 @@ class EnigmaViewModel(application: Application) : AndroidViewModel(application) 
                 val seasons = detail.seasons.filter { it.seasonNumber > 0 }.map { it.seasonNumber }
                 val poster = detail.posterPath?.let { p -> "https://image.tmdb.org/t/p/w200$p" } ?: ""
                 cwStore.addOrUpdate(
-                    ContinueWatchingEntry(id, name, poster, startSeason, startEpisode)
+                    ContinueWatchingEntry(
+                        id = id,
+                        name = name,
+                        poster = poster,
+                        season = startSeason,
+                        episode = startEpisode,
+                        type = ContentType.TV
+                    )
                 )
                 if (seasons.isNotEmpty()) {
                     val season = if (startSeason in seasons) startSeason else seasons.first()
@@ -295,7 +321,7 @@ class EnigmaViewModel(application: Application) : AndroidViewModel(application) 
             )
         }
         viewModelScope.launch {
-            cwStore.updateProgress(showId, s.selectedSeason, s.selectedEpisode)
+            cwStore.updateProgress(showId, ContentType.TV, s.selectedSeason, s.selectedEpisode)
         }
     }
 

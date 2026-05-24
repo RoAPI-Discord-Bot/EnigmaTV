@@ -67,15 +67,16 @@ data class TvSeasonDetail(
     val episodes: List<TvEpisode> = emptyList()
 )
 
+enum class ContentType { MOVIE, TV }
+
 data class ContinueWatchingEntry(
     val id: Int,
     val name: String,
     val poster: String = "",
     val season: Int = 1,
-    val episode: Int = 1
+    val episode: Int = 1,
+    val type: ContentType = ContentType.TV
 )
-
-enum class ContentType { MOVIE, TV }
 
 data class FavoriteItem(
     val id: Int,

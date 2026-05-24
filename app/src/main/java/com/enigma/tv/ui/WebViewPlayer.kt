@@ -4,6 +4,7 @@ import android.annotation.SuppressLint
 import android.view.ViewGroup
 import android.webkit.WebView
 import androidx.compose.foundation.background
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -11,6 +12,9 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
@@ -92,52 +96,68 @@ fun WebViewPlayer(
             .background(BgDark)
     ) {
         Column(modifier = Modifier.fillMaxSize()) {
-            Row(
+            Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .background(Color.Black.copy(alpha = 0.8f))
-                    .padding(horizontal = 12.dp, vertical = 10.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    .background(Color.Black.copy(alpha = 0.92f))
+                    .statusBarsPadding()
+                    .padding(horizontal = 12.dp, vertical = 10.dp)
             ) {
-                Text(
-                    text = title,
-                    color = TextPrimary,
-                    fontSize = 14.sp,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.weight(1f, fill = false)
-                )
-
-                tvControls?.let { controls ->
-                    SeasonEpisodeDropdowns(controls = controls, accent = accent)
-                }
-
-                Text(
-                    text = sourceLabel,
-                    color = TextSecondary,
-                    fontSize = 11.sp,
-                    modifier = Modifier
-                        .background(Color.White.copy(alpha = 0.1f), RoundedCornerShape(4.dp))
-                        .padding(horizontal = 8.dp, vertical = 4.dp)
-                )
-
-                Button(
-                    onClick = onNextSource,
-                    colors = ButtonDefaults.buttonColors(containerColor = accent),
-                    shape = RoundedCornerShape(4.dp),
-                    contentPadding = ButtonDefaults.ContentPadding
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    Text("Next Server", fontSize = 11.sp)
-                    Icon(
-                        Icons.Default.FastForward,
-                        contentDescription = null,
-                        modifier = Modifier.padding(start = 4.dp)
+                    Text(
+                        text = title,
+                        color = TextPrimary,
+                        fontSize = 14.sp,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f)
                     )
+                    IconButton(
+                        onClick = onClose,
+                        modifier = Modifier.size(40.dp)
+                    ) {
+                        Icon(Icons.Default.Close, contentDescription = "Close", tint = TextPrimary)
+                    }
                 }
 
-                IconButton(onClick = onClose) {
-                    Icon(Icons.Default.Close, contentDescription = "Close", tint = TextPrimary)
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .horizontalScroll(rememberScrollState())
+                        .padding(top = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    tvControls?.let { controls ->
+                        SeasonEpisodeDropdowns(controls = controls, accent = accent)
+                    }
+                    Text(
+                        text = sourceLabel,
+                        color = TextSecondary,
+                        fontSize = 11.sp,
+                        modifier = Modifier
+                            .background(Color.White.copy(alpha = 0.1f), RoundedCornerShape(6.dp))
+                            .padding(horizontal = 10.dp, vertical = 6.dp)
+                    )
+                    Button(
+                        onClick = onNextSource,
+                        colors = ButtonDefaults.buttonColors(containerColor = accent),
+                        shape = RoundedCornerShape(8.dp),
+                        contentPadding = ButtonDefaults.ContentPadding
+                    ) {
+                        Text("Next Server", fontSize = 12.sp)
+                        Icon(
+                            Icons.Default.FastForward,
+                            contentDescription = null,
+                            modifier = Modifier
+                                .padding(start = 4.dp)
+                                .size(16.dp)
+                        )
+                    }
                 }
             }
 
@@ -221,7 +241,7 @@ private fun SeasonEpisodeDropdowns(controls: TvPlayerControls, accent: Color) {
         OutlinedButton(
             onClick = { seasonExpanded = true },
             modifier = Modifier.menuAnchor(),
-            shape = RoundedCornerShape(4.dp)
+            shape = RoundedCornerShape(8.dp)
         ) {
             Text("S${controls.selectedSeason}", fontSize = 12.sp, color = TextPrimary)
         }
@@ -245,7 +265,7 @@ private fun SeasonEpisodeDropdowns(controls: TvPlayerControls, accent: Color) {
         OutlinedButton(
             onClick = { episodeExpanded = true },
             modifier = Modifier.menuAnchor(),
-            shape = RoundedCornerShape(4.dp)
+            shape = RoundedCornerShape(8.dp)
         ) {
             Text("E${controls.selectedEpisode}", fontSize = 12.sp, color = TextPrimary)
         }

@@ -39,8 +39,8 @@ import com.enigma.tv.ui.theme.TextSecondary
 fun EnigmaLoadingRing(
     modifier: Modifier = Modifier,
     message: String? = null,
-    logoSize: Dp = 96.dp,
-    ringSize: Dp = 140.dp,
+    logoSize: Dp = 88.dp,
+    ringSize: Dp = 128.dp,
     fullscreen: Boolean = false
 ) {
     val infinite = rememberInfiniteTransition(label = "ring")
