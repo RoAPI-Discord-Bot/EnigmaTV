@@ -18,9 +18,12 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.Movie
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.Tv
+import androidx.compose.material.icons.outlined.FavoriteBorder
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -41,34 +44,58 @@ import coil.compose.AsyncImage
 import com.enigma.tv.ui.theme.BgDark
 import com.enigma.tv.ui.theme.BgHeader
 import com.enigma.tv.ui.theme.CardBg
+import com.enigma.tv.ui.theme.EnigmaPink
+import com.enigma.tv.ui.theme.EnigmaPurple
 import com.enigma.tv.ui.theme.SearchBg
 import com.enigma.tv.ui.theme.TextPrimary
 import com.enigma.tv.ui.theme.TextSecondary
 
+const val ENIGMA_TV_BRAND = "ENIGMATV"
+
 @Composable
-fun CineHeader(
-    logo: String,
-    accent: Color,
+fun EnigmaHeader(
+    sectionLabel: String? = null,
+    accent: Color = EnigmaPurple,
     placeholder: String,
     query: String,
     onQueryChange: (String) -> Unit,
-    onSearch: () -> Unit
+    onSearch: () -> Unit,
+    onMenuClick: (() -> Unit)? = null
 ) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .background(BgHeader)
-            .padding(horizontal = 16.dp, vertical = 12.dp),
+            .padding(horizontal = 12.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(12.dp)
+        horizontalArrangement = Arrangement.spacedBy(8.dp)
     ) {
-        Text(
-            text = logo,
-            color = accent,
-            fontSize = 20.sp,
-            fontWeight = FontWeight.Black,
-            letterSpacing = 2.sp
-        )
+        if (onMenuClick != null) {
+            IconButton(onClick = onMenuClick) {
+                Icon(Icons.Default.Menu, contentDescription = "Menu", tint = TextPrimary)
+            }
+        }
+        Column(modifier = Modifier.width(if (onMenuClick != null) 88.dp else 100.dp)) {
+            Text(
+                text = ENIGMA_TV_BRAND,
+                color = accent,
+                fontSize = 18.sp,
+                fontWeight = FontWeight.Black,
+                letterSpacing = 1.5.sp,
+                maxLines = 1
+            )
+            sectionLabel?.let { label ->
+                Text(
+                    text = label,
+                    color = EnigmaPink.copy(alpha = 0.85f),
+                    fontSize = 10.sp,
+                    fontWeight = FontWeight.Medium,
+                    letterSpacing = 0.5.sp,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
+        }
         OutlinedTextField(
             value = query,
             onValueChange = onQueryChange,
@@ -122,6 +149,8 @@ fun PosterCard(
     accent: Color,
     badge: String? = null,
     subtitle: String? = null,
+    isFavorite: Boolean = false,
+    onFavoriteClick: (() -> Unit)? = null,
     onClick: () -> Unit
 ) {
     Column(
@@ -151,6 +180,22 @@ fun PosterCard(
                         .align(Alignment.Center)
                         .size(40.dp)
                 )
+            }
+            if (onFavoriteClick != null) {
+                IconButton(
+                    onClick = onFavoriteClick,
+                    modifier = Modifier
+                        .align(Alignment.TopStart)
+                        .padding(2.dp)
+                        .size(32.dp)
+                ) {
+                    Icon(
+                        imageVector = if (isFavorite) Icons.Filled.Favorite else Icons.Outlined.FavoriteBorder,
+                        contentDescription = "Favorite",
+                        tint = if (isFavorite) EnigmaPink else TextSecondary,
+                        modifier = Modifier.size(22.dp)
+                    )
+                }
             }
             if (badge != null) {
                 Text(

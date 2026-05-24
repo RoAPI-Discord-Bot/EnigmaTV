@@ -7,22 +7,26 @@ data class StreamSource(
 )
 
 object StreamSources {
+    /** First 3 are the reliable set from testing; alternates replace the broken embeds. */
     val movieSources: List<StreamSource> = listOf(
         StreamSource("VidLink (Best UI)", movieUrl = { id -> "https://vidlink.pro/movie/$id" }),
         StreamSource("Vidsrc.to (Reliable)", movieUrl = { id -> "https://vidsrc.to/embed/movie/$id" }),
         StreamSource("Vsembed.ru (Original)", movieUrl = { id -> "https://vsembed.ru/embed/movie/$id" }),
-        StreamSource("AutoEmbed (Aggregator)", movieUrl = { id -> "https://player.autoembed.cc/embed/movie/$id" }),
-        StreamSource("SuperEmbed", movieUrl = { id -> "https://multiembed.mov/?video_id=$id&tmdb=1" }),
-        StreamSource("2Embed", movieUrl = { id -> "https://www.2embed.cc/embed/$id" })
+        StreamSource("Vidsrc.cc", movieUrl = { id -> "https://vidsrc.cc/v2/embed/movie/$id" }),
+        StreamSource("Vidsrc.me", movieUrl = { id -> "https://vidsrc.me/embed/movie?tmdb=$id" }),
+        StreamSource("Embed.su", movieUrl = { id -> "https://embed.su/embed/movie/$id" })
     )
 
     val tvSources: List<StreamSource> = listOf(
         StreamSource("VidLink TV", tvUrl = { id, s, e -> "https://vidlink.pro/tv/$id/$s/$e" }),
         StreamSource("Vidsrc.to TV", tvUrl = { id, s, e -> "https://vidsrc.to/embed/tv/$id/$s/$e" }),
-        StreamSource("AutoEmbed TV", tvUrl = { id, s, e -> "https://player.autoembed.cc/embed/tv/$id/$s/$e" }),
-        StreamSource("2Embed TV", tvUrl = { id, s, e -> "https://www.2embed.cc/embedtv/$id&s=$s&e=$e" }),
-        StreamSource("SmashyStream", tvUrl = { id, s, e ->
-            "https://embed.smashystream.com/playere.php?tmdb=$id&season=$s&episode=$e"
+        StreamSource("Vidsrc.cc TV", tvUrl = { id, s, e -> "https://vidsrc.cc/v2/embed/tv/$id/$s/$e" }),
+        StreamSource("Vidsrc.me TV", tvUrl = { id, s, e ->
+            "https://vidsrc.me/embed/tv?tmdb=$id&season=$s&episode=$e"
+        }),
+        StreamSource("Embed.su TV", tvUrl = { id, s, e -> "https://embed.su/embed/tv/$id/$s/$e" }),
+        StreamSource("MultiEmbed TV", tvUrl = { id, s, e ->
+            "https://multiembed.mov/?video_id=$id&tmdb=1&s=$s&e=$e"
         })
     )
 

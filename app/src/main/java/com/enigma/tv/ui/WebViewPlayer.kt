@@ -54,22 +54,29 @@ fun WebViewPlayer(
     url: String,
     accent: Color,
     sourceLabel: String,
+    streamLoading: Boolean,
     onClose: () -> Unit,
     onNextSource: () -> Unit,
+    onLoadingChange: (Boolean) -> Unit,
     tvControls: TvPlayerControls? = null
 ) {
     if (!visible) return
 
     var blockedNotice by remember { mutableStateOf<String?>(null) }
     val guard = remember {
-        WebViewNavigationGuard(url).apply {
+        WebViewNavigationGuard("").apply {
             onBlocked = { blocked ->
                 blockedNotice = when {
                     blocked == "popup_window" -> "Blocked popup"
                     else -> "Blocked redirect"
                 }
             }
+            onPageLoading = onLoadingChange
         }
+    }
+
+    LaunchedEffect(url) {
+        onLoadingChange(true)
     }
 
     LaunchedEffect(blockedNotice) {
@@ -143,40 +150,51 @@ fun WebViewPlayer(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
-                    Icon(
-                        Icons.Default.Shield,
-                        contentDescription = null,
-                        tint = MovieAccent,
-                        modifier = Modifier.padding(end = 2.dp)
-                    )
+                    Icon(Icons.Default.Shield, contentDescription = null, tint = MovieAccent)
                     Text(notice, color = TextPrimary, fontSize = 12.sp)
                 }
             }
 
-            AndroidView(
-                factory = { context ->
-                    WebView(context).apply {
-                        layoutParams = ViewGroup.LayoutParams(
-                            ViewGroup.LayoutParams.MATCH_PARENT,
-                            ViewGroup.LayoutParams.MATCH_PARENT
-                        )
-                        guard.configureWebView(this)
-                        setTag(TAG_STREAM_URL, url)
-                        loadUrl(url)
-                    }
-                },
-                update = { view ->
-                    val last = view.getTag(TAG_STREAM_URL) as? String
-                    if (last != url) {
-                        view.setTag(TAG_STREAM_URL, url)
-                        guard.resetForUrl(url)
-                        view.loadUrl(url)
-                    }
-                },
+            Box(
                 modifier = Modifier
                     .fillMaxWidth()
                     .weight(1f)
-            )
+            ) {
+                AndroidView(
+                    factory = { context ->
+                        WebView(context).apply {
+                            layoutParams = ViewGroup.LayoutParams(
+                                ViewGroup.LayoutParams.MATCH_PARENT,
+                                ViewGroup.LayoutParams.MATCH_PARENT
+                            )
+                            guard.configureWebView(this)
+                            setTag(TAG_STREAM_URL, url)
+                            guard.resetForUrl(url)
+                            loadUrl(url)
+                        }
+                    },
+                    update = { view ->
+                        val last = view.getTag(TAG_STREAM_URL) as? String
+                        if (last != url) {
+                            view.setTag(TAG_STREAM_URL, url)
+                            guard.resetForUrl(url)
+                            view.loadUrl(url)
+                        }
+                    },
+                    modifier = Modifier.fillMaxSize()
+                )
+
+                if (streamLoading) {
+                    EnigmaLoadingRing(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .background(BgDark.copy(alpha = 0.85f)),
+                        message = "CONNECTING STREAM",
+                        logoSize = 72.dp,
+                        ringSize = 110.dp
+                    )
+                }
+            }
         }
     }
 }

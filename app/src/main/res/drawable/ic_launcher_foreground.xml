@@ -2,7 +2,7 @@
 <!-- Inset keeps the logo inside the adaptive-icon safe zone (circle/squircle masks). -->
 <inset xmlns:android="http://schemas.android.com/apk/res/android"
     android:drawable="@drawable/enigma_logo"
-    android:insetLeft="17%"
-    android:insetTop="17%"
-    android:insetRight="17%"
-    android:insetBottom="17%" />
+    android:insetLeft="6%"
+    android:insetTop="6%"
+    android:insetRight="6%"
+    android:insetBottom="6%" />

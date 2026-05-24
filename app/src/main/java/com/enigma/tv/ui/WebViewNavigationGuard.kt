@@ -19,6 +19,7 @@ class WebViewNavigationGuard(initialUrl: String) {
     private var blockedCount = 0
 
     var onBlocked: ((String) -> Unit)? = null
+    var onPageLoading: ((Boolean) -> Unit)? = null
 
     init {
         resetForUrl(initialUrl)
@@ -78,6 +79,14 @@ class WebViewNavigationGuard(initialUrl: String) {
         }
 
         webView.webViewClient = object : WebViewClient() {
+            override fun onPageStarted(view: WebView?, url: String?, favicon: android.graphics.Bitmap?) {
+                onPageLoading?.invoke(true)
+            }
+
+            override fun onPageFinished(view: WebView?, url: String?) {
+                onPageLoading?.invoke(false)
+            }
+
             override fun shouldOverrideUrlLoading(
                 view: WebView,
                 request: WebResourceRequest
@@ -158,14 +167,11 @@ class WebViewNavigationGuard(initialUrl: String) {
         private val STREAM_EMBED_ROOTS = setOf(
             "vidlink.pro",
             "vidsrc.to",
+            "vidsrc.cc",
+            "vidsrc.me",
             "vsembed.ru",
-            "autoembed.cc",
-            "player.autoembed.cc",
-            "multiembed.mov",
-            "2embed.cc",
-            "www.2embed.cc",
-            "smashystream.com",
-            "embed.smashystream.com"
+            "embed.su",
+            "multiembed.mov"
         )
 
         /** Common video CDN / player infrastructure (subresource + navigations) */

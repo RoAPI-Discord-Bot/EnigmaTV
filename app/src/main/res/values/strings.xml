@@ -1,4 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">EnigmaTV</string>
+    <string name="brand_name">ENIGMATV</string>
+    <string name="search_movies_hint">Search movies on EnigmaTV…</string>
+    <string name="search_tv_hint">Search TV on EnigmaTV…</string>
+    <string name="nav_movies">Movies</string>
+    <string name="nav_tv">TV Shows</string>
+    <string name="loading_content">Loading EnigmaTV…</string>
+    <string name="loading_stream">Connecting stream…</string>
 </resources>
