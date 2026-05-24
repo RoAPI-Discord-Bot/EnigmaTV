@@ -22,6 +22,13 @@ class ContinueWatchingStore(private val context: Context) {
         gson.fromJson<List<ContinueWatchingEntry>>(json, type) ?: emptyList()
     }
 
+    suspend fun replaceAll(items: List<ContinueWatchingEntry>) {
+        context.dataStore.edit { prefs ->
+            prefs[key] = gson.toJson(items.take(12))
+            prefs.remove(legacyKey)
+        }
+    }
+
     suspend fun addOrUpdate(entry: ContinueWatchingEntry) {
         context.dataStore.edit { prefs ->
             val current = readList(prefs[key] ?: prefs[legacyKey])

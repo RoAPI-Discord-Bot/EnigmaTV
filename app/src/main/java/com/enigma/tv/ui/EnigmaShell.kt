@@ -14,6 +14,9 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
@@ -21,7 +24,9 @@ import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.Home
+import androidx.compose.material.icons.filled.LiveTv
 import androidx.compose.material.icons.filled.Menu
+import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.PlayCircle
 import androidx.compose.material.icons.filled.PlaylistAdd
 import androidx.compose.material.icons.filled.PlaylistPlay
@@ -35,6 +40,8 @@ import androidx.compose.material3.ModalNavigationDrawer
 import androidx.compose.material3.NavigationDrawerItem
 import androidx.compose.material3.NavigationDrawerItemDefaults
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.PermanentDrawerSheet
+import androidx.compose.material3.PermanentNavigationDrawer
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberDrawerState
@@ -58,8 +65,11 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.enigma.tv.data.ContentType
 import com.enigma.tv.data.ContinueWatchingEntry
 import com.enigma.tv.data.FavoriteItem
+import com.enigma.tv.data.HomeRow
+import com.enigma.tv.data.LiveChannel
 import com.enigma.tv.data.MovieItem
 import com.enigma.tv.data.TvItem
+import com.enigma.tv.data.comingSoonLabel
 import com.enigma.tv.ui.theme.BgDark
 import com.enigma.tv.ui.theme.BgSidebar
 import com.enigma.tv.ui.theme.EnigmaPink
@@ -73,70 +83,28 @@ import kotlinx.coroutines.launch
 @Composable
 fun EnigmaShell(viewModel: EnigmaViewModel = viewModel()) {
     val state by viewModel.state.collectAsState()
+    val layout = rememberScreenLayout()
     val drawerState = rememberDrawerState(DrawerValue.Closed)
     val scope = rememberCoroutineScope()
     var query by rememberSaveable { mutableStateOf("") }
 
     if (state.showSplash) {
-        EnigmaLoadingRing(
-            fullscreen = true,
-            message = "LOADING ENIGMATV"
-        )
+        EnigmaLoadingRing(fullscreen = true, message = "LOADING ENIGMATV")
         return
     }
 
-    ModalNavigationDrawer(
-        drawerState = drawerState,
-        drawerContent = {
-            ModalDrawerSheet(
-                drawerContainerColor = BgSidebar,
-                modifier = Modifier.width(280.dp)
-            ) {
-                Column(
-                    modifier = Modifier
-                        .fillMaxHeight()
-                        .statusBarsPadding()
-                        .padding(vertical = 24.dp)
-                ) {
-                    Text(
-                        text = ENIGMA_TV_BRAND,
-                        color = EnigmaPurple,
-                        fontSize = 22.sp,
-                        fontWeight = FontWeight.Black,
-                        letterSpacing = 2.sp,
-                        modifier = Modifier.padding(horizontal = 28.dp, vertical = 8.dp)
-                    )
-                    Text(
-                        text = "Stream movies & TV",
-                        color = EnigmaPink.copy(alpha = 0.8f),
-                        fontSize = 12.sp,
-                        modifier = Modifier.padding(horizontal = 28.dp, vertical = 0.dp)
-                    )
-                    Spacer(Modifier.height(20.dp))
-                    HorizontalDivider(color = Color.White.copy(alpha = 0.08f))
-                    Spacer(Modifier.height(12.dp))
-
-                    DrawerEntry(Icons.Default.Home, NavSection.HOME, state.section) {
-                        viewModel.setSection(NavSection.HOME)
-                        scope.launch { drawerState.close() }
-                    }
-                    DrawerEntry(Icons.Default.Favorite, NavSection.FAVORITES, state.section) {
-                        viewModel.setSection(NavSection.FAVORITES)
-                        scope.launch { drawerState.close() }
-                    }
-                    DrawerEntry(Icons.Default.PlayCircle, NavSection.CONTINUE, state.section) {
-                        viewModel.setSection(NavSection.CONTINUE)
-                        scope.launch { drawerState.close() }
-                    }
-                    DrawerEntry(Icons.Default.PlaylistPlay, NavSection.LISTS, state.section) {
-                        viewModel.setSection(NavSection.LISTS)
-                        viewModel.selectPlaylist(null)
-                        scope.launch { drawerState.close() }
-                    }
-                }
+    val drawerContent: @Composable () -> Unit = {
+        EnigmaDrawerContent(
+            current = state.section,
+            layout = layout,
+            onSelect = { section ->
+                viewModel.setSection(section)
+                if (!layout.usePermanentDrawer()) scope.launch { drawerState.close() }
             }
-        }
-    ) {
+        )
+    }
+
+    val mainContent: @Composable () -> Unit = {
         Box(Modifier.fillMaxSize()) {
             Column(Modifier.fillMaxSize()) {
                 EnigmaHeader(
@@ -145,26 +113,39 @@ fun EnigmaShell(viewModel: EnigmaViewModel = viewModel()) {
                     query = query,
                     onQueryChange = { query = it },
                     onSearch = { viewModel.search(query) },
-                    onMenuClick = { scope.launch { drawerState.open() } }
+                    onMenuClick = if (!layout.usePermanentDrawer()) {
+                        { scope.launch { drawerState.open() } }
+                    } else null
                 )
 
                 when {
                     state.contentLoading -> EnigmaLoadingRing(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(320.dp),
+                        modifier = Modifier.fillMaxWidth().height(320.dp),
                         message = "LOADING"
                     )
                     state.error != null -> Text(
                         text = state.error!!,
-                        color = Color(0xFF661111),
+                        color = Color(0xFFCC4444),
                         modifier = Modifier.padding(40.dp)
                     )
                     else -> when (state.section) {
-                        NavSection.HOME -> UnifiedHomeContent(state, viewModel)
-                        NavSection.FAVORITES -> FavoritesContent(state, viewModel)
-                        NavSection.CONTINUE -> ContinueContent(state, viewModel)
-                        NavSection.LISTS -> ListsContent(state, viewModel)
+                        NavSection.HOME -> UnifiedHomeContent(state, viewModel, layout)
+                        NavSection.LIVE -> LiveTvContent(state, viewModel, layout)
+                        NavSection.FAVORITES -> FavoritesContent(state, viewModel, layout)
+                        NavSection.CONTINUE -> ContinueContent(state, viewModel, layout)
+                        NavSection.LISTS -> ListsContent(state, viewModel, layout)
+                        NavSection.PROFILE -> ProfileScreen(
+                            isLoggedIn = state.isLoggedIn,
+                            email = state.userEmail,
+                            displayName = state.userDisplayName,
+                            statusMessage = state.profileMessage,
+                            error = state.profileError,
+                            onSignIn = viewModel::signIn,
+                            onSignUp = viewModel::signUp,
+                            onGuest = viewModel::signInGuest,
+                            onSignOut = viewModel::signOut,
+                            onSync = viewModel::syncToCloud
+                        )
                     }
                 }
             }
@@ -197,7 +178,81 @@ fun EnigmaShell(viewModel: EnigmaViewModel = viewModel()) {
                 onLoadingChange = { viewModel.onPlayerPageLoading(it) },
                 tvControls = tvControls
             )
+
+            if (state.showDetail) {
+                MediaDetailOverlay(
+                    loading = state.detailLoading,
+                    detail = state.detail,
+                    onClose = { viewModel.closeDetail() },
+                    onPlay = { viewModel.playFromDetail() },
+                    onToggleFavorite = { viewModel.toggleDetailFavorite() },
+                    onSeasonChange = { viewModel.detailSeasonChange(it) },
+                    onEpisodeSelect = { viewModel.detailEpisodeSelect(it) }
+                )
+            }
         }
+    }
+
+    if (layout.usePermanentDrawer()) {
+        PermanentNavigationDrawer(
+            drawerContent = {
+                PermanentDrawerSheet(
+                    drawerContainerColor = BgSidebar,
+                    modifier = Modifier.width(layout.drawerWidthDp().dp)
+                ) { drawerContent() }
+            },
+            content = { mainContent() }
+        )
+    } else {
+        ModalNavigationDrawer(
+            drawerState = drawerState,
+            drawerContent = {
+                ModalDrawerSheet(
+                    drawerContainerColor = BgSidebar,
+                    modifier = Modifier.width(layout.drawerWidthDp().dp)
+                ) { drawerContent() }
+            },
+            content = { mainContent() }
+        )
+    }
+}
+
+@Composable
+private fun EnigmaDrawerContent(
+    current: NavSection,
+    layout: ScreenLayout,
+    onSelect: (NavSection) -> Unit
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxHeight()
+            .statusBarsPadding()
+            .padding(vertical = 24.dp)
+    ) {
+        Text(
+            text = ENIGMA_TV_BRAND,
+            color = EnigmaPurple,
+            fontSize = if (layout == ScreenLayout.TV) 26.sp else 22.sp,
+            fontWeight = FontWeight.Black,
+            letterSpacing = 2.sp,
+            modifier = Modifier.padding(horizontal = 28.dp, vertical = 8.dp)
+        )
+        Text(
+            text = "Stream movies & TV",
+            color = EnigmaPink.copy(alpha = 0.8f),
+            fontSize = 12.sp,
+            modifier = Modifier.padding(horizontal = 28.dp)
+        )
+        Spacer(Modifier.height(20.dp))
+        HorizontalDivider(color = Color.White.copy(alpha = 0.08f))
+        Spacer(Modifier.height(12.dp))
+
+        DrawerEntry(Icons.Default.Home, NavSection.HOME, current, onSelect)
+        DrawerEntry(Icons.Default.LiveTv, NavSection.LIVE, current, onSelect)
+        DrawerEntry(Icons.Default.Favorite, NavSection.FAVORITES, current, onSelect)
+        DrawerEntry(Icons.Default.PlayCircle, NavSection.CONTINUE, current, onSelect)
+        DrawerEntry(Icons.Default.PlaylistPlay, NavSection.LISTS, current, onSelect)
+        DrawerEntry(Icons.Default.Person, NavSection.PROFILE, current, onSelect)
     }
 }
 
@@ -206,13 +261,13 @@ private fun DrawerEntry(
     icon: ImageVector,
     section: NavSection,
     current: NavSection,
-    onClick: () -> Unit
+    onSelect: (NavSection) -> Unit
 ) {
     NavigationDrawerItem(
         icon = { Icon(icon, contentDescription = section.title) },
         label = { Text(section.title) },
         selected = current == section,
-        onClick = onClick,
+        onClick = { onSelect(section) },
         colors = NavigationDrawerItemDefaults.colors(
             selectedContainerColor = EnigmaPurple.copy(alpha = 0.25f),
             selectedIconColor = EnigmaPink,
@@ -223,21 +278,23 @@ private fun DrawerEntry(
 }
 
 @Composable
-private fun UnifiedHomeContent(state: EnigmaUiState, vm: EnigmaViewModel) {
-    ScrollableContent {
+private fun UnifiedHomeContent(state: EnigmaUiState, vm: EnigmaViewModel, layout: ScreenLayout) {
+    val pad = layout.contentPaddingDp().dp
+    val cardW = layout.posterWidthDp()
+    ScrollableContent(padding = androidx.compose.foundation.layout.PaddingValues(pad)) {
         val search = state.searchResults
         if (search != null) {
             if (search.movies.isNotEmpty()) {
                 ContentSection("🔍 Movies") {
                     PosterRow {
-                        search.movies.take(10).forEach { MediaMovieCard(it, vm) }
+                        search.movies.take(20).forEach { MediaMovieCard(it, vm, cardW) }
                     }
                 }
             }
             if (search.tv.isNotEmpty()) {
                 ContentSection("🔍 TV Shows") {
                     PosterRow {
-                        search.tv.take(10).forEach { MediaTvCard(it, vm) }
+                        search.tv.take(20).forEach { MediaTvCard(it, vm, cardW) }
                     }
                 }
             }
@@ -245,41 +302,11 @@ private fun UnifiedHomeContent(state: EnigmaUiState, vm: EnigmaViewModel) {
                 Text("No results found.", color = TextSecondary, modifier = Modifier.padding(24.dp))
             }
         } else {
-            ContinueWatchingSection(state.continueWatching, vm)
-            ContentSection("🔥 Trending Movies") {
-                PosterRow { state.trendingMovies.take(8).forEach { MediaMovieCard(it, vm) } }
-            }
-            ContentSection("📺 Trending TV") {
-                PosterRow { state.trendingTv.take(8).forEach { MediaTvCard(it, vm) } }
-            }
-            ContentSection("⭐ Popular Movies") {
-                PosterRow { state.popularMovies.take(8).forEach { MediaMovieCard(it, vm) } }
-            }
-            ContentSection("🌟 Popular TV") {
-                PosterRow { state.popularTv.take(8).forEach { MediaTvCard(it, vm) } }
-            }
-            ContentSection("🆕 On The Air") {
-                PosterRow { state.onTheAirTv.take(8).forEach { MediaTvCard(it, vm) } }
-            }
-        }
-    }
-}
-
-@Composable
-private fun FavoritesContent(state: EnigmaUiState, vm: EnigmaViewModel) {
-    ScrollableContent {
-        if (state.favorites.isEmpty()) {
-            Text(
-                "No favorites yet. Tap the heart on any title.",
-                color = TextSecondary,
-                modifier = Modifier.padding(24.dp)
-            )
-        } else {
-            ContentSection("❤️ Your Favorites") {
-                PosterRow {
-                    state.favorites.forEach { item ->
-                        FavoritePosterCard(item, vm)
-                    }
+            ContinueWatchingSection(state.continueWatching, vm, cardW)
+            state.homeRows.forEach { row ->
+                when (row) {
+                    is HomeRow.Movies -> HomeMoviesSection(row.title, row.items, vm, layout, cardW)
+                    is HomeRow.TvShows -> HomeTvSection(row.title, row.items, vm, layout, cardW)
                 }
             }
         }
@@ -287,7 +314,106 @@ private fun FavoritesContent(state: EnigmaUiState, vm: EnigmaViewModel) {
 }
 
 @Composable
-private fun ContinueWatchingSection(entries: List<ContinueWatchingEntry>, vm: EnigmaViewModel) {
+private fun HomeMoviesSection(
+    title: String,
+    movies: List<MovieItem>,
+    vm: EnigmaViewModel,
+    layout: ScreenLayout,
+    cardW: Int
+) {
+    ContentSection(title) {
+        if (layout == ScreenLayout.TV) {
+            LazyVerticalGrid(
+                columns = GridCells.Fixed(layout.posterColumns()),
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+                modifier = Modifier.height(((movies.size / layout.posterColumns() + 1) * 220).coerceAtMost(660).dp)
+            ) {
+                items(movies) { MediaMovieCard(it, vm, cardW) }
+            }
+        } else {
+            PosterRow { movies.forEach { MediaMovieCard(it, vm, cardW) } }
+        }
+    }
+}
+
+@Composable
+private fun HomeTvSection(
+    title: String,
+    shows: List<TvItem>,
+    vm: EnigmaViewModel,
+    layout: ScreenLayout,
+    cardW: Int
+) {
+    ContentSection(title) {
+        if (layout == ScreenLayout.TV) {
+            LazyVerticalGrid(
+                columns = GridCells.Fixed(layout.posterColumns()),
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+                modifier = Modifier.height(((shows.size / layout.posterColumns() + 1) * 220).coerceAtMost(660).dp)
+            ) {
+                items(shows) { MediaTvCard(it, vm, cardW) }
+            }
+        } else {
+            PosterRow { shows.forEach { MediaTvCard(it, vm, cardW) } }
+        }
+    }
+}
+
+@Composable
+private fun LiveTvContent(state: EnigmaUiState, vm: EnigmaViewModel, layout: ScreenLayout) {
+    val pad = layout.contentPaddingDp().dp
+    ScrollableContent(padding = androidx.compose.foundation.layout.PaddingValues(pad)) {
+        Text(
+            "Live channels open in the player. Availability varies by region and source.",
+            color = TextSecondary,
+            fontSize = 13.sp,
+            modifier = Modifier.padding(bottom = 16.dp)
+        )
+        state.liveChannels.forEach { channel -> LiveChannelCard(channel, vm) }
+    }
+}
+
+@Composable
+private fun LiveChannelCard(channel: LiveChannel, vm: EnigmaViewModel) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(10.dp))
+            .background(Color.White.copy(alpha = 0.06f))
+            .clickable { vm.playLiveChannel(channel) }
+            .padding(16.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(16.dp)
+    ) {
+        Text(channel.logoEmoji, fontSize = 32.sp)
+        Column(Modifier.weight(1f)) {
+            Text(channel.name, color = TextPrimary, fontWeight = FontWeight.SemiBold, fontSize = 16.sp)
+            Text(channel.category, color = EnigmaPink, fontSize = 12.sp)
+        }
+        Text("LIVE", color = Color.White, fontSize = 10.sp, fontWeight = FontWeight.Bold,
+            modifier = Modifier.background(EnigmaPurple, RoundedCornerShape(4.dp)).padding(horizontal = 8.dp, vertical = 4.dp))
+    }
+    Spacer(Modifier.height(10.dp))
+}
+
+@Composable
+private fun FavoritesContent(state: EnigmaUiState, vm: EnigmaViewModel, layout: ScreenLayout) {
+    val cardW = layout.posterWidthDp()
+    ScrollableContent(padding = androidx.compose.foundation.layout.PaddingValues(layout.contentPaddingDp().dp)) {
+        if (state.favorites.isEmpty()) {
+            Text("No favorites yet. Tap the heart on any title.", color = TextSecondary, modifier = Modifier.padding(24.dp))
+        } else {
+            ContentSection("❤️ Your Favorites") {
+                PosterRow { state.favorites.forEach { FavoritePosterCard(it, vm, cardW) } }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ContinueWatchingSection(entries: List<ContinueWatchingEntry>, vm: EnigmaViewModel, cardW: Int) {
     ContentSection("▶ Continue Watching") {
         if (entries.isEmpty()) {
             Text(
@@ -297,15 +423,13 @@ private fun ContinueWatchingSection(entries: List<ContinueWatchingEntry>, vm: En
                 modifier = Modifier.padding(horizontal = 4.dp, vertical = 8.dp)
             )
         } else {
-            PosterRow {
-                entries.forEach { entry -> ContinueWatchingCard(entry, vm) }
-            }
+            PosterRow { entries.forEach { ContinueWatchingCard(it, vm, cardW) } }
         }
     }
 }
 
 @Composable
-private fun ContinueWatchingCard(entry: ContinueWatchingEntry, vm: EnigmaViewModel) {
+private fun ContinueWatchingCard(entry: ContinueWatchingEntry, vm: EnigmaViewModel, cardW: Int) {
     val accent = if (entry.type == ContentType.MOVIE) MovieAccent else TvAccent
     val badge = if (entry.type == ContentType.MOVIE) "MOVIE" else "TV"
     val subtitle = if (entry.type == ContentType.TV) "S${entry.season}E${entry.episode}" else "Resume"
@@ -315,29 +439,29 @@ private fun ContinueWatchingCard(entry: ContinueWatchingEntry, vm: EnigmaViewMod
         accent = accent,
         badge = badge,
         subtitle = subtitle,
+        cardWidthDp = cardW,
         onClick = { vm.resumeContinue(entry) }
     )
 }
 
 @Composable
-private fun ContinueContent(state: EnigmaUiState, vm: EnigmaViewModel) {
-    ScrollableContent {
-        ContinueWatchingSection(state.continueWatching, vm)
+private fun ContinueContent(state: EnigmaUiState, vm: EnigmaViewModel, layout: ScreenLayout) {
+    ScrollableContent(padding = androidx.compose.foundation.layout.PaddingValues(layout.contentPaddingDp().dp)) {
+        ContinueWatchingSection(state.continueWatching, vm, layout.posterWidthDp())
     }
 }
 
 @Composable
-private fun ListsContent(state: EnigmaUiState, vm: EnigmaViewModel) {
+private fun ListsContent(state: EnigmaUiState, vm: EnigmaViewModel, layout: ScreenLayout) {
     var showCreate by remember { mutableStateOf(false) }
     var newListName by remember { mutableStateOf("") }
     val selected = state.playlists.find { it.id == state.selectedPlaylistId }
+    val cardW = layout.posterWidthDp()
 
-    ScrollableContent {
+    ScrollableContent(padding = androidx.compose.foundation.layout.PaddingValues(layout.contentPaddingDp().dp)) {
         if (selected == null) {
             Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(bottom = 16.dp),
+                modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
@@ -347,11 +471,7 @@ private fun ListsContent(state: EnigmaUiState, vm: EnigmaViewModel) {
                 }
             }
             if (state.playlists.isEmpty()) {
-                Text(
-                    "Create a playlist to organize movies and shows.",
-                    color = TextSecondary,
-                    modifier = Modifier.padding(8.dp)
-                )
+                Text("Create a playlist to organize movies and shows.", color = TextSecondary, modifier = Modifier.padding(8.dp))
             } else {
                 state.playlists.forEach { pl ->
                     Row(
@@ -366,11 +486,7 @@ private fun ListsContent(state: EnigmaUiState, vm: EnigmaViewModel) {
                     ) {
                         Column {
                             Text(pl.name, color = TextPrimary, fontWeight = FontWeight.SemiBold)
-                            Text(
-                                "${pl.items.size} titles",
-                                color = TextSecondary,
-                                fontSize = 12.sp
-                            )
+                            Text("${pl.items.size} titles", color = TextSecondary, fontSize = 12.sp)
                         }
                         IconButton(onClick = { vm.deletePlaylist(pl.id) }) {
                             Icon(Icons.Default.Delete, contentDescription = "Delete", tint = TextSecondary)
@@ -390,11 +506,7 @@ private fun ListsContent(state: EnigmaUiState, vm: EnigmaViewModel) {
             if (selected.items.isEmpty()) {
                 Text("This list is empty.", color = TextSecondary, modifier = Modifier.padding(8.dp))
             } else {
-                PosterRow {
-                    selected.items.forEach { item ->
-                        FavoritePosterCard(item, vm)
-                    }
-                }
+                PosterRow { selected.items.forEach { FavoritePosterCard(it, vm, cardW) } }
             }
         }
     }
@@ -404,12 +516,7 @@ private fun ListsContent(state: EnigmaUiState, vm: EnigmaViewModel) {
             onDismissRequest = { showCreate = false },
             title = { Text("New playlist") },
             text = {
-                OutlinedTextField(
-                    value = newListName,
-                    onValueChange = { newListName = it },
-                    label = { Text("List name") },
-                    singleLine = true
-                )
+                OutlinedTextField(value = newListName, onValueChange = { newListName = it }, label = { Text("List name") }, singleLine = true)
             },
             confirmButton = {
                 TextButton(onClick = {
@@ -418,30 +525,31 @@ private fun ListsContent(state: EnigmaUiState, vm: EnigmaViewModel) {
                     showCreate = false
                 }) { Text("Create") }
             },
-            dismissButton = {
-                TextButton(onClick = { showCreate = false }) { Text("Cancel") }
-            }
+            dismissButton = { TextButton(onClick = { showCreate = false }) { Text("Cancel") } }
         )
     }
 }
 
 @Composable
-private fun MediaMovieCard(movie: MovieItem, vm: EnigmaViewModel) {
+private fun MediaMovieCard(movie: MovieItem, vm: EnigmaViewModel, cardW: Int) {
     val state by vm.state.collectAsState()
     val fav = state.favorites.any { it.id == movie.id && it.type == ContentType.MOVIE }
+    val soon = movie.comingSoonLabel()
     PosterCard(
         title = "${movie.title} (${movie.year})",
         posterUrl = movie.posterUrl,
         accent = MovieAccent,
         badge = "MOVIE",
+        subtitle = soon,
+        cardWidthDp = cardW,
         isFavorite = fav,
         onFavoriteClick = { vm.toggleFavorite(movie.toFavorite()) },
-        onClick = { vm.playMovie(movie) }
+        onClick = { vm.openMovieDetail(movie) }
     )
 }
 
 @Composable
-private fun MediaTvCard(show: TvItem, vm: EnigmaViewModel) {
+private fun MediaTvCard(show: TvItem, vm: EnigmaViewModel, cardW: Int) {
     val state by vm.state.collectAsState()
     val fav = state.favorites.any { it.id == show.id && it.type == ContentType.TV }
     PosterCard(
@@ -449,14 +557,16 @@ private fun MediaTvCard(show: TvItem, vm: EnigmaViewModel) {
         posterUrl = show.posterUrl,
         accent = TvAccent,
         badge = "TV",
+        subtitle = show.comingSoonLabel(),
+        cardWidthDp = cardW,
         isFavorite = fav,
         onFavoriteClick = { vm.toggleFavorite(show.toFavorite()) },
-        onClick = { vm.selectShow(show.id, show.displayName) }
+        onClick = { vm.openTvDetail(show) }
     )
 }
 
 @Composable
-private fun FavoritePosterCard(item: FavoriteItem, vm: EnigmaViewModel) {
+private fun FavoritePosterCard(item: FavoriteItem, vm: EnigmaViewModel, cardW: Int) {
     val state by vm.state.collectAsState()
     var showPlaylistPicker by remember { mutableStateOf(false) }
     val accent = if (item.type == ContentType.MOVIE) MovieAccent else TvAccent
@@ -467,6 +577,7 @@ private fun FavoritePosterCard(item: FavoriteItem, vm: EnigmaViewModel) {
             posterUrl = item.poster.ifBlank { null },
             accent = accent,
             badge = if (item.type == ContentType.MOVIE) "MOVIE" else "TV",
+            cardWidthDp = cardW,
             isFavorite = true,
             onFavoriteClick = { vm.toggleFavorite(item) },
             onClick = { vm.playFavorite(item) }
@@ -474,9 +585,7 @@ private fun FavoritePosterCard(item: FavoriteItem, vm: EnigmaViewModel) {
         if (state.playlists.isNotEmpty()) {
             IconButton(
                 onClick = { showPlaylistPicker = true },
-                modifier = Modifier
-                    .align(Alignment.BottomEnd)
-                    .padding(4.dp)
+                modifier = Modifier.align(Alignment.BottomEnd).padding(4.dp)
             ) {
                 Icon(Icons.Default.PlaylistAdd, contentDescription = "Add to list", tint = EnigmaPink)
             }
@@ -496,15 +605,11 @@ private fun FavoritePosterCard(item: FavoriteItem, vm: EnigmaViewModel) {
                                 showPlaylistPicker = false
                             },
                             modifier = Modifier.fillMaxWidth()
-                        ) {
-                            Text(pl.name, modifier = Modifier.fillMaxWidth())
-                        }
+                        ) { Text(pl.name, modifier = Modifier.fillMaxWidth()) }
                     }
                 }
             },
-            confirmButton = {
-                TextButton(onClick = { showPlaylistPicker = false }) { Text("Close") }
-            }
+            confirmButton = { TextButton(onClick = { showPlaylistPicker = false }) { Text("Close") } }
         )
     }
 }

@@ -171,18 +171,21 @@ fun PosterCard(
     accent: Color,
     badge: String? = null,
     subtitle: String? = null,
+    cardWidthDp: Int = 150,
     isFavorite: Boolean = false,
     onFavoriteClick: (() -> Unit)? = null,
     onClick: () -> Unit
 ) {
+    val cardW = cardWidthDp.dp
+    val cardH = (cardWidthDp * 1.5f).dp
     Column(
         modifier = Modifier
-            .width(150.dp)
+            .width(cardW)
             .clickable(onClick = onClick)
     ) {
         Box(
             modifier = Modifier
-                .size(width = 150.dp, height = 225.dp)
+                .size(width = cardW, height = cardH)
                 .clip(RoundedCornerShape(6.dp))
                 .background(CardBg)
         ) {

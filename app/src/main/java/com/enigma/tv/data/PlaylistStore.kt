@@ -20,6 +20,12 @@ class PlaylistStore(private val context: Context) {
         readList(prefs[key])
     }
 
+    suspend fun replaceAll(items: List<Playlist>) {
+        context.playlistDataStore.edit { prefs ->
+            prefs[key] = gson.toJson(items)
+        }
+    }
+
     suspend fun createPlaylist(name: String): Playlist {
         val playlist = Playlist(id = UUID.randomUUID().toString(), name = name.trim())
         context.playlistDataStore.edit { prefs ->

@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "176690386204",
+    "project_id": "enigmatv",
+    "storage_bucket": "enigmatv.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:176690386204:android:074bafdbfeb3815e0c96d9",
+        "android_client_info": {
+          "package_name": "com.enigmatv"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyB_dUFfwESAi0IGesvabOMKVqYG9JWXHlA"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

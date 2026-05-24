@@ -19,6 +19,12 @@ class FavoritesStore(private val context: Context) {
         readList(prefs[key])
     }
 
+    suspend fun replaceAll(items: List<FavoriteItem>) {
+        context.favoritesDataStore.edit { prefs ->
+            prefs[key] = gson.toJson(items.take(50))
+        }
+    }
+
     suspend fun toggle(item: FavoriteItem): Boolean {
         var added = false
         context.favoritesDataStore.edit { prefs ->
