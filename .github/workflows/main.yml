@@ -1,0 +1,84 @@
+name: Android CI
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: 8.9
+
+      - name: Write local.properties
+        run: echo "sdk.dir=${ANDROID_SDK_ROOT}" >> local.properties
+
+      - name: Build debug APK
+        run: gradle assembleDebug --stacktrace --no-daemon
+
+      - name: Upload debug APK (Primary)
+        id: upload-primary
+        uses: actions/upload-artifact@v4
+        continue-on-error: true
+        with:
+          name: enigmatv-debug-apk
+          path: app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
+
+      - name: Upload APK (Fallback to GoFile)
+        if: steps.upload-primary.outcome == 'failure'
+        run: |
+          APK_PATH="app/build/outputs/apk/debug/app-debug.apk"
+          echo "GitHub storage failed or full. Uploading $APK_PATH to GoFile..."
+          
+          # 1. Get an available server to upload to
+          SERVER=$(curl -s https://api.gofile.io/servers | python3 -c "import sys, json; print(json.load(sys.stdin)['data']['servers'][0]['name'])")
+          
+          # 2. Upload the file
+          RESPONSE=$(curl -F "file=@$APK_PATH" "https://$SERVER.gofile.io/contents/uploadfile")
+          
+          # 3. Safely extract and print the link
+          echo $RESPONSE | python3 -c "
+          import sys, json
+          try:
+              data = json.load(sys.stdin)
+              if data['status'] == 'ok':
+                  print('\n--------------------------------------------------')
+                  print('DOWNLOAD LINK: ' + data['data']['downloadPage'])
+                  print('--------------------------------------------------\n')
+              else:
+                  print('GoFile Upload Failed: ' + str(data))
+                  sys.exit(1)
+          except Exception as e:
+              print('Error parsing GoFile response: ' + str(e))
+              sys.exit(1)
+          "
+
+      - name: Upload build reports on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: gradle-build-reports
+          path: |
+            app/build/reports/
+            build/reports/
+          if-no-files-found: ignore
