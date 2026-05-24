@@ -13,6 +13,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.enigma.tv.data.MovieItem
@@ -45,14 +46,26 @@ fun MoviesScreen(viewModel: MoviesViewModel = viewModel()) {
                     val movies = state.searchResults
                     if (movies != null) {
                         ContentSection("🔍 Results") {
-                            PosterRow(movies.take(12).map { movieCard(it, viewModel) })
+                            PosterRow {
+                                movies.take(12).forEach { movie ->
+                                    MoviePosterCard(movie, viewModel)
+                                }
+                            }
                         }
                     } else {
                         ContentSection("🔥 Trending This Week") {
-                            PosterRow(state.trending.take(8).map { movieCard(it, viewModel) })
+                            PosterRow {
+                                state.trending.take(8).forEach { movie ->
+                                    MoviePosterCard(movie, viewModel)
+                                }
+                            }
                         }
                         ContentSection("⭐ Popular Movies") {
-                            PosterRow(state.popular.take(8).map { movieCard(it, viewModel) })
+                            PosterRow {
+                                state.popular.take(8).forEach { movie ->
+                                    MoviePosterCard(movie, viewModel)
+                                }
+                            }
                         }
                     }
                 }
@@ -71,13 +84,12 @@ fun MoviesScreen(viewModel: MoviesViewModel = viewModel()) {
     }
 }
 
-private fun movieCard(movie: MovieItem, viewModel: MoviesViewModel): @Composable () -> Unit = {
-    {
-        PosterCard(
-            title = "${movie.title} (${movie.year})",
-            posterUrl = movie.posterUrl,
-            accent = MovieAccent,
-            onClick = { viewModel.playMovieWithId(movie.id, movie.title) }
-        )
-    }
+@Composable
+private fun MoviePosterCard(movie: MovieItem, viewModel: MoviesViewModel) {
+    PosterCard(
+        title = "${movie.title} (${movie.year})",
+        posterUrl = movie.posterUrl,
+        accent = MovieAccent,
+        onClick = { viewModel.playMovieWithId(movie.id, movie.title) }
+    )
 }

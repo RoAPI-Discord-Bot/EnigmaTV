@@ -8,12 +8,12 @@ data class StreamSource(
 
 object StreamSources {
     val movieSources: List<StreamSource> = listOf(
-        StreamSource("VidLink (Best UI)") { id -> "https://vidlink.pro/movie/$id" },
-        StreamSource("Vidsrc.to (Reliable)") { id -> "https://vidsrc.to/embed/movie/$id" },
-        StreamSource("Vsembed.ru (Original)") { id -> "https://vsembed.ru/embed/movie/$id" },
-        StreamSource("AutoEmbed (Aggregator)") { id -> "https://player.autoembed.cc/embed/movie/$id" },
-        StreamSource("SuperEmbed") { id -> "https://multiembed.mov/?video_id=$id&tmdb=1" },
-        StreamSource("2Embed") { id -> "https://www.2embed.cc/embed/$id" }
+        StreamSource("VidLink (Best UI)", movieUrl = { id -> "https://vidlink.pro/movie/$id" }),
+        StreamSource("Vidsrc.to (Reliable)", movieUrl = { id -> "https://vidsrc.to/embed/movie/$id" }),
+        StreamSource("Vsembed.ru (Original)", movieUrl = { id -> "https://vsembed.ru/embed/movie/$id" }),
+        StreamSource("AutoEmbed (Aggregator)", movieUrl = { id -> "https://player.autoembed.cc/embed/movie/$id" }),
+        StreamSource("SuperEmbed", movieUrl = { id -> "https://multiembed.mov/?video_id=$id&tmdb=1" }),
+        StreamSource("2Embed", movieUrl = { id -> "https://www.2embed.cc/embed/$id" })
     )
 
     val tvSources: List<StreamSource> = listOf(

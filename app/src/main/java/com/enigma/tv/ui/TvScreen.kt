@@ -13,6 +13,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.enigma.tv.data.TvItem
 import com.enigma.tv.ui.theme.TvAccent
@@ -44,13 +45,17 @@ fun TvScreen(viewModel: TvViewModel = viewModel()) {
                     val shows = state.searchResults
                     if (shows != null) {
                         ContentSection("🔍 Results for \"$query\"") {
-                            PosterRow(shows.take(12).map { tvCard(it, viewModel) })
+                            PosterRow {
+                                shows.take(12).forEach { show ->
+                                    TvPosterCard(show, viewModel)
+                                }
+                            }
                         }
                     } else {
                         if (state.continueWatching.isNotEmpty()) {
                             ContentSection("▶ Continue Watching") {
-                                PosterRow(state.continueWatching.take(6).map { entry ->
-                                    {
+                                PosterRow {
+                                    state.continueWatching.take(6).forEach { entry ->
                                         PosterCard(
                                             title = entry.name,
                                             posterUrl = entry.poster.ifBlank { null },
@@ -67,17 +72,29 @@ fun TvScreen(viewModel: TvViewModel = viewModel()) {
                                             }
                                         )
                                     }
-                                })
+                                }
                             }
                         }
                         ContentSection("🔥 Trending Shows") {
-                            PosterRow(state.trending.take(8).map { tvCard(it, viewModel) })
+                            PosterRow {
+                                state.trending.take(8).forEach { show ->
+                                    TvPosterCard(show, viewModel)
+                                }
+                            }
                         }
                         ContentSection("📺 Popular Now") {
-                            PosterRow(state.popular.take(8).map { tvCard(it, viewModel) })
+                            PosterRow {
+                                state.popular.take(8).forEach { show ->
+                                    TvPosterCard(show, viewModel)
+                                }
+                            }
                         }
                         ContentSection("🆕 On The Air") {
-                            PosterRow(state.onTheAir.take(8).map { tvCard(it, viewModel) })
+                            PosterRow {
+                                state.onTheAir.take(8).forEach { show ->
+                                    TvPosterCard(show, viewModel)
+                                }
+                            }
                         }
                     }
                 }
@@ -108,14 +125,13 @@ fun TvScreen(viewModel: TvViewModel = viewModel()) {
     }
 }
 
-private fun tvCard(show: TvItem, viewModel: TvViewModel): @Composable () -> Unit = {
-    {
-        PosterCard(
-            title = "${show.displayName} (${show.year})",
-            posterUrl = show.posterUrl,
-            accent = TvAccent,
-            badge = "TV",
-            onClick = { viewModel.selectShow(show.id, show.displayName) }
-        )
-    }
+@Composable
+private fun TvPosterCard(show: TvItem, viewModel: TvViewModel) {
+    PosterCard(
+        title = "${show.displayName} (${show.year})",
+        posterUrl = show.posterUrl,
+        accent = TvAccent,
+        badge = "TV",
+        onClick = { viewModel.selectShow(show.id, show.displayName) }
+    )
 }

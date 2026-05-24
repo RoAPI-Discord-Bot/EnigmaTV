@@ -192,15 +192,14 @@ fun PosterCard(
 }
 
 @Composable
-fun PosterRow(items: List<@Composable () -> Unit>) {
+fun PosterRow(content: @Composable androidx.compose.foundation.layout.RowScope.() -> Unit) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .horizontalScroll(rememberScrollState()),
-        horizontalArrangement = Arrangement.spacedBy(12.dp)
-    ) {
-        items.forEach { it() }
-    }
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+        content = content
+    )
 }
 
 @Composable
