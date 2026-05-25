@@ -68,7 +68,7 @@ fun Modifier.glassSurface(
     val borderBrush = if (accentBorder) {
         Brush.linearGradient(listOf(EnigmaPurple.copy(0.5f), EnigmaPink.copy(0.35f), GlassBorder))
     } else {
-        Brush.linearGradient(listOf(GlassBorder, GlassHighlight, GlassBorder.copy(0.5f))
+        Brush.linearGradient(listOf(GlassBorder, GlassHighlight, GlassBorder.copy(0.5f)))
     }
     return this
         .clip(shape)

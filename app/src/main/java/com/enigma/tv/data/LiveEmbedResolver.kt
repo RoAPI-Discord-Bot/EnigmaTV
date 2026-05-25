@@ -49,8 +49,11 @@ object LiveEmbedResolver {
         }
         val resolved = resolveChain(embedUrl, depth = 0, visited = mutableSetOf())
         if (looksLikeRawCodePage(resolved)) {
-            pickBestEmbedFromBody(fetchHtml(embedUrl), embedUrl)
-                ?.let { return@withContext resolveChain(it, depth = 0, visited = mutableSetOf()) }
+            fetchHtml(embedUrl)?.let { html ->
+                pickBestEmbedFromBody(html, embedUrl)?.let { candidate ->
+                    return@withContext resolveChain(candidate, depth = 0, visited = mutableSetOf())
+                }
+            }
         }
         resolved
     }
