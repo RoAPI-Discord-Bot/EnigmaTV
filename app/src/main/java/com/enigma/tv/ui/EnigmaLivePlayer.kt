@@ -47,6 +47,12 @@ fun EnigmaLivePlayer(
         playUrl = embedUrl
     }
 
+    LaunchedEffect(embedUrl, streamLoading, streamFailed) {
+        if (!streamLoading || streamFailed) return@LaunchedEffect
+        kotlinx.coroutines.delay(4_500)
+        if (streamLoading && !streamFailed) onLiveWaiting()
+    }
+
     Box(modifier.background(BgDark)) {
         WebViewPlayer(
             visible = true,

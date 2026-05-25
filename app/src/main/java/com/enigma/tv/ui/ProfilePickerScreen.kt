@@ -7,9 +7,12 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.focusable
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsFocusedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -18,9 +21,12 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -33,22 +39,34 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.draw.scale
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.onKeyEvent
+import androidx.compose.ui.input.key.type
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.enigma.tv.R
 import com.enigma.tv.data.ViewerProfile
+import kotlinx.coroutines.delay
 import com.enigma.tv.ui.theme.BgDark
 import com.enigma.tv.ui.theme.EnigmaPink
 import com.enigma.tv.ui.theme.EnigmaPurple
@@ -61,6 +79,7 @@ import com.enigma.tv.ui.theme.TextSecondary
 @Composable
 fun ProfilePickerGate(
     profiles: List<ViewerProfile>,
+    activeProfileId: String,
     layout: ScreenLayout,
     onSelectProfile: (String) -> Unit,
     onAddProfile: (String) -> Unit,
@@ -75,16 +94,33 @@ fun ProfilePickerGate(
     var editingProfile by rememberSaveable { mutableStateOf<ViewerProfile?>(null) }
     var editName by rememberSaveable { mutableStateOf("") }
     var editAvatarIndex by rememberSaveable { mutableStateOf(0) }
+    var focusedProfileId by rememberSaveable { mutableStateOf<String?>(null) }
 
+    LaunchedEffect(profiles, activeProfileId) {
+        if (profiles.isEmpty()) return@LaunchedEffect
+        if (focusedProfileId == null || profiles.none { it.id == focusedProfileId }) {
+            focusedProfileId = profiles.find { it.id == activeProfileId }?.id ?: profiles.first().id
+        }
+    }
+
+    val isTv = layout == ScreenLayout.TV
+    val avatarSize = when (layout) {
+        ScreenLayout.TV -> 132
+        ScreenLayout.TABLET -> 100
+        ScreenLayout.PHONE -> 88
+    }
     val columns = when (layout) {
-        ScreenLayout.TV -> 5
+        ScreenLayout.TV -> 3
         ScreenLayout.TABLET -> 4
         ScreenLayout.PHONE -> if (profiles.size <= 3) 3 else 4
     }
-    val avatarSize = when (layout) {
-        ScreenLayout.TV -> 120
-        ScreenLayout.TABLET -> 100
-        ScreenLayout.PHONE -> 88
+
+    val initialFocusRequester = remember { FocusRequester() }
+
+    LaunchedEffect(isTv, profiles, focusedProfileId) {
+        if (!isTv || profiles.isEmpty() || manageMode) return@LaunchedEffect
+        kotlinx.coroutines.delay(280)
+        runCatching { initialFocusRequester.requestFocus() }
     }
 
     val photoPicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
@@ -96,95 +132,161 @@ fun ProfilePickerGate(
     }
 
     AppAmbientBackground(Modifier.fillMaxSize()) {
-    Box(Modifier.fillMaxSize()) {
-        Column(
-            Modifier
-                .fillMaxSize()
-                .statusBarsPadding(),
-            horizontalAlignment = Alignment.CenterHorizontally
-        ) {
-            Spacer(Modifier.height(if (layout == ScreenLayout.TV) 48.dp else 28.dp))
-            Image(
-                painter = painterResource(R.drawable.enigma_mark),
-                contentDescription = ENIGMA_TV_BRAND,
-                contentScale = ContentScale.Fit,
-                modifier = Modifier
-                    .size(if (layout == ScreenLayout.TV) 64.dp else 52.dp)
-                    .padding(6.dp)
-            )
-            Spacer(Modifier.height(10.dp))
-            Text(
-                ENIGMA_TV_BRAND,
-                color = EnigmaPurple,
-                fontSize = if (layout == ScreenLayout.TV) 36.sp else 26.sp,
-                fontWeight = FontWeight.Black,
-                letterSpacing = 1.sp
-            )
-            Spacer(Modifier.height(if (layout == ScreenLayout.TV) 40.dp else 28.dp))
-            Text(
-                if (manageMode) "Manage Profiles" else "Who's watching?",
-                color = TextPrimary,
-                fontSize = if (layout == ScreenLayout.TV) 42.sp else 32.sp,
-                fontWeight = FontWeight.Bold
-            )
-            Spacer(Modifier.height(8.dp))
-            Text(
-                if (manageMode) "Tap a profile to edit or delete" else "Select a profile to continue",
-                color = TextSecondary,
-                fontSize = 15.sp
-            )
-            Spacer(Modifier.height(if (layout == ScreenLayout.TV) 32.dp else 24.dp))
-
-            LazyVerticalGrid(
-                columns = GridCells.Fixed(columns.coerceIn(2, 5)),
-                horizontalArrangement = Arrangement.spacedBy(12.dp, Alignment.CenterHorizontally),
-                verticalArrangement = Arrangement.spacedBy(8.dp),
-                modifier = Modifier.weight(1f).padding(horizontal = 32.dp)
+        Box(Modifier.fillMaxSize()) {
+            Column(
+                Modifier
+                    .fillMaxSize()
+                    .statusBarsPadding(),
+                horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                items(profiles, key = { it.id }) { profile ->
-                    ProfileAvatarCircle(
-                        profile = profile,
-                        selected = false,
-                        sizeDp = avatarSize,
-                        showEditBadge = manageMode,
-                        onClick = {
-                            if (manageMode) {
-                                editingProfile = profile
-                                editName = profile.name
-                                editAvatarIndex = profile.avatarIndex
-                            } else {
-                                onSelectProfile(profile.id)
+                Spacer(Modifier.height(if (isTv) 36.dp else 24.dp))
+                Image(
+                    painter = painterResource(R.drawable.enigma_mark),
+                    contentDescription = ENIGMA_TV_BRAND,
+                    contentScale = ContentScale.Fit,
+                    modifier = Modifier
+                        .size(if (isTv) 56.dp else 48.dp)
+                        .padding(4.dp)
+                )
+                Spacer(Modifier.height(8.dp))
+                Text(
+                    ENIGMA_TV_BRAND,
+                    color = EnigmaPurple,
+                    fontSize = if (isTv) 30.sp else 24.sp,
+                    fontWeight = FontWeight.Black,
+                    letterSpacing = 1.sp
+                )
+                Spacer(Modifier.height(if (isTv) 24.dp else 20.dp))
+                Text(
+                    if (manageMode) "Manage Profiles" else "Who's watching?",
+                    color = TextPrimary,
+                    fontSize = if (isTv) 36.sp else 28.sp,
+                    fontWeight = FontWeight.Bold,
+                    textAlign = TextAlign.Center
+                )
+                Spacer(Modifier.height(6.dp))
+                Text(
+                    when {
+                        manageMode -> "Tap a profile to edit or delete"
+                        isTv -> "Use remote to highlight, OK to select"
+                        else -> "Select a profile to continue"
+                    },
+                    color = TextSecondary,
+                    fontSize = if (isTv) 16.sp else 14.sp,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.padding(horizontal = 24.dp)
+                )
+                Spacer(Modifier.height(if (isTv) 28.dp else 20.dp))
+
+                if (isTv) {
+                    LazyRow(
+                        horizontalArrangement = Arrangement.spacedBy(28.dp, Alignment.CenterHorizontally),
+                        contentPadding = PaddingValues(horizontal = 48.dp, vertical = 16.dp),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .weight(1f),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        items(profiles, key = { it.id }) { profile ->
+                            val focused = profile.id == focusedProfileId
+                            val isInitialFocus = profile.id == (
+                                focusedProfileId ?: profiles.firstOrNull()?.id
+                                )
+                            ProfilePickerTile(
+                                profile = profile,
+                                selected = focused,
+                                highlighted = profile.id == activeProfileId,
+                                sizeDp = avatarSize,
+                                showEditBadge = manageMode,
+                                isTv = true,
+                                focusRequester = if (isInitialFocus) initialFocusRequester else null,
+                                onFocus = { focusedProfileId = profile.id },
+                                onActivate = {
+                                    focusedProfileId = profile.id
+                                    if (manageMode) {
+                                        editingProfile = profile
+                                        editName = profile.name
+                                        editAvatarIndex = profile.avatarIndex
+                                    } else {
+                                        onSelectProfile(profile.id)
+                                    }
+                                }
+                            )
+                        }
+                        if (!manageMode) {
+                            item(key = "add") {
+                                AddProfileTile(
+                                    sizeDp = avatarSize,
+                                    isTv = true,
+                                    onClick = { showAddDialog = true }
+                                )
                             }
                         }
-                    )
-                }
-                if (!manageMode) {
-                    item(key = "add") {
-                        AddProfileTile(sizeDp = avatarSize, onClick = { showAddDialog = true })
+                    }
+                } else {
+                    LazyVerticalGrid(
+                        columns = GridCells.Fixed(columns.coerceIn(2, 4)),
+                        horizontalArrangement = Arrangement.spacedBy(16.dp, Alignment.CenterHorizontally),
+                        verticalArrangement = Arrangement.spacedBy(12.dp),
+                        contentPadding = PaddingValues(horizontal = 24.dp, vertical = 8.dp),
+                        modifier = Modifier
+                            .weight(1f)
+                            .widthIn(max = 720.dp)
+                    ) {
+                        items(profiles, key = { it.id }) { profile ->
+                            ProfilePickerTile(
+                                profile = profile,
+                                selected = profile.id == focusedProfileId,
+                                highlighted = profile.id == activeProfileId,
+                                sizeDp = avatarSize,
+                                showEditBadge = manageMode,
+                                isTv = false,
+                                focusRequester = null,
+                                onFocus = { focusedProfileId = profile.id },
+                                onActivate = {
+                                    focusedProfileId = profile.id
+                                    if (manageMode) {
+                                        editingProfile = profile
+                                        editName = profile.name
+                                        editAvatarIndex = profile.avatarIndex
+                                    } else {
+                                        onSelectProfile(profile.id)
+                                    }
+                                }
+                            )
+                        }
+                        if (!manageMode) {
+                            item(key = "add") {
+                                AddProfileTile(
+                                    sizeDp = avatarSize,
+                                    isTv = false,
+                                    onClick = { showAddDialog = true }
+                                )
+                            }
+                        }
                     }
                 }
-            }
 
-            Row(
-                Modifier
-                    .fillMaxWidth()
-                    .padding(bottom = if (layout == ScreenLayout.TV) 40.dp else 28.dp),
-                horizontalArrangement = Arrangement.Center
-            ) {
-                Text(
-                    if (manageMode) "Done" else "Manage Profiles",
-                    color = if (manageMode) EnigmaPink else TextSecondary,
-                    fontSize = 14.sp,
-                    fontWeight = FontWeight.Medium,
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(8.dp))
-                        .focusable()
-                        .clickable { manageMode = !manageMode }
-                        .padding(horizontal = 16.dp, vertical = 10.dp)
-                )
+                Row(
+                    Modifier
+                        .fillMaxWidth()
+                        .padding(bottom = if (isTv) 32.dp else 24.dp),
+                    horizontalArrangement = Arrangement.Center
+                ) {
+                    Text(
+                        if (manageMode) "Done" else "Manage Profiles",
+                        color = if (manageMode) EnigmaPink else TextSecondary,
+                        fontSize = if (isTv) 16.sp else 14.sp,
+                        fontWeight = FontWeight.Medium,
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(8.dp))
+                            .focusable()
+                            .clickable { manageMode = !manageMode }
+                            .padding(horizontal = 16.dp, vertical = 10.dp)
+                    )
+                }
             }
         }
-    }
     }
 
     if (showAddDialog) {
@@ -279,4 +381,81 @@ fun ProfilePickerGate(
             textContentColor = TextSecondary
         )
     }
+}
+
+@Composable
+private fun ProfilePickerTile(
+    profile: ViewerProfile,
+    selected: Boolean,
+    highlighted: Boolean,
+    sizeDp: Int,
+    showEditBadge: Boolean,
+    isTv: Boolean,
+    focusRequester: FocusRequester?,
+    onFocus: () -> Unit,
+    onActivate: () -> Unit
+) {
+    val interaction = remember { MutableInteractionSource() }
+    val isFocused by interaction.collectIsFocusedAsState()
+    val showFocusRing = selected || isFocused
+
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        modifier = Modifier
+            .then(if (focusRequester != null) Modifier.focusRequester(focusRequester) else Modifier)
+            .then(if (!isTv && showFocusRing) Modifier.scale(1.05f) else Modifier)
+            .onFocusChanged { state ->
+                if (state.isFocused) onFocus()
+            }
+            .then(profilePickerFocusModifier(isTv = isTv, interactionSource = interaction, onActivate = onActivate))
+            .padding(horizontal = if (isTv) 14.dp else 8.dp, vertical = if (isTv) 10.dp else 6.dp)
+    ) {
+        Box(
+            modifier = if (isTv && showFocusRing) {
+                Modifier.border(4.dp, EnigmaPink, CircleShape)
+            } else Modifier
+        ) {
+            ProfileAvatarCircle(
+                profile = profile,
+                selected = showFocusRing || highlighted,
+                sizeDp = sizeDp,
+                showEditBadge = showEditBadge,
+                onClick = null
+            )
+        }
+        if (showFocusRing && !showEditBadge) {
+            Text(
+                if (isTv) "Press OK" else "Selected",
+                color = EnigmaPink,
+                fontSize = if (isTv) 13.sp else 12.sp,
+                fontWeight = FontWeight.SemiBold,
+                modifier = Modifier.padding(top = 6.dp)
+            )
+        }
+    }
+}
+
+/** TV remotes fire both key and click — use keys only on TV to avoid double-activate crashes. */
+private fun Modifier.profilePickerFocusModifier(
+    isTv: Boolean,
+    interactionSource: MutableInteractionSource,
+    onActivate: () -> Unit
+): Modifier {
+    if (isTv) {
+        return this
+            .focusable(interactionSource = interactionSource)
+            .onKeyEvent { event ->
+                if (event.type == KeyEventType.KeyUp &&
+                    (event.key == Key.DirectionCenter || event.key == Key.Enter || event.key == Key.NumPadEnter)
+                ) {
+                    onActivate()
+                    true
+                } else {
+                    false
+                }
+            }
+    }
+    return this
+        .focusable(interactionSource = interactionSource)
+        .clickable(interactionSource = interactionSource, indication = null, onClick = onActivate)
 }

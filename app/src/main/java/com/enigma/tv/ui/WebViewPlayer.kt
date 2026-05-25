@@ -156,6 +156,7 @@ private fun ColumnScope.WebViewStreamBody(
         AndroidView(
             factory = { context ->
                 WebView(context).apply {
+                    setBackgroundColor(android.graphics.Color.BLACK)
                     layoutParams = ViewGroup.LayoutParams(
                         ViewGroup.LayoutParams.MATCH_PARENT,
                         ViewGroup.LayoutParams.MATCH_PARENT

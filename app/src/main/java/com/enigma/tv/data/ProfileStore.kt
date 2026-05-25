@@ -126,34 +126,56 @@ class ProfileStore(private val context: Context) {
         }
     }
 
-    suspend fun importFromCloud(profiles: List<ViewerProfile>, activeId: String?) {
-        if (profiles.isEmpty()) return
-        val local = readProfiles(context.profileDataStore.data.first()[profilesKey])
-        val merged = profiles.map { remote ->
-            val localP = local.find { it.id == remote.id }
-            when {
-                localP == null -> remote
-                !remote.avatarBase64.isNullOrBlank() -> remote
-                !localP.avatarBase64.isNullOrBlank() -> remote.copy(
-                    avatarBase64 = localP.avatarBase64,
-                    avatarUri = localP.avatarUri ?: remote.avatarUri
-                )
-                else -> remote.copy(
-                    name = remote.name.ifBlank { localP.name },
-                    avatarUri = remote.avatarUri?.takeIf { it.isNotBlank() }
-                        ?: localP.avatarUri,
-                    avatarBase64 = remote.avatarBase64?.takeIf { it.isNotBlank() }
-                        ?: localP.avatarBase64
-                )
+    /**
+     * Merge cloud profiles into local — never delete local-only profiles.
+     */
+    suspend fun importFromCloud(cloudProfiles: List<ViewerProfile>, activeId: String?) {
+        val prefs = context.profileDataStore.data.first()
+        val local = readProfiles(prefs[profilesKey])
+        if (cloudProfiles.isEmpty() && local.isNotEmpty()) return
+
+        val remoteById = cloudProfiles.associateBy { it.id }
+        val merged = mutableListOf<ViewerProfile>()
+
+        for (localP in local) {
+            merged.add(mergeProfileEntry(localP, remoteById[localP.id]))
+        }
+        for (remote in cloudProfiles) {
+            if (merged.none { it.id == remote.id }) {
+                merged.add(remote)
             }
         }
-        context.profileDataStore.edit { prefs ->
-            prefs[profilesKey] = gson.toJson(merged.take(6))
-            val currentActive = prefs[activeKey]
-            val active = currentActive?.takeIf { id -> merged.any { it.id == id } }
-                ?: activeId?.takeIf { id -> merged.any { it.id == id } }
-                ?: merged.first().id
-            prefs[activeKey] = active
+
+        val final = if (merged.isEmpty()) listOf(defaultProfile()) else merged.take(6)
+
+        context.profileDataStore.edit { store ->
+            store[profilesKey] = gson.toJson(final)
+            val currentActive = store[activeKey]
+            val active = currentActive?.takeIf { id -> final.any { it.id == id } }
+                ?: activeId?.takeIf { id -> final.any { it.id == id } }
+                ?: final.first().id
+            store[activeKey] = active
+        }
+    }
+
+    private fun mergeProfileEntry(local: ViewerProfile, remote: ViewerProfile?): ViewerProfile {
+        if (remote == null) return local
+        return when {
+            !remote.avatarBase64.isNullOrBlank() -> remote.copy(
+                name = remote.name.ifBlank { local.name }
+            )
+            !local.avatarBase64.isNullOrBlank() -> remote.copy(
+                avatarBase64 = local.avatarBase64,
+                avatarUri = local.avatarUri ?: remote.avatarUri,
+                name = remote.name.ifBlank { local.name },
+                avatarIndex = remote.avatarIndex.takeIf { it != 0 } ?: local.avatarIndex
+            )
+            else -> remote.copy(
+                name = remote.name.ifBlank { local.name },
+                avatarUri = remote.avatarUri?.takeIf { it.isNotBlank() } ?: local.avatarUri,
+                avatarBase64 = remote.avatarBase64?.takeIf { it.isNotBlank() } ?: local.avatarBase64,
+                avatarIndex = remote.avatarIndex.takeIf { it != 0 } ?: local.avatarIndex
+            )
         }
     }
 

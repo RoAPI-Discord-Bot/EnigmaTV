@@ -135,7 +135,6 @@ class WebViewNavigationGuard(initialUrl: String) {
             override fun onPageFinished(view: WebView?, url: String?) {
                 url?.let { extractHost(it)?.let { registerHost(it) } }
                 view?.let { web ->
-                    if (liveTvMode) hideRawTextOverlay(web)
                     EmbedPlayerShield.apply(web)
                     EmbedPlayerShield.startPeriodic(web)
                     web.postDelayed({ probePlayback(web) }, 2200)
@@ -282,13 +281,23 @@ class WebViewNavigationGuard(initialUrl: String) {
     }
 
     private fun probePlayback(webView: WebView) {
+        val liveJs = if (liveTvMode) "true" else "false"
         webView.evaluateJavascript(
             """
             (function(){
               try {
+                var live = $liveJs;
                 var b = document.body ? document.body.innerText.trim() : '';
                 if (b.length > 0 && b.length < 12000 && (b.charAt(0)==='{' || b.charAt(0)==='[')) return 'json';
-                if (document.querySelector('video')) return 'ok';
+                var v = document.querySelector('video');
+                if (v) {
+                  if (v.readyState >= 2 && (v.videoWidth > 0 || v.duration > 0)) return 'ok';
+                  return live ? 'waiting' : 'ok';
+                }
+                if (live) {
+                  if (document.querySelector('iframe')) return 'waiting';
+                  return 'empty';
+                }
                 if (document.querySelector('iframe')) return 'ok';
                 if (/player|plyr|jwplayer|video-js/i.test(document.documentElement.innerHTML)) return 'ok';
                 return 'empty';
@@ -299,7 +308,10 @@ class WebViewNavigationGuard(initialUrl: String) {
             val verdict = raw?.trim('"', ' ') ?: "empty"
             val ok = verdict == "ok"
             android.os.Handler(android.os.Looper.getMainLooper()).post {
-                if (ok) suppressLoadingPulses = true
+                if (ok) {
+                    suppressLoadingPulses = true
+                    if (liveTvMode) webView.post { hideRawTextOverlay(webView) }
+                }
                 onPlaybackProbe?.invoke(ok)
                 onPageLoading?.invoke(!ok)
                 if (liveTvMode && !ok) onLiveWaiting?.invoke()

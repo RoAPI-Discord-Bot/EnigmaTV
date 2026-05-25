@@ -105,7 +105,9 @@ fun PlayerFullscreenHost(
                 content()
             }
 
-            if (streamLoading) {
+            val showLiveMessage = !liveWaitingMessage.isNullOrBlank() && !streamFailed
+
+            if (streamLoading && !showLiveMessage) {
                 EnigmaLoadingRing(
                     modifier = Modifier.fillMaxSize(),
                     message = if (subtitle.contains("Live", ignoreCase = true)) {
@@ -119,7 +121,7 @@ fun PlayerFullscreenHost(
                 )
             }
 
-            if (!streamLoading && !streamFailed && !liveWaitingMessage.isNullOrBlank()) {
+            if (showLiveMessage) {
                 Column(
                     modifier = Modifier
                         .fillMaxSize()
@@ -129,7 +131,7 @@ fun PlayerFullscreenHost(
                     verticalArrangement = Arrangement.Center
                 ) {
                     Text(
-                        liveWaitingMessage,
+                        liveWaitingMessage!!,
                         color = TextPrimary,
                         fontSize = 17.sp,
                         fontWeight = FontWeight.Medium,

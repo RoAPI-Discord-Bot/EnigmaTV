@@ -119,16 +119,26 @@ fun EnigmaShell(viewModel: EnigmaViewModel = viewModel()) {
     }
 
     if (state.showProfilePicker) {
-        ProfilePickerGate(
-            profiles = state.profiles,
-            layout = layout,
-            onSelectProfile = viewModel::selectProfileAndContinue,
-            onAddProfile = viewModel::addProfile,
-            onRenameProfile = viewModel::renameProfile,
-            onRemoveProfile = viewModel::removeProfile,
-            onSetAvatarIndex = viewModel::setProfileAvatarIndex,
-            onSetAvatarUri = viewModel::setProfileAvatarUri
-        )
+        Box(Modifier.fillMaxSize()) {
+            ProfilePickerGate(
+                profiles = state.profiles,
+                activeProfileId = state.activeProfileId,
+                layout = layout,
+                onSelectProfile = viewModel::selectProfileAndContinue,
+                onAddProfile = viewModel::addProfile,
+                onRenameProfile = viewModel::renameProfile,
+                onRemoveProfile = viewModel::removeProfile,
+                onSetAvatarIndex = viewModel::setProfileAvatarIndex,
+                onSetAvatarUri = viewModel::setProfileAvatarUri
+            )
+            if (state.profiles.isEmpty()) {
+                EnigmaLoadingRing(
+                    modifier = Modifier.fillMaxSize(),
+                    message = "LOADING PROFILES",
+                    fullscreen = true
+                )
+            }
+        }
         return
     }
 
