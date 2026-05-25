@@ -51,27 +51,33 @@ fun WebViewPlayer(
 
     var pageLoading by remember(url) { mutableStateOf(true) }
 
-    val endedCallback = onPlaybackEnded
-    val progressCallback = onPlaybackProgress
-    val guard = remember(liveTv, onStreamCaptured, onStreamFailed, onPlaybackReady, endedCallback, progressCallback) {
-        WebViewNavigationGuard("").apply {
-            onStreamUrl = onStreamCaptured
-            onBlocked = { /* silent */ }
-            onPageLoading = { loading ->
-                pageLoading = loading
-                onLoadingChange(loading)
-            }
-            onPlaybackProbe = { ok ->
-                if (ok) {
-                    pageLoading = false
-                    onPlaybackReady?.invoke() ?: onLoadingChange(false)
-                } else {
-                    onStreamFailed?.invoke()
-                }
-            }
-            onPlaybackEnded = endedCallback
-            onPlaybackProgress = progressCallback
+    val guard = remember(liveTv) { WebViewNavigationGuard("") }
+
+    LaunchedEffect(
+        guard,
+        onStreamCaptured,
+        onStreamFailed,
+        onPlaybackReady,
+        onPlaybackEnded,
+        onPlaybackProgress,
+        onLoadingChange
+    ) {
+        guard.onStreamUrl = onStreamCaptured
+        guard.onBlocked = { /* silent */ }
+        guard.onPageLoading = { loading ->
+            pageLoading = loading
+            onLoadingChange(loading)
         }
+        guard.onPlaybackProbe = { ok ->
+            if (ok) {
+                pageLoading = false
+                onPlaybackReady?.invoke() ?: onLoadingChange(false)
+            } else {
+                onStreamFailed?.invoke()
+            }
+        }
+        guard.onPlaybackEnded = onPlaybackEnded
+        guard.onPlaybackProgress = onPlaybackProgress
     }
 
     LaunchedEffect(url) {
