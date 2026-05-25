@@ -1,5 +1,6 @@
 package com.enigma.tv.ui
 
+import android.view.View
 import android.view.ViewGroup
 import androidx.activity.compose.BackHandler
 import androidx.annotation.OptIn
@@ -7,6 +8,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -35,6 +37,7 @@ import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.hls.HlsMediaSource
 import androidx.media3.exoplayer.source.MediaSource
 import androidx.media3.ui.PlayerView
+import androidx.media3.ui.R as MediaUiR
 import com.enigma.tv.data.ResolvedStream
 import com.enigma.tv.ui.theme.BgDark
 import com.enigma.tv.ui.theme.EnigmaPurple
@@ -53,9 +56,12 @@ fun ExoLivePlayer(
     streamLoading: Boolean,
     onClose: () -> Unit,
     onLoadingChange: (Boolean) -> Unit,
+    isLiveBroadcast: Boolean = false,
     showNextSource: Boolean = false,
     onNextSource: (() -> Unit)? = null,
-    tvControls: TvPlayerControls? = null
+    tvControls: TvPlayerControls? = null,
+    useExternalChrome: Boolean = false,
+    modifier: Modifier = Modifier.fillMaxSize()
 ) {
     if (!visible) return
 
@@ -111,6 +117,13 @@ fun ExoLivePlayer(
             val uri = android.net.Uri.parse(playUrl)
             if (!uri.scheme.isNullOrBlank()) {
                 val itemBuilder = MediaItem.Builder().setUri(uri)
+                if (isLiveBroadcast) {
+                    itemBuilder.setLiveConfiguration(
+                        MediaItem.LiveConfiguration.Builder()
+                            .setTargetOffsetMs(3_000)
+                            .build()
+                    )
+                }
                 resolved.subtitleUrl?.takeIf { it.isNotBlank() }?.let { vtt ->
                     itemBuilder.setSubtitleConfigurations(
                         listOf(
@@ -169,21 +182,7 @@ fun ExoLivePlayer(
         }
     }
 
-    Box(Modifier.fillMaxSize().background(BgDark)) {
-        Column(Modifier.fillMaxSize()) {
-            PlayerChrome(
-                title = title,
-                subtitle = sourceLabel,
-                posterUrl = logoUrl,
-                accent = accent,
-                onClose = onClose,
-                showBack = true,
-                onBack = onClose,
-                onRetry = { playToken++ },
-                showNextSource = showNextSource,
-                onNextSource = onNextSource,
-                tvControls = tvControls
-            )
+    val videoContent: @Composable () -> Unit = {
             Box(Modifier.fillMaxSize()) {
                 AndroidView(
                     factory = { ctx ->
@@ -196,7 +195,12 @@ fun ExoLivePlayer(
                             useController = true
                             controllerShowTimeoutMs = 5000
                             controllerHideOnTouch = true
-                            setShowSubtitleButton(true)
+                            setShowSubtitleButton(!isLiveBroadcast)
+                            setShowNextButton(false)
+                            setShowPreviousButton(false)
+                            if (isLiveBroadcast) {
+                                post { hideVodTimeline(this) }
+                            }
                         }
                     },
                     update = { it.player = player },
@@ -227,6 +231,42 @@ fun ExoLivePlayer(
                     }
                 }
             }
+    }
+
+    Box(modifier.background(BgDark)) {
+        if (useExternalChrome) {
+            videoContent()
+        } else {
+            Column(Modifier.fillMaxSize()) {
+                PlayerChrome(
+                    title = title,
+                    subtitle = sourceLabel,
+                    posterUrl = logoUrl,
+                    accent = accent,
+                    onClose = onClose,
+                    showBack = true,
+                    onBack = onClose,
+                    onRetry = { playToken++ },
+                    showNextSource = showNextSource,
+                    onNextSource = onNextSource,
+                    tvControls = tvControls,
+                    isLive = isLiveBroadcast
+                )
+                Box(Modifier.weight(1f).fillMaxWidth()) {
+                    videoContent()
+                }
+            }
         }
+    }
+}
+
+@OptIn(UnstableApi::class)
+private fun hideVodTimeline(playerView: PlayerView) {
+    listOf(
+        MediaUiR.id.exo_progress,
+        MediaUiR.id.exo_duration,
+        MediaUiR.id.exo_position
+    ).forEach { id ->
+        playerView.findViewById<View>(id)?.visibility = View.GONE
     }
 }

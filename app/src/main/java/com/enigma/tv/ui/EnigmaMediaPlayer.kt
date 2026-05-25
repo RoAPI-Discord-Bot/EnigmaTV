@@ -49,7 +49,9 @@ fun EnigmaMediaPlayer(
     tmdbId: Int? = null,
     playingType: ContentType? = null,
     season: Int = 1,
-    episode: Int = 1
+    episode: Int = 1,
+    useExternalChrome: Boolean = false,
+    contentModifier: Modifier = Modifier.fillMaxSize()
 ) {
     if (!visible) return
 
@@ -61,7 +63,7 @@ fun EnigmaMediaPlayer(
     var mode by remember(embedUrl, resolveToken) { mutableStateOf(MediaPlayMode.Embed) }
     var resolvingNative by remember(embedUrl, resolveToken) { mutableStateOf(true) }
 
-    LaunchedEffect(embedUrl, resolveToken, activity, tmdbId, playingType, season, episode) {
+    LaunchedEffect(embedUrl, resolveToken, activity, tmdbId, playingType) {
         resolvingNative = true
         onLoadingChange(false)
         resolvedStream = null
@@ -85,7 +87,7 @@ fun EnigmaMediaPlayer(
 
     val nativeLabel = resolvedStream?.let { "$sourceLabel · ${it.provider}" } ?: sourceLabel
 
-    Box(Modifier.fillMaxSize().background(BgDark)) {
+    Box(contentModifier.background(BgDark)) {
         when (mode) {
             MediaPlayMode.Native -> ExoLivePlayer(
                 visible = true,
@@ -99,53 +101,64 @@ fun EnigmaMediaPlayer(
                 onLoadingChange = onLoadingChange,
                 showNextSource = true,
                 onNextSource = onNextSource,
-                tvControls = tvControls
+                tvControls = if (useExternalChrome) null else tvControls,
+                useExternalChrome = useExternalChrome,
+                modifier = Modifier.fillMaxSize()
             )
-            MediaPlayMode.Embed -> Column(Modifier.fillMaxSize()) {
-                PlayerChrome(
-                    title = title,
-                    subtitle = if (resolvingNative) "$sourceLabel · loading player…" else sourceLabel,
-                    posterUrl = posterUrl,
-                    accent = accent,
-                    onClose = onClose,
-                    showBack = true,
-                    onBack = onClose,
-                    showNextSource = true,
-                    onNextSource = onNextSource,
-                    tvControls = tvControls
-                )
-                if (resolvingNative) {
-                    LinearProgressIndicator(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(3.dp),
-                        color = accent,
-                        trackColor = Color.White.copy(alpha = 0.12f)
+            MediaPlayMode.Embed -> {
+                val embedColumn: @Composable () -> Unit = {
+                    if (!useExternalChrome) {
+                        PlayerChrome(
+                            title = title,
+                            subtitle = if (resolvingNative) "$sourceLabel · loading player…" else sourceLabel,
+                            posterUrl = posterUrl,
+                            accent = accent,
+                            onClose = onClose,
+                            showBack = true,
+                            onBack = onClose,
+                            showNextSource = true,
+                            onNextSource = onNextSource,
+                            tvControls = tvControls
+                        )
+                        if (resolvingNative) {
+                            LinearProgressIndicator(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(3.dp),
+                                color = accent,
+                                trackColor = Color.White.copy(alpha = 0.12f)
+                            )
+                        }
+                    }
+                    WebViewPlayer(
+                        visible = true,
+                        title = title,
+                        url = embedUrl,
+                        accent = accent,
+                        sourceLabel = sourceLabel,
+                        posterUrl = posterUrl,
+                        streamLoading = streamLoading && useExternalChrome,
+                        onClose = onClose,
+                        onNextSource = onNextSource,
+                        onLoadingChange = onLoadingChange,
+                        tvControls = null,
+                        liveTv = false,
+                        useExternalChrome = true,
+                        onStreamCaptured = { captured ->
+                            resolvedStream = ResolvedStream.fromEmbed(embedUrl, captured, "embed-capture")
+                            mode = MediaPlayMode.Native
+                            resolvingNative = false
+                        },
+                        modifier = Modifier.fillMaxSize()
                     )
                 }
-                WebViewPlayer(
-                    visible = true,
-                    title = title,
-                    url = embedUrl,
-                    accent = accent,
-                    sourceLabel = sourceLabel,
-                    posterUrl = posterUrl,
-                    streamLoading = false,
-                    onClose = onClose,
-                    onNextSource = onNextSource,
-                    onLoadingChange = { /* embed uses its own page load state */ },
-                    tvControls = tvControls,
-                    liveTv = false,
-                    useExternalChrome = true,
-                    onStreamCaptured = { captured ->
-                        resolvedStream = ResolvedStream.fromEmbed(embedUrl, captured, "embed-capture")
-                        mode = MediaPlayMode.Native
-                        resolvingNative = false
-                    },
-                    modifier = Modifier
-                        .weight(1f)
-                        .fillMaxSize()
-                )
+                if (useExternalChrome) {
+                    Box(Modifier.fillMaxSize()) { embedColumn() }
+                } else {
+                    Column(Modifier.fillMaxSize()) {
+                        embedColumn()
+                    }
+                }
             }
         }
     }

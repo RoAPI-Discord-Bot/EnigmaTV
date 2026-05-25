@@ -12,11 +12,14 @@ import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.draw.clip
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.LiveTv
 import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.PlayCircle
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -35,6 +38,7 @@ import coil.compose.AsyncImage
 import com.enigma.tv.data.ProfileImageStorage
 import com.enigma.tv.data.ViewerProfile
 import com.enigma.tv.ui.theme.EnigmaPink
+import com.enigma.tv.ui.theme.EnigmaPurple
 import com.enigma.tv.ui.theme.TextPrimary
 import com.enigma.tv.ui.theme.TextSecondary
 
@@ -46,15 +50,16 @@ fun NetflixBottomBar(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .background(Color(0xFF141414))
+            .glassSurface(cornerRadius = 0.dp)
             .navigationBarsPadding()
-            .padding(vertical = 10.dp),
+            .padding(horizontal = 4.dp, vertical = 8.dp),
         horizontalArrangement = Arrangement.SpaceEvenly,
         verticalAlignment = Alignment.CenterVertically
     ) {
         BottomNavEntry(Icons.Default.Home, "Home", NavSection.HOME, current, onSelect)
-        BottomNavEntry(Icons.Default.LiveTv, "Live TV", NavSection.LIVE, current, onSelect)
-        BottomNavEntry(Icons.Default.Favorite, "My List", NavSection.FAVORITES, current, onSelect)
+        BottomNavEntry(Icons.Default.LiveTv, "Live", NavSection.LIVE, current, onSelect)
+        BottomNavEntry(Icons.Default.PlayCircle, "Continue", NavSection.CONTINUE, current, onSelect)
+        BottomNavEntry(Icons.Default.Favorite, "List", NavSection.FAVORITES, current, onSelect)
         BottomNavEntry(Icons.Default.Person, "Account", NavSection.PROFILE, current, onSelect)
     }
 }
@@ -71,21 +76,28 @@ private fun BottomNavEntry(
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
         modifier = Modifier
+            .clip(RoundedCornerShape(12.dp))
+            .then(
+                if (selected) Modifier
+                    .glassSurface(cornerRadius = 12.dp, accentBorder = true)
+                    .background(EnigmaPurple.copy(alpha = 0.22f))
+                else Modifier
+            )
             .clickable { onSelect(section) }
-            .padding(horizontal = 12.dp, vertical = 4.dp)
+            .padding(horizontal = 10.dp, vertical = 6.dp)
     ) {
         Icon(
             icon,
             contentDescription = label,
             tint = if (selected) EnigmaPink else TextSecondary,
-            modifier = Modifier.size(24.dp)
+            modifier = Modifier.size(22.dp)
         )
         Text(
             label,
             color = if (selected) TextPrimary else TextSecondary,
-            fontSize = 11.sp,
+            fontSize = 10.sp,
             fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
-            modifier = Modifier.padding(top = 4.dp)
+            modifier = Modifier.padding(top = 3.dp)
         )
     }
 }
@@ -104,6 +116,7 @@ fun ProfileNavIcon(profile: ViewerProfile?, modifier: Modifier = Modifier) {
         modifier = modifier
             .size(36.dp)
             .clip(CircleShape)
+            .glassSurface(cornerRadius = 18.dp, accentBorder = true)
             .background(color),
         contentAlignment = Alignment.Center
     ) {

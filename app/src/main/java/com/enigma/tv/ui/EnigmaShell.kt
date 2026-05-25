@@ -149,6 +149,7 @@ fun EnigmaShell(viewModel: EnigmaViewModel = viewModel()) {
     }
 
     val bodyContent: @Composable () -> Unit = {
+        AppAmbientBackground {
         Box(Modifier.fillMaxSize()) {
             Column(Modifier.fillMaxSize()) {
                 EnigmaHeader(
@@ -163,7 +164,7 @@ fun EnigmaShell(viewModel: EnigmaViewModel = viewModel()) {
                     onMenuClick = if (!useBottomNav) null else null,
                     activeProfile = activeProfile,
                     onProfileClick = { viewModel.showProfilePickerScreen() },
-                    showSearch = state.section == NavSection.HOME || state.section == NavSection.LIVE
+                    showSearch = state.section == NavSection.HOME
                 )
 
                 when {
@@ -237,53 +238,77 @@ fun EnigmaShell(viewModel: EnigmaViewModel = viewModel()) {
                 )
             } else null
 
-            when {
-                state.playerVisible && state.playerHls -> {
-                    ExoLivePlayer(
-                        visible = true,
-                        title = state.playerTitle,
-                        streamUrl = state.playerUrl,
-                        sourceLabel = state.sourceLabel,
-                        logoUrl = state.playerLogoUrl,
-                        streamLoading = state.playerLoading,
-                        onClose = { viewModel.closePlayer() },
-                        onLoadingChange = { viewModel.onPlayerPageLoading(it) }
-                    )
-                }
-                state.playerVisible &&
-                    (state.playingType == ContentType.MOVIE || state.playingType == ContentType.TV) -> {
-                    EnigmaMediaPlayer(
-                        visible = true,
-                        title = state.playerTitle,
-                        embedUrl = state.playerUrl,
-                        posterUrl = state.playerLogoUrl,
-                        accent = accent,
-                        sourceLabel = state.sourceLabel,
-                        streamLoading = state.playerLoading,
-                        onClose = { viewModel.closePlayer() },
-                        onNextSource = { viewModel.nextSource() },
-                        onLoadingChange = { viewModel.onPlayerPageLoading(it) },
-                        tvControls = tvControls,
-                        resolveToken = state.playerResolveToken,
-                        tmdbId = state.currentMovieId ?: state.currentShowId,
-                        playingType = state.playingType,
-                        season = state.selectedSeason,
-                        episode = state.selectedEpisode
-                    )
-                }
-                state.playerVisible && state.playerLiveTv -> {
-                    EnigmaLivePlayer(
-                        visible = true,
-                        title = state.playerTitle,
-                        embedUrl = state.playerUrl,
-                        posterUrl = state.playerLogoUrl,
-                        sourceLabel = state.sourceLabel,
-                        streamLoading = state.playerLoading,
-                        onClose = { viewModel.closePlayer() },
-                        onNextSource = { viewModel.nextSource() },
-                        onLoadingChange = { viewModel.onPlayerPageLoading(it) },
-                        resolveToken = state.playerResolveToken
-                    )
+            if (state.playerVisible) {
+                val showNext = state.playingType != null || state.playerLiveTv || state.playerHls
+                PlayerFullscreenHost(
+                    title = state.playerTitle,
+                    subtitle = state.sourceLabel,
+                    posterUrl = state.playerLogoUrl,
+                    accent = accent,
+                    layout = layout,
+                    onClose = { viewModel.closePlayer() },
+                    onNextSource = { viewModel.nextSource() },
+                    showNextSource = showNext,
+                    tvControls = tvControls,
+                    onPrevEpisode = { viewModel.playAdjacentEpisode(forward = false) },
+                    onNextEpisode = { viewModel.playAdjacentEpisode(forward = true) },
+                    hasPrevEpisode = viewModel.hasAdjacentEpisode(forward = false),
+                    hasNextEpisode = viewModel.hasAdjacentEpisode(forward = true)
+                ) {
+                    when {
+                        state.playerHls -> ExoLivePlayer(
+                            visible = true,
+                            title = state.playerTitle,
+                            streamUrl = state.playerUrl,
+                            sourceLabel = state.sourceLabel,
+                            logoUrl = state.playerLogoUrl,
+                            streamLoading = state.playerLoading,
+                            isLiveBroadcast = true,
+                            onClose = { viewModel.closePlayer() },
+                            onLoadingChange = { viewModel.onPlayerPageLoading(it) },
+                            useExternalChrome = true,
+                            modifier = Modifier.fillMaxSize()
+                        )
+                        state.playingType == ContentType.MOVIE || state.playingType == ContentType.TV -> {
+                            EnigmaMediaPlayer(
+                                visible = true,
+                                title = state.playerTitle,
+                                embedUrl = state.playerUrl,
+                                posterUrl = state.playerLogoUrl,
+                                accent = accent,
+                                sourceLabel = state.sourceLabel,
+                                streamLoading = state.playerLoading,
+                                onClose = { viewModel.closePlayer() },
+                                onNextSource = { viewModel.nextSource() },
+                                onLoadingChange = { viewModel.onPlayerPageLoading(it) },
+                                tvControls = tvControls,
+                                resolveToken = state.playerResolveToken,
+                                tmdbId = state.currentMovieId ?: state.currentShowId,
+                                playingType = state.playingType,
+                                season = state.selectedSeason,
+                                episode = state.selectedEpisode,
+                                useExternalChrome = true,
+                                contentModifier = Modifier.fillMaxSize()
+                            )
+                        }
+                        state.playerLiveTv -> {
+                            EnigmaLivePlayer(
+                                visible = true,
+                                title = state.playerTitle,
+                                embedUrl = state.playerUrl,
+                                posterUrl = state.playerLogoUrl,
+                                sourceLabel = state.sourceLabel,
+                                streamLoading = state.playerLoading,
+                                onClose = { viewModel.closePlayer() },
+                                onNextSource = { viewModel.nextSource() },
+                                onLoadingChange = { viewModel.onPlayerPageLoading(it) },
+                                onNativeStream = viewModel::playLiveNativeStream,
+                                resolveToken = state.playerResolveToken,
+                                useExternalChrome = true,
+                                modifier = Modifier.fillMaxSize()
+                            )
+                        }
+                    }
                 }
             }
 
@@ -308,6 +333,7 @@ fun EnigmaShell(viewModel: EnigmaViewModel = viewModel()) {
                 )
             }
         }
+        }
     }
 
     Box(Modifier.fillMaxSize()) {
@@ -323,7 +349,7 @@ fun EnigmaShell(viewModel: EnigmaViewModel = viewModel()) {
             )
         } else if (useBottomNav) {
             Scaffold(
-                containerColor = BgDark,
+                containerColor = Color.Transparent,
                 bottomBar = {
                     NetflixBottomBar(
                         current = state.section,
@@ -450,6 +476,15 @@ private fun UnifiedHomeContent(state: EnigmaUiState, vm: EnigmaViewModel, layout
                 Text("No results found.", color = TextSecondary, modifier = Modifier.padding(24.dp))
             }
         } else {
+            HomeQuickNav(current = state.section, onSelect = vm::setSection)
+            pickFeaturedMovie(state.homeRows)?.let { featured ->
+                HomeHeroBanner(
+                    movie = featured,
+                    layout = layout,
+                    onPlay = { vm.playMovie(featured) },
+                    onDetails = { vm.openMovieDetail(featured) }
+                )
+            }
             ContinueWatchingSection(state.continueWatching, vm, cardW)
             state.homeRows.forEach { row ->
                 when (row) {
@@ -529,7 +564,7 @@ private fun FavoritesContent(state: EnigmaUiState, vm: EnigmaViewModel, layout: 
 
 @Composable
 private fun ContinueWatchingSection(entries: List<ContinueWatchingEntry>, vm: EnigmaViewModel, cardW: Int) {
-    ContentSection("▶ Continue Watching") {
+    ContentSection("Continue Watching") {
         if (entries.isEmpty()) {
             Text(
                 "Titles you play will appear here — movies and TV.",
@@ -659,7 +694,8 @@ private fun MediaMovieCard(movie: MovieItem, vm: EnigmaViewModel, cardW: Int) {
         cardWidthDp = cardW,
         isFavorite = fav,
         onFavoriteClick = { vm.toggleFavorite(movie.toFavorite()) },
-        onClick = { vm.openMovieDetail(movie) }
+        onClick = { vm.openMovieDetail(movie) },
+        onLongClickPlay = if (movie.canStream()) ({ vm.playMovie(movie) }) else null
     )
 }
 
@@ -676,7 +712,10 @@ private fun MediaTvCard(show: TvItem, vm: EnigmaViewModel, cardW: Int) {
         cardWidthDp = cardW,
         isFavorite = fav,
         onFavoriteClick = { vm.toggleFavorite(show.toFavorite()) },
-        onClick = { vm.openTvDetail(show) }
+        onClick = { vm.openTvDetail(show) },
+        onLongClickPlay = if (show.canStream()) ({
+            vm.selectShow(show.id, show.displayName, 1, 1)
+        }) else null
     )
 }
 

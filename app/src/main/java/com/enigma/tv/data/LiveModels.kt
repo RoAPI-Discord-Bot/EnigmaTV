@@ -40,7 +40,7 @@ data class LiveStreamLink(
 data class LiveTvBrowseState(
     val loading: Boolean = false,
     val error: String? = null,
-    val tab: LiveTvTab = LiveTvTab.CHANNELS,
+    val tab: LiveTvTab = LiveTvTab.EVENTS,
     val events: List<LiveSportMatch> = emptyList(),
     val channels: List<IptvChannel> = emptyList(),
     val filteredEvents: List<LiveSportMatch> = emptyList(),

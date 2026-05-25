@@ -42,6 +42,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.Job
@@ -122,6 +123,7 @@ class EnigmaViewModel(application: Application) : AndroidViewModel(application) 
     private val _state = MutableStateFlow(EnigmaUiState())
     val state: StateFlow<EnigmaUiState> = _state.asStateFlow()
     private var syncJob: Job? = null
+    private var tvNavJob: Job? = null
 
     private fun activeProfileId(): String = _state.value.activeProfileId.ifBlank { "default" }
 
@@ -199,9 +201,14 @@ class EnigmaViewModel(application: Application) : AndroidViewModel(application) 
             }
         }
         viewModelScope.launch {
+            profileStore.ensureDefaultProfile()
             val done = sessionStore.isOnboardingComplete()
+            val profiles = profileStore.profiles.first()
+            val activeId = profileStore.activeProfileId.first()
             _state.update {
                 it.copy(
+                    profiles = profiles,
+                    activeProfileId = activeId.ifBlank { it.activeProfileId },
                     sessionReady = true,
                     showAuthGate = !done,
                     showSplash = false,
@@ -454,10 +461,20 @@ class EnigmaViewModel(application: Application) : AndroidViewModel(application) 
     fun detailSeasonChange(season: Int) {
         val d = _state.value.detail ?: return
         if (d.type != ContentType.TV) return
+        val keepEp = d.selectedEpisode
         viewModelScope.launch {
             val eps = repo.tvSeason(d.id, season)
+            val episodeList = eps.map { it.episodeNumber to it.name }.sortedBy { it.first }
+            val episode = pickEpisodeNumber(episodeList, keepEp)
             _state.update {
-                it.copy(detail = d.copy(seasons = d.seasons, episodes = eps, selectedSeason = season, selectedEpisode = eps.firstOrNull()?.episodeNumber ?: 1))
+                it.copy(
+                    detail = d.copy(
+                        seasons = d.seasons,
+                        episodes = eps,
+                        selectedSeason = season,
+                        selectedEpisode = episode
+                    )
+                )
             }
         }
     }
@@ -639,7 +656,10 @@ class EnigmaViewModel(application: Application) : AndroidViewModel(application) 
                 _state.update { it.copy(contentLoading = false) }
                 when {
                     streams.isEmpty() -> _state.update { it.copy(error = "No streams available for this event") }
-                    streams.size == 1 -> playLiveEmbed(match.title, streams.first().embedUrl, streams.first().label)
+                    streams.size == 1 -> {
+                        _state.update { it.copy(liveStreamPicker = streams) }
+                        playLiveEmbed(match.title, streams.first().embedUrl, streams.first().label)
+                    }
                     else -> _state.update {
                         it.copy(showLiveStreamPicker = true, liveStreamPicker = streams, playerTitle = match.title)
                     }
@@ -677,6 +697,21 @@ class EnigmaViewModel(application: Application) : AndroidViewModel(application) 
                 sourceLabel = "Live · $label",
                 sourceIndex = 0,
                 showLiveStreamPicker = false,
+                error = null
+            )
+        }
+    }
+
+    fun playLiveNativeStream(streamUrl: String) {
+        if (streamUrl.isBlank()) return
+        _state.update {
+            it.copy(
+                playerVisible = true,
+                playerHls = true,
+                playerLiveTv = false,
+                playerLoading = true,
+                playerUrl = streamUrl,
+                sourceLabel = it.sourceLabel.ifBlank { "Live" },
                 error = null
             )
         }
@@ -767,22 +802,71 @@ class EnigmaViewModel(application: Application) : AndroidViewModel(application) 
         }
     }
 
+    private fun pickEpisodeNumber(episodeList: List<Pair<Int, String>>, requested: Int?): Int {
+        if (episodeList.isEmpty()) return 1
+        if (requested != null && episodeList.any { it.first == requested }) return requested
+        if (requested != null) {
+            return episodeList.filter { it.first <= requested }.maxByOrNull { it.first }?.first
+                ?: episodeList.first().first
+        }
+        return episodeList.first().first
+    }
+
     private suspend fun loadEpisodesInternal(showId: Int, season: Int, resumeEpisode: Int?, play: Boolean) {
         val eps = repo.tvSeason(showId, season)
-        val episodeList = eps.map { it.episodeNumber to it.name }
-        val episode = resumeEpisode?.takeIf { n -> episodeList.any { it.first == n } } ?: episodeList.firstOrNull()?.first ?: 1
+        val episodeList = eps.map { it.episodeNumber to it.name }.sortedBy { it.first }
+        val episode = pickEpisodeNumber(episodeList, resumeEpisode)
         _state.update { it.copy(episodes = episodeList, selectedSeason = season, selectedEpisode = episode) }
         if (play) playCurrentEpisode()
     }
 
     fun onSeasonChange(season: Int) {
         val showId = _state.value.currentShowId ?: return
-        viewModelScope.launch { loadEpisodesInternal(showId, season, null, play = true) }
+        val keepEpisode = _state.value.selectedEpisode
+        tvNavJob?.cancel()
+        tvNavJob = viewModelScope.launch {
+            _state.update { it.copy(playerLoading = true) }
+            loadEpisodesInternal(showId, season, keepEpisode, play = true)
+        }
     }
 
     fun onEpisodeChange(episode: Int) {
-        _state.update { it.copy(selectedEpisode = episode) }
-        playCurrentEpisode()
+        val showId = _state.value.currentShowId ?: return
+        val season = _state.value.selectedSeason
+        tvNavJob?.cancel()
+        tvNavJob = viewModelScope.launch {
+            val list = _state.value.episodes
+            if (list.none { it.first == episode }) {
+                loadEpisodesInternal(showId, season, episode, play = false)
+            } else {
+                _state.update { it.copy(selectedEpisode = episode) }
+            }
+            playCurrentEpisode()
+        }
+    }
+
+    fun playAdjacentEpisode(forward: Boolean) {
+        val s = _state.value
+        if (s.playingType != ContentType.TV) return
+        val nums = s.episodes.map { it.first }.sorted()
+        if (nums.isEmpty()) return
+        val idx = nums.indexOf(s.selectedEpisode)
+        val targetIdx = when {
+            forward && idx >= 0 && idx < nums.lastIndex -> idx + 1
+            !forward && idx > 0 -> idx - 1
+            forward && idx < 0 -> 0
+            else -> return
+        }
+        onEpisodeChange(nums[targetIdx])
+    }
+
+    fun hasAdjacentEpisode(forward: Boolean): Boolean {
+        val s = _state.value
+        if (s.playingType != ContentType.TV) return false
+        val nums = s.episodes.map { it.first }.sorted()
+        if (nums.isEmpty()) return false
+        val idx = nums.indexOf(s.selectedEpisode)
+        return if (forward) idx >= 0 && idx < nums.lastIndex else idx > 0
     }
 
     private fun playCurrentEpisode() {
@@ -791,15 +875,17 @@ class EnigmaViewModel(application: Application) : AndroidViewModel(application) 
         val (name, url) = StreamSources.tvUrl(s.sourceIndex, showId, s.selectedSeason, s.selectedEpisode)
         _state.update {
             it.copy(
-                playerLoading = false,
+                playerLoading = true,
                 playerHls = false,
                 playerUrl = url,
                 playerResolveToken = it.playerResolveToken + 1,
-                sourceLabel = "Enigma Player · $name (${(s.sourceIndex % StreamSources.tvSources.size) + 1}/${StreamSources.tvSources.size})"
+                sourceLabel = "S${s.selectedSeason}E${s.selectedEpisode} · $name (${(s.sourceIndex % StreamSources.tvSources.size) + 1}/${StreamSources.tvSources.size})"
             )
         }
         viewModelScope.launch {
             cwStore.updateProgress(activeProfileId(), showId, ContentType.TV, s.selectedSeason, s.selectedEpisode)
+            delay(400)
+            _state.update { it.copy(playerLoading = false) }
         }
     }
 
@@ -826,11 +912,11 @@ class EnigmaViewModel(application: Application) : AndroidViewModel(application) 
             }
             null -> {
                 val st = _state.value
-                if (st.playerLiveTv && st.liveStreamPicker.size > 1) {
+                if (st.liveStreamPicker.size > 1) {
                     val next = (st.sourceIndex + 1) % st.liveStreamPicker.size
                     val link = st.liveStreamPicker[next]
                     playLiveEmbed(st.playerTitle, link.embedUrl, link.label)
-                    _state.update { it.copy(sourceIndex = next) }
+                    _state.update { it.copy(sourceIndex = next, playerHls = false, playerLiveTv = true) }
                 } else {
                     _state.update { it.copy(sourceIndex = it.sourceIndex + 1) }
                 }

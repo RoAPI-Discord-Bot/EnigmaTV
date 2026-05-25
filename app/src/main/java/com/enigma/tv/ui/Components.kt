@@ -1,7 +1,9 @@
 package com.enigma.tv.ui
 
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -42,14 +44,16 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
+import com.enigma.tv.R
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
-import com.enigma.tv.ui.theme.BgDark
 import com.enigma.tv.ui.theme.BgHeader
 import com.enigma.tv.ui.theme.CardBg
+import com.enigma.tv.ui.theme.GlassBorderAccent
 import com.enigma.tv.ui.theme.EnigmaPink
 import com.enigma.tv.ui.theme.EnigmaPurple
 import com.enigma.tv.ui.theme.SearchBg
@@ -74,9 +78,10 @@ fun EnigmaHeader(
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .background(BgHeader)
+            .glassSurface(cornerRadius = 0.dp, accentBorder = false)
+            .background(BgHeader.copy(alpha = 0.55f))
             .statusBarsPadding()
-            .padding(horizontal = 12.dp, vertical = 10.dp)
+            .padding(horizontal = 14.dp, vertical = 12.dp)
     ) {
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -90,7 +95,18 @@ fun EnigmaHeader(
                     Icon(Icons.Default.Menu, contentDescription = "Menu", tint = TextPrimary)
                 }
             }
-            Column(modifier = Modifier.weight(1f)) {
+            Row(
+                modifier = Modifier.weight(1f),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Image(
+                    painter = painterResource(R.drawable.enigma_mark),
+                    contentDescription = null,
+                    contentScale = ContentScale.Fit,
+                    modifier = Modifier.size(28.dp)
+                )
+                Column {
                 Text(
                     text = ENIGMA_TV_BRAND,
                     color = accent,
@@ -108,6 +124,7 @@ fun EnigmaHeader(
                         fontWeight = FontWeight.Medium,
                         maxLines = 1
                     )
+                }
                 }
             }
             if (onProfileClick != null) {
@@ -143,20 +160,21 @@ fun EnigmaHeader(
                 },
                 singleLine = true,
                 colors = OutlinedTextFieldDefaults.colors(
-                    focusedContainerColor = SearchBg,
-                    unfocusedContainerColor = SearchBg,
-                    focusedBorderColor = Color.Transparent,
+                    focusedContainerColor = SearchBg.copy(alpha = 0.85f),
+                    unfocusedContainerColor = SearchBg.copy(alpha = 0.65f),
+                    focusedBorderColor = GlassBorderAccent,
                     unfocusedBorderColor = Color.Transparent,
                     focusedTextColor = TextPrimary,
                     unfocusedTextColor = TextPrimary,
                     cursorColor = accent
                 ),
-                shape = RoundedCornerShape(8.dp)
+                shape = RoundedCornerShape(14.dp)
             )
             IconButton(
                 onClick = onSearch,
                 modifier = Modifier
-                    .background(accent, RoundedCornerShape(8.dp))
+                    .glassSurface(cornerRadius = 14.dp, accentBorder = true)
+                    .background(accent.copy(alpha = 0.85f), RoundedCornerShape(14.dp))
                     .size(48.dp)
             ) {
                 Icon(Icons.Default.Search, contentDescription = "Search", tint = TextPrimary)
@@ -174,11 +192,11 @@ fun ContentSection(
 ) {
     Column(modifier = modifier.padding(bottom = 20.dp)) {
         Text(
-            text = title,
+            text = cleanRowTitle(title),
             color = TextPrimary,
-            fontSize = 17.sp,
+            fontSize = 18.sp,
             fontWeight = FontWeight.Bold,
-            letterSpacing = 0.3.sp,
+            letterSpacing = 0.2.sp,
             modifier = Modifier.padding(bottom = 10.dp, start = 2.dp)
         )
         content()
@@ -195,20 +213,27 @@ fun PosterCard(
     cardWidthDp: Int = 150,
     isFavorite: Boolean = false,
     onFavoriteClick: (() -> Unit)? = null,
-    onClick: () -> Unit
+    onClick: () -> Unit,
+    onLongClickPlay: (() -> Unit)? = null
 ) {
     val cardW = cardWidthDp.dp
     val cardH = (cardWidthDp * 1.5f).dp
+    val clickModifier = if (onLongClickPlay != null) {
+        Modifier.combinedClickable(onClick = onClick, onLongClick = onLongClickPlay)
+    } else {
+        Modifier.clickable(onClick = onClick)
+    }
     Column(
         modifier = Modifier
             .width(cardW)
-            .clickable(onClick = onClick)
+            .then(clickModifier)
     ) {
         Box(
             modifier = Modifier
                 .size(width = cardW, height = cardH)
-                .clip(RoundedCornerShape(8.dp))
-                .background(CardBg)
+                .glassSurface(cornerRadius = 12.dp)
+                .clip(RoundedCornerShape(12.dp))
+                .background(CardBg.copy(alpha = 0.4f))
         ) {
             if (posterUrl != null) {
                 AsyncImage(
@@ -242,6 +267,18 @@ fun PosterCard(
                         modifier = Modifier.size(22.dp)
                     )
                 }
+            }
+            if (onLongClickPlay != null && subtitle == null) {
+                Text(
+                    text = "Hold to play",
+                    color = Color.White.copy(alpha = 0.85f),
+                    fontSize = 9.sp,
+                    modifier = Modifier
+                        .align(Alignment.BottomStart)
+                        .padding(6.dp)
+                        .background(Color.Black.copy(alpha = 0.55f), RoundedCornerShape(4.dp))
+                        .padding(horizontal = 6.dp, vertical = 2.dp)
+                )
             }
             if (badge != null) {
                 Text(

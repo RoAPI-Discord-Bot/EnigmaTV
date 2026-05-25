@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
@@ -199,16 +200,19 @@ private fun DetailContent(
             if (detail.isPlayable) {
                 Button(
                     onClick = onPlay,
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(min = 52.dp),
                     colors = ButtonDefaults.buttonColors(containerColor = accent),
-                    shape = RoundedCornerShape(8.dp)
+                    shape = RoundedCornerShape(10.dp)
                 ) {
-                    Icon(Icons.Default.PlayArrow, contentDescription = null)
+                    Icon(Icons.Default.PlayArrow, contentDescription = null, modifier = Modifier.size(28.dp))
                     Text(
                         if (detail.type == ContentType.TV) "Play S${detail.selectedSeason}E${detail.selectedEpisode}"
-                        else "Play",
-                        modifier = Modifier.padding(start = 8.dp),
-                        fontSize = 16.sp
+                        else "Play Now",
+                        modifier = Modifier.padding(start = 10.dp),
+                        fontSize = 17.sp,
+                        fontWeight = FontWeight.Bold
                     )
                 }
             } else {

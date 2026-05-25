@@ -72,11 +72,16 @@ fun ProfileScreen(
     Column(
         Modifier
             .fillMaxSize()
-            .background(BgDark)
             .verticalScroll(rememberScrollState())
             .padding(20.dp)
     ) {
         Text("Account", color = TextPrimary, fontSize = 24.sp, fontWeight = FontWeight.Bold)
+        Text(
+            "EnigmaTV 2.0",
+            color = TextSecondary,
+            fontSize = 12.sp,
+            modifier = Modifier.padding(top = 4.dp, bottom = 8.dp)
+        )
 
         Spacer(Modifier.height(20.dp))
         Row(

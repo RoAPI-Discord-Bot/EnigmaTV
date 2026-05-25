@@ -49,6 +49,7 @@ fun PlayerChrome(
     onNextSource: (() -> Unit)? = null,
     tvControls: TvPlayerControls? = null,
     isTvLayout: Boolean = false,
+    isLive: Boolean = false,
     extraContent: @Composable (() -> Unit)? = null
 ) {
     val posterSize = if (isTvLayout) 52.dp else 44.dp
@@ -58,7 +59,8 @@ fun PlayerChrome(
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .background(Color.Black.copy(alpha = 0.94f))
+            .glassSurface(cornerRadius = 0.dp)
+            .background(Color.Black.copy(alpha = 0.82f))
             .statusBarsPadding()
             .padding(horizontal = controlPadding, vertical = controlPadding)
     ) {
@@ -96,14 +98,31 @@ fun PlayerChrome(
                     maxLines = 2,
                     overflow = TextOverflow.Ellipsis
                 )
-                Text(
-                    subtitle,
-                    color = EnigmaPink,
-                    fontSize = if (isTvLayout) 13.sp else 11.sp,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
                     modifier = Modifier.padding(top = 2.dp)
-                )
+                ) {
+                    Text(
+                        subtitle,
+                        color = EnigmaPink,
+                        fontSize = if (isTvLayout) 13.sp else 11.sp,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f, fill = false)
+                    )
+                    if (isLive) {
+                        Text(
+                            "LIVE",
+                            color = Color.White,
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.Bold,
+                            modifier = Modifier
+                                .background(EnigmaPink, RoundedCornerShape(4.dp))
+                                .padding(horizontal = 8.dp, vertical = 3.dp)
+                        )
+                    }
+                }
             }
             if (onRetry != null) {
                 IconButton(onClick = onRetry, modifier = Modifier.size(if (isTvLayout) 52.dp else 48.dp)) {

@@ -85,24 +85,25 @@ fun LiveTvScreen(
 ) {
     var query by rememberSaveable { mutableStateOf(live.searchQuery) }
     val pad = layout.contentPaddingDp().dp
-    val titleSize = if (layout == ScreenLayout.PHONE) 24.sp else 26.sp
-    val bodySize = if (layout == ScreenLayout.PHONE) 13.sp else 14.sp
+    val compact = layout == ScreenLayout.PHONE
+    val bodySize = if (compact) 14.sp else 15.sp
 
     Column(
         Modifier
             .fillMaxSize()
-            .background(BgDark)
             .padding(horizontal = pad)
-            .padding(top = pad, bottom = 8.dp)
+            .padding(top = if (compact) 4.dp else pad, bottom = 8.dp)
     ) {
-        Text("Live TV", color = TextPrimary, fontSize = titleSize, fontWeight = FontWeight.Bold)
-        Text(
-            "Live channels and games — scroll the list below.",
-            color = TextSecondary,
-            fontSize = bodySize,
-            lineHeight = 18.sp,
-            modifier = Modifier.padding(top = 6.dp, bottom = 14.dp)
-        )
+        if (!compact) {
+            Text("Live TV", color = TextPrimary, fontSize = 26.sp, fontWeight = FontWeight.Bold)
+            Text(
+                "Live channels and games — scroll the list below.",
+                color = TextSecondary,
+                fontSize = 14.sp,
+                lineHeight = 20.sp,
+                modifier = Modifier.padding(top = 6.dp, bottom = 12.dp)
+            )
+        }
 
         OutlinedTextField(
             value = query,
@@ -129,7 +130,7 @@ fun LiveTvScreen(
             shape = RoundedCornerShape(12.dp)
         )
 
-        Spacer(Modifier.height(12.dp))
+        Spacer(Modifier.height(if (compact) 8.dp else 12.dp))
 
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             LiveTabChip(LiveTvTab.EVENTS, live.tab == LiveTvTab.EVENTS, onTab, layout)
@@ -397,8 +398,9 @@ private fun LiveEventCard(match: LiveSportMatch, layout: ScreenLayout, onPlay: (
         Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(12.dp))
+            .glassSurface(cornerRadius = 12.dp, accentBorder = focused)
             .background(
-                if (focused) EnigmaPurple.copy(alpha = 0.22f) else Color.White.copy(alpha = 0.07f)
+                if (focused) EnigmaPurple.copy(alpha = 0.18f) else Color.Transparent
             )
             .clickable { onPlay(match) }
             .focusable()
@@ -461,9 +463,8 @@ private fun LiveChannelRow(
             .fillMaxWidth()
             .height(rowH)
             .clip(RoundedCornerShape(10.dp))
-            .background(
-                if (focused) EnigmaPurple.copy(alpha = 0.18f) else Color.White.copy(alpha = 0.06f)
-            )
+            .glassSurface(cornerRadius = 10.dp, accentBorder = focused)
+            .background(if (focused) EnigmaPurple.copy(alpha = 0.15f) else Color.Transparent)
             .clickable { onPlay(channel) }
             .focusable()
             .onFocusChanged { focused = it.isFocused }

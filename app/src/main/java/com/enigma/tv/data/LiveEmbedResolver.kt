@@ -8,7 +8,7 @@ import java.util.concurrent.TimeUnit
 
 /**
  * Unwraps live sports embed wrappers so WebView loads the real player page
- * (avoids sandbox iframe errors on streamed.pk / embedsports-style shells).
+ * (avoids sandbox iframe errors and raw JSON/API pages on streamed.pk).
  */
 object LiveEmbedResolver {
     private val client = OkHttpClient.Builder()
@@ -33,13 +33,47 @@ object LiveEmbedResolver {
         """(?:file|src|source|url|embedUrl|playerUrl)\s*[:=]\s*["'](https?://[^"']+)["']""",
         RegexOption.IGNORE_CASE
     )
+    private val jsonEmbedUrlRegex = Regex(
+        """"embedUrl"\s*:\s*"([^"\\]+(?:\\.[^"\\]*)*)"""",
+        RegexOption.IGNORE_CASE
+    )
 
     private val WRAPPER_HINTS = listOf(
         "streamed.pk", "embedsports", "sandbox", "wrapper", "/redirect", "click."
     )
 
     suspend fun resolvePlayableUrl(embedUrl: String): String = withContext(Dispatchers.IO) {
-        resolveChain(embedUrl, depth = 0, visited = mutableSetOf())
+        unwrapStreamApiResponse(embedUrl)?.let { unwrapped ->
+            val resolved = resolveChain(unwrapped, depth = 0, visited = mutableSetOf())
+            if (!looksLikeRawCodePage(resolved)) return@withContext resolved
+        }
+        val resolved = resolveChain(embedUrl, depth = 0, visited = mutableSetOf())
+        if (looksLikeRawCodePage(resolved)) {
+            pickBestEmbedFromBody(fetchHtml(embedUrl), embedUrl)
+                ?.let { return@withContext resolveChain(it, depth = 0, visited = mutableSetOf()) }
+        }
+        resolved
+    }
+
+    /** If the streamed API URL returns JSON, extract the first real embed URL. */
+    private suspend fun unwrapStreamApiResponse(url: String): String? {
+        if (!looksLikeStreamApi(url)) return null
+        val body = fetchHtml(url) ?: return null
+        return pickBestEmbedFromBody(body, url)
+    }
+
+    private fun pickBestEmbedFromBody(body: String, baseUrl: String): String? {
+        val trimmed = body.trim()
+        if (!trimmed.startsWith("{") && !trimmed.startsWith("[")) return null
+        val fromJson = jsonEmbedUrlRegex.findAll(body)
+            .map { decode(it.groupValues[1]) }
+            .filter { it.startsWith("http") && !looksLikeStreamApi(it) }
+            .sortedByDescending { scorePlayerUrl(it) }
+            .firstOrNull()
+        if (fromJson != null) return fromJson
+        return extractCandidates(body, baseUrl)
+            .filter { !looksLikeStreamApi(it) }
+            .maxByOrNull { scorePlayerUrl(it) }
     }
 
     private suspend fun resolveChain(url: String, depth: Int, visited: MutableSet<String>): String {
@@ -52,10 +86,16 @@ object LiveEmbedResolver {
 
         val html = fetchHtml(url) ?: return url
 
+        if (looksLikeRawCodePage(html)) {
+            pickBestEmbedFromBody(html, url)?.let { candidate ->
+                if (candidate != url) return resolveChain(candidate, depth + 1, visited)
+            }
+        }
+
         pickM3u8(html)?.let { return it }
 
         val candidates = extractCandidates(html, baseUrl = url)
-            .filter { it != url && it !in visited }
+            .filter { it != url && it !in visited && !looksLikeStreamApi(it) }
             .sortedByDescending { scorePlayerUrl(it) }
 
         for (candidate in candidates) {
@@ -74,7 +114,7 @@ object LiveEmbedResolver {
             .url(pageUrl)
             .header("User-Agent", StreamResolver.USER_AGENT)
             .header("Referer", pageUrl)
-            .header("Accept", "text/html,application/xhtml+xml,*/*")
+            .header("Accept", "text/html,application/xhtml+xml,application/json,*/*")
             .build()
         client.newCall(request).execute().use { response ->
             if (!response.isSuccessful) null else response.body?.string()
@@ -113,8 +153,10 @@ object LiveEmbedResolver {
         if (u.contains("casthill")) score += 4
         if (u.contains("givemereddit")) score += 4
         if (u.contains("ripplestream")) score += 4
+        if (u.contains("vidsrc")) score += 4
         if (WRAPPER_HINTS.any { u.contains(it) }) score -= 3
         if (u.contains("sandbox")) score -= 8
+        if (looksLikeStreamApi(u)) score -= 15
         return score
     }
 
@@ -123,6 +165,26 @@ object LiveEmbedResolver {
         return WRAPPER_HINTS.any { u.contains(it) } && !u.contains(".m3u8")
     }
 
+    private fun looksLikeStreamApi(url: String): Boolean {
+        val u = url.lowercase()
+        return u.contains("/api/stream/") ||
+            (u.contains("streamed.pk") && u.contains("/api/"))
+    }
+
+    fun isUnplayableContent(content: String): Boolean = looksLikeRawCodePage(content)
+
+    private fun looksLikeRawCodePage(content: String): Boolean {
+        val t = content.trim().take(4000)
+        if (t.startsWith("{") || t.startsWith("[")) return true
+        if (t.contains("\"embedUrl\"") && !t.contains("<iframe", ignoreCase = true)) return true
+        if (t.contains("sandbox") && t.length < 8000 && !t.contains("<video", ignoreCase = true)) return true
+        return false
+    }
+
     private fun decode(raw: String): String =
-        raw.replace("\\/", "/").replace("&amp;", "&").replace("&#x2F;", "/").trim()
+        raw.replace("\\/", "/")
+            .replace("\\u002F", "/")
+            .replace("&amp;", "&")
+            .replace("&#x2F;", "/")
+            .trim()
 }

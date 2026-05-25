@@ -2,6 +2,7 @@ package com.enigma.tv.ui
 
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -40,10 +41,13 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.enigma.tv.R
 import com.enigma.tv.data.ViewerProfile
 import com.enigma.tv.ui.theme.BgDark
 import com.enigma.tv.ui.theme.EnigmaPink
@@ -88,28 +92,28 @@ fun ProfilePickerGate(
         if (uri != null) onSetAvatarUri(profile.id, uri.toString())
     }
 
-    Box(
-        Modifier
-            .fillMaxSize()
-            .background(
-                Brush.verticalGradient(
-                    listOf(Color(0xFF0A0A0A), BgDark, Color(0xFF1A0A28))
-                )
-            )
-    ) {
+    AppAmbientBackground(Modifier.fillMaxSize()) {
+    Box(Modifier.fillMaxSize()) {
         Column(
             Modifier
                 .fillMaxSize()
                 .statusBarsPadding(),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            Spacer(Modifier.height(if (layout == ScreenLayout.TV) 48.dp else 32.dp))
+            Spacer(Modifier.height(if (layout == ScreenLayout.TV) 48.dp else 28.dp))
+            Image(
+                painter = painterResource(R.drawable.enigma_mark),
+                contentDescription = ENIGMA_TV_BRAND,
+                contentScale = ContentScale.Fit,
+                modifier = Modifier.size(if (layout == ScreenLayout.TV) 72.dp else 56.dp)
+            )
+            Spacer(Modifier.height(10.dp))
             Text(
                 ENIGMA_TV_BRAND,
                 color = EnigmaPurple,
-                fontSize = if (layout == ScreenLayout.TV) 36.sp else 28.sp,
+                fontSize = if (layout == ScreenLayout.TV) 36.sp else 26.sp,
                 fontWeight = FontWeight.Black,
-                letterSpacing = 2.sp
+                letterSpacing = 1.sp
             )
             Spacer(Modifier.height(if (layout == ScreenLayout.TV) 40.dp else 28.dp))
             Text(
@@ -175,6 +179,7 @@ fun ProfilePickerGate(
                 )
             }
         }
+    }
     }
 
     if (showAddDialog) {

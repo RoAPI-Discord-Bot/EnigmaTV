@@ -143,9 +143,28 @@ object EmbedPlayerShield {
 
   document.addEventListener('pause', function(e) {
     if (e.target && e.target.tagName === 'VIDEO') {
+      sweep();
       setTimeout(sweep, 0);
-      setTimeout(sweep, 100);
-      setTimeout(sweep, 400);
+      setTimeout(sweep, 80);
+      setTimeout(sweep, 250);
+      setTimeout(sweep, 600);
+    }
+  }, true);
+
+  document.addEventListener('pointerdown', function(e) {
+    var el = e.target;
+    var depth = 0;
+    while (el && depth < 14) {
+      if (isHijackOverlay(el)) {
+        e.preventDefault();
+        e.stopImmediatePropagation();
+        neuter(el);
+        sweep();
+        return;
+      }
+      if (isPlayerNode(el)) return;
+      el = el.parentElement;
+      depth++;
     }
   }, true);
 

@@ -14,15 +14,17 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
@@ -39,19 +41,19 @@ import com.enigma.tv.ui.theme.TextSecondary
 fun EnigmaLoadingRing(
     modifier: Modifier = Modifier,
     message: String? = null,
-    logoSize: Dp = 88.dp,
-    ringSize: Dp = 128.dp,
+    logoSize: Dp = 64.dp,
+    ringSize: Dp = 112.dp,
     fullscreen: Boolean = false
 ) {
-    val infinite = rememberInfiniteTransition(label = "ring")
+    val infinite = rememberInfiniteTransition(label = "enigma_ring_spin")
     val rotation by infinite.animateFloat(
         initialValue = 0f,
         targetValue = 360f,
         animationSpec = infiniteRepeatable(
-            animation = tween(1400, easing = LinearEasing),
+            animation = tween(durationMillis = 1100, easing = LinearEasing),
             repeatMode = RepeatMode.Restart
         ),
-        label = "rotation"
+        label = "ring_rotation"
     )
 
     val boxModifier = if (fullscreen) {
@@ -63,26 +65,37 @@ fun EnigmaLoadingRing(
     Box(modifier = boxModifier, contentAlignment = Alignment.Center) {
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
             Box(contentAlignment = Alignment.Center, modifier = Modifier.size(ringSize)) {
-                Canvas(
+                Box(
                     modifier = Modifier
                         .size(ringSize)
-                        .rotate(rotation)
+                        .graphicsLayer { rotationZ = rotation }
                 ) {
-                    val stroke = 5.dp.toPx()
-                    drawArc(
-                        brush = Brush.sweepGradient(
-                            listOf(EnigmaCyan, EnigmaPurple, EnigmaPink, EnigmaCyan)
-                        ),
-                        startAngle = 0f,
-                        sweepAngle = 300f,
-                        useCenter = false,
-                        style = Stroke(width = stroke, cap = StrokeCap.Round)
+                    Canvas(modifier = Modifier.size(ringSize)) {
+                        val stroke = 5.dp.toPx()
+                        drawArc(
+                            brush = Brush.sweepGradient(
+                                listOf(EnigmaCyan, EnigmaPurple, EnigmaPink, EnigmaCyan)
+                            ),
+                            startAngle = 0f,
+                            sweepAngle = 300f,
+                            useCenter = false,
+                            style = Stroke(width = stroke, cap = StrokeCap.Round)
+                        )
+                    }
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(ringSize),
+                        strokeWidth = 4.dp,
+                        color = EnigmaPurple.copy(alpha = 0.35f),
+                        trackColor = EnigmaCyan.copy(alpha = 0.08f)
                     )
                 }
                 Image(
                     painter = painterResource(R.drawable.enigma_mark),
                     contentDescription = ENIGMA_TV_BRAND,
-                    modifier = Modifier.size(logoSize)
+                    contentScale = ContentScale.Fit,
+                    modifier = Modifier
+                        .size(logoSize)
+                        .padding(6.dp)
                 )
             }
             message?.let {

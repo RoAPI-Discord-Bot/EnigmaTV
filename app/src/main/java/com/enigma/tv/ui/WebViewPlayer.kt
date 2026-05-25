@@ -63,11 +63,6 @@ fun WebViewPlayer(
         onLoadingChange(true)
     }
 
-    LaunchedEffect(url) {
-        kotlinx.coroutines.delay(8_000)
-        pageLoading = false
-    }
-
     val content: @Composable ColumnScope.() -> Unit = {
         if (!useExternalChrome) {
             PlayerChrome(
@@ -87,7 +82,8 @@ fun WebViewPlayer(
             url = url,
             liveTv = liveTv,
             guard = guard,
-            pageLoading = pageLoading
+            pageLoading = pageLoading,
+            streamLoading = streamLoading
         )
     }
 
@@ -105,7 +101,8 @@ private fun ColumnScope.WebViewStreamBody(
     url: String,
     liveTv: Boolean,
     guard: WebViewNavigationGuard,
-    pageLoading: Boolean
+    pageLoading: Boolean,
+    streamLoading: Boolean = false
 ) {
     DisposableEffect(url) {
         onDispose { EmbedPlayerShield.stopPeriodic() }
@@ -144,12 +141,12 @@ private fun ColumnScope.WebViewStreamBody(
             modifier = Modifier.fillMaxSize()
         )
 
-        if (pageLoading) {
+        if (pageLoading || streamLoading) {
             EnigmaLoadingRing(
                 modifier = Modifier
                     .fillMaxSize()
-                    .background(BgDark.copy(alpha = 0.85f)),
-                message = "LOADING STREAM",
+                    .background(BgDark.copy(alpha = 0.88f)),
+                message = if (liveTv) "CONNECTING LIVE" else "LOADING STREAM",
                 logoSize = 72.dp,
                 ringSize = 110.dp
             )

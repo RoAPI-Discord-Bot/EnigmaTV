@@ -19,7 +19,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
 /**
- * Live sports: unwrap wrapper embeds, then play in WebView (same page — no sandbox iframe shell).
+ * Live sports: unwrap API/iframe shells, prefer native HLS when found, else WebView embed.
  */
 @Composable
 fun EnigmaLivePlayer(
@@ -32,7 +32,10 @@ fun EnigmaLivePlayer(
     onClose: () -> Unit,
     onNextSource: () -> Unit,
     onLoadingChange: (Boolean) -> Unit,
-    resolveToken: Int = 0
+    onNativeStream: (String) -> Unit,
+    resolveToken: Int = 0,
+    useExternalChrome: Boolean = false,
+    modifier: Modifier = Modifier.fillMaxSize()
 ) {
     if (!visible) return
 
@@ -46,24 +49,46 @@ fun EnigmaLivePlayer(
         onLoadingChange(true)
         playUrl = null
         try {
-            playUrl = withContext(Dispatchers.IO) {
+            val resolved = withContext(Dispatchers.IO) {
                 LiveEmbedResolver.resolvePlayableUrl(embedUrl)
             }
+            if (resolved.contains(".m3u8", ignoreCase = true)) {
+                onNativeStream(resolved)
+                return@LaunchedEffect
+            }
+            playUrl = if (LiveEmbedResolver.isUnplayableContent(resolved)) embedUrl else resolved
         } catch (_: Exception) {
             playUrl = embedUrl
         } finally {
             resolving = false
-            onLoadingChange(false)
         }
     }
 
-    Box(Modifier.fillMaxSize().background(BgDark)) {
+    Box(modifier.background(BgDark)) {
         when {
             resolving || playUrl.isNullOrBlank() -> {
                 EnigmaLoadingRing(
                     modifier = Modifier.fillMaxSize(),
-                    message = "LOADING STREAM",
+                    message = "CONNECTING LIVE",
                     fullscreen = true
+                )
+            }
+            useExternalChrome -> {
+                WebViewPlayer(
+                    visible = true,
+                    title = title,
+                    url = playUrl!!,
+                    accent = EnigmaPurple,
+                    sourceLabel = sourceLabel,
+                    posterUrl = posterUrl,
+                    streamLoading = streamLoading,
+                    onClose = onClose,
+                    onNextSource = onNextSource,
+                    onLoadingChange = onLoadingChange,
+                    liveTv = true,
+                    useExternalChrome = true,
+                    onStreamCaptured = onNativeStream,
+                    modifier = Modifier.fillMaxSize()
                 )
             }
             else -> Column(Modifier.fillMaxSize()) {
@@ -76,7 +101,8 @@ fun EnigmaLivePlayer(
                     showBack = true,
                     onBack = onClose,
                     showNextSource = true,
-                    onNextSource = onNextSource
+                    onNextSource = onNextSource,
+                    isLive = true
                 )
                 WebViewPlayer(
                     visible = true,
@@ -91,10 +117,8 @@ fun EnigmaLivePlayer(
                     onLoadingChange = onLoadingChange,
                     liveTv = true,
                     useExternalChrome = true,
-                    onStreamCaptured = null,
-                    modifier = Modifier
-                        .weight(1f)
-                        .fillMaxSize()
+                    onStreamCaptured = onNativeStream,
+                    modifier = Modifier.weight(1f).fillMaxSize()
                 )
             }
         }
