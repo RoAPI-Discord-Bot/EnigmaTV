@@ -723,6 +723,12 @@ class EnigmaViewModel(application: Application) : AndroidViewModel(application) 
 
     private fun playLiveEmbed(title: String, embedUrl: String, label: String) {
         viewModelScope.launch {
+            val candidates = StreamedRepository.embedCandidates(embedUrl)
+            val webEmbed = candidates.firstOrNull { url ->
+                url.startsWith("http", ignoreCase = true) &&
+                    !LiveEmbedResolver.isUnplayableUrl(url)
+            } ?: StreamedRepository.normalizeStreamEmbed(embedUrl)
+
             _state.update {
                 it.copy(
                     playerVisible = true,
@@ -735,54 +741,27 @@ class EnigmaViewModel(application: Application) : AndroidViewModel(application) 
                     playingType = null,
                     sourceLabel = "Live · $label",
                     showLiveStreamPicker = false,
+                    playerUrl = webEmbed,
+                    playerResolveToken = it.playerResolveToken + 1,
                     error = null
                 )
             }
-            val candidates = StreamedRepository.embedCandidates(embedUrl)
-            var playable: String? = null
-            for (candidate in candidates) {
-                val resolved = LiveEmbedResolver.resolvePlayableUrl(candidate)
-                if (resolved.isNullOrBlank()) continue
-                if (resolved.contains(".m3u8", ignoreCase = true)) {
-                    playable = resolved
-                    break
-                }
-                if (!LiveEmbedResolver.isUnplayableUrl(resolved) &&
-                    !LiveEmbedResolver.isUnplayableContent(resolved)
-                ) {
-                    playable = resolved
-                    break
-                }
-            }
-            if (playable == null) {
-                playable = candidates.firstOrNull { url ->
-                    url.startsWith("http", ignoreCase = true) &&
-                        !LiveEmbedResolver.isUnplayableUrl(url)
-                } ?: embedUrl.takeIf { !LiveEmbedResolver.isUnplayableUrl(it) }
-            }
-            if (playable.isNullOrBlank()) {
+
+            if (webEmbed.isBlank()) {
                 _state.update {
-                    it.copy(
-                        playerLoading = false,
-                        playerStreamFailed = true,
-                        playerVisible = true,
-                        playerUrl = "",
-                        error = null
-                    )
+                    it.copy(playerLoading = false, playerStreamFailed = true, playerUrl = "")
                 }
                 return@launch
             }
-            if (playable.contains(".m3u8", ignoreCase = true)) {
-                playLiveNativeStream(playable)
-                return@launch
-            }
-            _state.update {
-                it.copy(
-                    playerUrl = playable,
-                    playerResolveToken = it.playerResolveToken + 1,
-                    playerLoading = true,
-                    playerStreamFailed = false
-                )
+
+            for (candidate in candidates.take(4)) {
+                val resolved = kotlinx.coroutines.withTimeoutOrNull(6_000) {
+                    LiveEmbedResolver.resolvePlayableUrl(candidate)
+                }
+                if (!resolved.isNullOrBlank() && resolved.contains(".m3u8", ignoreCase = true)) {
+                    playLiveNativeStream(resolved)
+                    return@launch
+                }
             }
         }
     }

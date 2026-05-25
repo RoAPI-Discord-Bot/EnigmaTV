@@ -19,6 +19,7 @@ class WebViewNavigationGuard(initialUrl: String) {
 
     private val sessionHosts = mutableSetOf<String>()
     private var liveTvMode = false
+    private var suppressLoadingPulses = false
 
     var onBlocked: ((String) -> Unit)? = null
     var onPageLoading: ((Boolean) -> Unit)? = null
@@ -33,6 +34,7 @@ class WebViewNavigationGuard(initialUrl: String) {
 
     fun resetForUrl(url: String, liveTv: Boolean = false) {
         liveTvMode = liveTv
+        suppressLoadingPulses = false
         sessionHosts.clear()
         extractHost(url)?.let { registerHost(it) }
         STREAM_EMBED_ROOTS.forEach { registerHost(it) }
@@ -115,7 +117,9 @@ class WebViewNavigationGuard(initialUrl: String) {
         webView.webViewClient = object : WebViewClient() {
             override fun onPageStarted(view: WebView?, url: String?, favicon: android.graphics.Bitmap?) {
                 url?.let { extractHost(it)?.let { registerHost(it) } }
-                onPageLoading?.invoke(true)
+                if (!(liveTvMode && suppressLoadingPulses)) {
+                    onPageLoading?.invoke(true)
+                }
             }
 
             override fun onPageFinished(view: WebView?, url: String?) {
@@ -157,9 +161,6 @@ class WebViewNavigationGuard(initialUrl: String) {
                     if (mime?.contains("json", ignoreCase = true) == true ||
                         looksLikeStreamApi(url)
                     ) {
-                        android.os.Handler(android.os.Looper.getMainLooper()).post {
-                            onPlaybackProbe?.invoke(false)
-                        }
                         return emptyResponse()
                     }
                     return null
@@ -265,12 +266,13 @@ class WebViewNavigationGuard(initialUrl: String) {
             """.trimIndent()
         ) { raw ->
             val verdict = raw?.trim('"', ' ') ?: "empty"
-            val ok = verdict == "ok"
+            val ok = verdict == "ok" || (liveTvMode && verdict == "empty")
             android.os.Handler(android.os.Looper.getMainLooper()).post {
                 if (verdict == "json") {
                     onPlaybackProbe?.invoke(false)
                     onPageLoading?.invoke(false)
                 } else {
+                    if (ok) suppressLoadingPulses = true
                     onPlaybackProbe?.invoke(ok)
                     onPageLoading?.invoke(!ok)
                 }

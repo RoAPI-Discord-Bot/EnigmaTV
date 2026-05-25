@@ -21,11 +21,9 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -101,22 +99,16 @@ fun ExoLivePlayer(
     var playToken by remember { mutableIntStateOf(0) }
     var stripHeaders by remember { mutableStateOf(false) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
-    var subtitleUrl by remember(playUrl, playToken) { mutableStateOf<String?>(null) }
     var hasTextTracks by remember { mutableStateOf(false) }
+    var hasReachedReady by remember(playUrl, playToken) { mutableStateOf(false) }
+
+    val sidecarSubtitle = remember(playUrl, playToken, resolved.subtitleUrl) {
+        resolved.subtitleUrl?.takeIf { StreamResolver.isValidSubtitleUrl(it) }
+    }
 
     DisposableEffect(useExternalChrome) {
         if (useExternalChrome) syncChrome(true)
         onDispose { }
-    }
-
-    DisposableEffect(playUrl, playToken, resolved.subtitleUrl) {
-        val job = scope.launch {
-            val fromResolved = resolved.subtitleUrl?.takeIf { StreamResolver.isValidSubtitleUrl(it) }
-            subtitleUrl = fromResolved ?: withContext(Dispatchers.IO) {
-                StreamResolver.resolveSubtitlesForStream(playUrl, resolved.referer.ifBlank { playUrl })
-            }?.takeIf { StreamResolver.isValidSubtitleUrl(it) }
-        }
-        onDispose { job.cancel() }
     }
 
     val player = remember(playUrl, playToken) {
@@ -128,10 +120,18 @@ fun ExoLivePlayer(
 
     val effectiveHeaders = if (stripHeaders) emptyMap() else playbackHeaders
 
-    DisposableEffect(playUrl, playToken, effectiveHeaders, subtitleUrl) {
+    DisposableEffect(playUrl, playToken, effectiveHeaders, sidecarSubtitle) {
         errorMessage = null
+        hasReachedReady = false
         onLoadingChange(true)
         var prepared = false
+        val loadTimeoutJob = scope.launch {
+            delay(28_000)
+            if (player.playbackState != Player.STATE_READY) {
+                onLoadingChange(false)
+                errorMessage = "Stream timed out — try next server"
+            }
+        }
         val dataSourceFactory = DefaultHttpDataSource.Factory()
             .setUserAgent(resolved.userAgent)
             .setAllowCrossProtocolRedirects(true)
@@ -153,7 +153,7 @@ fun ExoLivePlayer(
                             .build()
                     )
                 }
-                subtitleUrl?.let { sub ->
+                sidecarSubtitle?.let { sub ->
                     val subUri = android.net.Uri.parse(sub)
                     val mime = when {
                         sub.contains(".srt", ignoreCase = true) -> MimeTypes.APPLICATION_SUBRIP
@@ -193,10 +193,13 @@ fun ExoLivePlayer(
             override fun onPlaybackStateChanged(state: Int) {
                 when (state) {
                     Player.STATE_READY -> {
+                        hasReachedReady = true
                         onLoadingChange(false)
                         errorMessage = null
                     }
-                    Player.STATE_BUFFERING -> onLoadingChange(true)
+                    Player.STATE_BUFFERING -> {
+                        if (!hasReachedReady) onLoadingChange(true)
+                    }
                     Player.STATE_ENDED -> {
                         onLoadingChange(false)
                         if (!isLiveBroadcast) onPlaybackEnded?.invoke()
@@ -234,6 +237,7 @@ fun ExoLivePlayer(
             }
         } else null
         onDispose {
+            loadTimeoutJob.cancel()
             progressJob?.cancel()
             player.removeListener(listener)
             player.release()

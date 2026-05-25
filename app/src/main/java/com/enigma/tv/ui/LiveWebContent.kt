@@ -4,6 +4,18 @@ import android.net.Uri
 import android.webkit.WebView
 
 object LiveWebContent {
+    fun needsIframeWrapper(url: String): Boolean {
+        val u = url.trim().lowercase()
+        return u.contains("/api/stream/") ||
+            (u.contains("streamed.pk") && u.contains("/api/")) ||
+            u.startsWith("{") ||
+            u.startsWith("[")
+    }
+
+    fun load(webView: WebView, embedUrl: String) {
+        if (needsIframeWrapper(embedUrl)) loadInPlayer(webView, embedUrl) else webView.loadUrl(embedUrl)
+    }
+
     /** Load sports embed inside a fullscreen iframe so JSON/API bodies never paint as text. */
     fun loadInPlayer(webView: WebView, embedUrl: String) {
         val trimmed = embedUrl.trim()

@@ -65,6 +65,7 @@ fun WebViewPlayer(
         guard.onStreamUrl = onStreamCaptured
         guard.onBlocked = { /* silent */ }
         guard.onPageLoading = { loading ->
+            if (loading && liveTv && !pageLoading) return
             pageLoading = loading
             onLoadingChange(loading)
         }
@@ -83,6 +84,14 @@ fun WebViewPlayer(
     LaunchedEffect(url) {
         pageLoading = true
         onLoadingChange(true)
+    }
+
+    LaunchedEffect(url, liveTv) {
+        kotlinx.coroutines.delay(if (liveTv) 7_000 else 14_000)
+        if (pageLoading) {
+            pageLoading = false
+            onPlaybackReady?.invoke() ?: onLoadingChange(false)
+        }
     }
 
     val content: @Composable ColumnScope.() -> Unit = {
@@ -146,7 +155,7 @@ private fun ColumnScope.WebViewStreamBody(
                     settings.mediaPlaybackRequiresUserGesture = false
                     setTag(TAG_STREAM_URL, url)
                     guard.resetForUrl(url, liveTv = liveTv)
-                    if (liveTv) LiveWebContent.loadInPlayer(this, url) else loadUrl(url)
+                    if (liveTv) LiveWebContent.load(this, url) else loadUrl(url)
                 }
             },
             update = { view ->
@@ -155,7 +164,7 @@ private fun ColumnScope.WebViewStreamBody(
                     EmbedPlayerShield.stopPeriodic()
                     view.setTag(TAG_STREAM_URL, url)
                     guard.resetForUrl(url, liveTv = liveTv)
-                    if (liveTv) LiveWebContent.loadInPlayer(view, url) else view.loadUrl(url)
+                    if (liveTv) LiveWebContent.load(view, url) else view.loadUrl(url)
                 }
             },
             modifier = Modifier.fillMaxSize()
