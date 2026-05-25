@@ -70,7 +70,7 @@ class WebViewNavigationGuard(initialUrl: String) {
         }
 
         registerHost(host)
-        false
+        return false
     }
 
     fun shouldBlockSubresource(url: String): Boolean {
@@ -98,13 +98,6 @@ class WebViewNavigationGuard(initialUrl: String) {
         }
 
         webView.webChromeClient = object : WebChromeClient() {
-            override fun onCreateWindow(
-                view: WebView?,
-                isDialog: Boolean,
-                isUserGesture: Boolean,
-                resultMsg: Message?
-            ): Boolean = false
-
             override fun onProgressChanged(view: WebView?, newProgress: Int) {
                 if (newProgress >= 85) view?.let { EmbedPlayerShield.apply(it) }
             }
