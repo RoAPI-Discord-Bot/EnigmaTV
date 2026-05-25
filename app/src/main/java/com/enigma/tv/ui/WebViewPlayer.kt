@@ -74,6 +74,9 @@ fun WebViewPlayer(
             if (ok) {
                 pageLoading = false
                 onPlaybackReady?.invoke() ?: onLoadingChange(false)
+            } else if (liveTv) {
+                pageLoading = false
+                onLoadingChange(false)
             } else {
                 onStreamFailed?.invoke()
             }

@@ -213,6 +213,16 @@ fun ExoLivePlayer(
                 }
             }
 
+            override fun onIsPlayingChanged(isPlaying: Boolean) {
+                if (!isPlaying && hasReachedReady && !isLiveBroadcast && onPlaybackProgress != null) {
+                    val dur = player.duration
+                    if (dur > 0) {
+                        val pct = ((player.currentPosition * 100) / dur).toInt().coerceIn(0, 100)
+                        onPlaybackProgress(pct)
+                    }
+                }
+            }
+
             override fun onPlayerError(error: PlaybackException) {
                 onLoadingChange(false)
                 if (!stripHeaders && playbackHeaders.isNotEmpty()) {
@@ -237,6 +247,13 @@ fun ExoLivePlayer(
             }
         } else null
         onDispose {
+            if (!isLiveBroadcast && onPlaybackProgress != null) {
+                val dur = player.duration
+                if (dur > 0) {
+                    val pct = ((player.currentPosition * 100) / dur).toInt().coerceIn(0, 100)
+                    onPlaybackProgress(pct)
+                }
+            }
             loadTimeoutJob.cancel()
             progressJob?.cancel()
             player.removeListener(listener)

@@ -266,16 +266,12 @@ class WebViewNavigationGuard(initialUrl: String) {
             """.trimIndent()
         ) { raw ->
             val verdict = raw?.trim('"', ' ') ?: "empty"
-            val ok = verdict == "ok" || (liveTvMode && verdict == "empty")
+            val ok = verdict == "ok" ||
+                (liveTvMode && (verdict == "empty" || verdict == "json"))
             android.os.Handler(android.os.Looper.getMainLooper()).post {
-                if (verdict == "json") {
-                    onPlaybackProbe?.invoke(false)
-                    onPageLoading?.invoke(false)
-                } else {
-                    if (ok) suppressLoadingPulses = true
-                    onPlaybackProbe?.invoke(ok)
-                    onPageLoading?.invoke(!ok)
-                }
+                if (ok) suppressLoadingPulses = true
+                onPlaybackProbe?.invoke(ok)
+                onPageLoading?.invoke(!ok)
             }
         }
     }

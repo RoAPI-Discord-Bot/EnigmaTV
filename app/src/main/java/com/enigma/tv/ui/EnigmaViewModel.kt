@@ -129,6 +129,7 @@ class EnigmaViewModel(application: Application) : AndroidViewModel(application) 
     private var syncJob: Job? = null
     private var tvNavJob: Job? = null
     private var homeLoadJob: Job? = null
+    private var persistCwJob: Job? = null
 
     private fun activeProfileId(): String = _state.value.activeProfileId.ifBlank { "default" }
 
@@ -149,13 +150,28 @@ class EnigmaViewModel(application: Application) : AndroidViewModel(application) 
                 }
                 return@launch
             }
-            val ok = syncIfLoggedIn()
+            val (profiles, activeId) = profileStore.snapshot()
+            val metaOk = syncService.pushAccountMeta(activeId, profiles).isSuccess
+            val libOk = syncIfLoggedIn()
+            val ok = metaOk && libOk
             _state.update {
                 it.copy(
-                    profileMessage = if (ok) "Profile saved to cloud" else "Could not sync profile — check connection",
+                    profileMessage = if (ok) {
+                        "Saved ${profiles.size} profile(s) to cloud"
+                    } else {
+                        "Could not sync — check connection and Firebase sign-in"
+                    },
                     profileError = if (ok) null else it.profileError
                 )
             }
+        }
+    }
+
+    private fun schedulePersistContinueWatching() {
+        persistCwJob?.cancel()
+        persistCwJob = viewModelScope.launch {
+            delay(400)
+            persistContinueWatching()
         }
     }
 
@@ -243,6 +259,7 @@ class EnigmaViewModel(application: Application) : AndroidViewModel(application) 
         viewModelScope.launch {
             profileStore.setActive(profileId)
             pullCloudSafe()
+            syncIfLoggedIn()
         }
     }
 
@@ -330,6 +347,11 @@ class EnigmaViewModel(application: Application) : AndroidViewModel(application) 
                 avatarUri = imgurUrl ?: uri,
                 avatarBase64 = if (imgurUrl != null) null else base64
             )
+            if (imgurUrl == null) {
+                _state.update {
+                    it.copy(profileMessage = "Photo saved locally; Imgur upload failed — using device copy")
+                }
+            }
             syncProfilesImmediately()
         }
     }
@@ -593,6 +615,7 @@ class EnigmaViewModel(application: Application) : AndroidViewModel(application) 
                 activeProfileId(),
                 ContinueWatchingEntry(movie.id, movie.title, poster ?: "", 0, 0, ContentType.MOVIE)
             )
+            syncIfLoggedIn()
         }
     }
 
@@ -697,7 +720,12 @@ class EnigmaViewModel(application: Application) : AndroidViewModel(application) 
                     else -> {
                         _state.update { it.copy(liveStreamPicker = streams, playerTitle = match.title) }
                         if (streams.size == 1) {
-                            playLiveEmbed(match.title, streams.first().embedUrl, streams.first().label)
+                            playLiveEmbed(
+                                match.title,
+                                streams.first().embedUrl,
+                                streams.first().label,
+                                pickerIndex = 0
+                            )
                         } else {
                             _state.update { it.copy(showLiveStreamPicker = true) }
                         }
@@ -714,55 +742,38 @@ class EnigmaViewModel(application: Application) : AndroidViewModel(application) 
         val title = st.playerTitle.ifBlank { "Live Event" }
         val index = st.liveStreamPicker.indexOfFirst { it.embedUrl == link.embedUrl }.coerceAtLeast(0)
         _state.update { it.copy(showLiveStreamPicker = false, sourceIndex = index) }
-        playLiveEmbed(title, link.embedUrl, link.label)
+        playLiveEmbed(title, link.embedUrl, link.label, pickerIndex = index)
     }
 
     fun dismissLiveStreamPicker() {
         _state.update { it.copy(showLiveStreamPicker = false, liveStreamPicker = emptyList()) }
     }
 
-    private fun playLiveEmbed(title: String, embedUrl: String, label: String) {
-        viewModelScope.launch {
-            val candidates = StreamedRepository.embedCandidates(embedUrl)
-            val webEmbed = candidates.firstOrNull { url ->
-                url.startsWith("http", ignoreCase = true) &&
-                    !LiveEmbedResolver.isUnplayableUrl(url)
-            } ?: StreamedRepository.normalizeStreamEmbed(embedUrl)
+    private fun playLiveEmbed(title: String, embedUrl: String, label: String, pickerIndex: Int? = null) {
+        val candidates = StreamedRepository.embedCandidates(embedUrl)
+        val webEmbed = candidates.firstOrNull { url ->
+            url.startsWith("http", ignoreCase = true) &&
+                !LiveEmbedResolver.isUnplayableUrl(url)
+        } ?: StreamedRepository.normalizeStreamEmbed(embedUrl)
+        val idx = pickerIndex ?: _state.value.sourceIndex
 
-            _state.update {
-                it.copy(
-                    playerVisible = true,
-                    playerHls = false,
-                    playerLiveTv = true,
-                    playerLoading = true,
-                    playerStreamFailed = false,
-                    playerTitle = title,
-                    playerAccentMovie = false,
-                    playingType = null,
-                    sourceLabel = "Live · $label",
-                    showLiveStreamPicker = false,
-                    playerUrl = webEmbed,
-                    playerResolveToken = it.playerResolveToken + 1,
-                    error = null
-                )
-            }
-
-            if (webEmbed.isBlank()) {
-                _state.update {
-                    it.copy(playerLoading = false, playerStreamFailed = true, playerUrl = "")
-                }
-                return@launch
-            }
-
-            for (candidate in candidates.take(4)) {
-                val resolved = kotlinx.coroutines.withTimeoutOrNull(6_000) {
-                    LiveEmbedResolver.resolvePlayableUrl(candidate)
-                }
-                if (!resolved.isNullOrBlank() && resolved.contains(".m3u8", ignoreCase = true)) {
-                    playLiveNativeStream(resolved)
-                    return@launch
-                }
-            }
+        _state.update {
+            it.copy(
+                playerVisible = true,
+                playerHls = false,
+                playerLiveTv = true,
+                playerLoading = true,
+                playerStreamFailed = false,
+                playerTitle = title,
+                playerAccentMovie = false,
+                playingType = null,
+                sourceLabel = "Live · $label (${idx + 1}/${it.liveStreamPicker.size.coerceAtLeast(1)})",
+                showLiveStreamPicker = false,
+                sourceIndex = idx,
+                playerUrl = webEmbed,
+                playerResolveToken = it.playerResolveToken + 1,
+                error = null
+            )
         }
     }
 
@@ -967,9 +978,7 @@ class EnigmaViewModel(application: Application) : AndroidViewModel(application) 
     fun onPlaybackProgress(percent: Int) {
         val pct = percent.coerceIn(0, 100)
         _state.update { it.copy(playbackProgressPercent = pct) }
-        if (pct >= 5 && (pct % 10 == 0 || pct >= 90)) {
-            viewModelScope.launch { persistContinueWatching() }
-        }
+        if (pct >= 1) schedulePersistContinueWatching()
     }
 
     fun onEpisodeFinished() {
@@ -1007,7 +1016,8 @@ class EnigmaViewModel(application: Application) : AndroidViewModel(application) 
                         poster = s.playerLogoUrl ?: "",
                         season = s.selectedSeason,
                         episode = s.selectedEpisode,
-                        type = ContentType.TV
+                        type = ContentType.TV,
+                        progressPercent = s.playbackProgressPercent
                     )
                 )
             }
@@ -1039,20 +1049,26 @@ class EnigmaViewModel(application: Application) : AndroidViewModel(application) 
             }
             null -> {
                 val st = _state.value
-                if (st.liveStreamPicker.size > 1) {
+                if (st.liveStreamPicker.isNotEmpty()) {
                     val next = (st.sourceIndex + 1) % st.liveStreamPicker.size
                     val link = st.liveStreamPicker[next]
                     clearPlayerStreamFailed()
-                    playLiveEmbed(st.playerTitle, link.embedUrl, link.label)
-                    _state.update { it.copy(sourceIndex = next, playerHls = false, playerLiveTv = true) }
+                    playLiveEmbed(
+                        st.playerTitle,
+                        link.embedUrl,
+                        link.label,
+                        pickerIndex = next
+                    )
                 } else if (st.playerUrl.isNotBlank()) {
                     val bumped = StreamedRepository.bumpStreamNumber(st.playerUrl)
                     if (bumped != null) {
                         clearPlayerStreamFailed()
-                        playLiveEmbed(st.playerTitle, bumped, st.sourceLabel.substringAfter("· ").ifBlank { "Stream" })
+                        playLiveEmbed(
+                            st.playerTitle,
+                            bumped,
+                            st.sourceLabel.substringAfter("· ").ifBlank { "Stream" }
+                        )
                     }
-                } else {
-                    _state.update { it.copy(sourceIndex = it.sourceIndex + 1) }
                 }
             }
         }
@@ -1072,7 +1088,10 @@ class EnigmaViewModel(application: Application) : AndroidViewModel(application) 
     }
 
     fun closePlayer() {
-        viewModelScope.launch { persistContinueWatching() }
+        viewModelScope.launch {
+            persistCwJob?.cancel()
+            persistContinueWatching()
+        }
         _state.update {
             it.copy(
                 playerVisible = false,
@@ -1161,8 +1180,7 @@ class EnigmaViewModel(application: Application) : AndroidViewModel(application) 
         if (!_state.value.isLoggedIn) return false
         val s = _state.value
         val (profiles, activeId) = profileStore.snapshot()
-        var ok = true
-        syncService.pushAccountMeta(activeId, profiles).onFailure { ok = false }
+        var ok = syncService.pushAccountMeta(activeId, profiles).isSuccess
         for (profile in profiles) {
             syncService.pushProfileData(
                 profileId = profile.id,
