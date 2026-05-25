@@ -253,7 +253,11 @@ fun EnigmaShell(viewModel: EnigmaViewModel = viewModel()) {
                         onNextSource = { viewModel.nextSource() },
                         onLoadingChange = { viewModel.onPlayerPageLoading(it) },
                         tvControls = tvControls,
-                        resolveToken = state.playerResolveToken
+                        resolveToken = state.playerResolveToken,
+                        tmdbId = state.currentMovieId ?: state.currentShowId,
+                        playingType = state.playingType,
+                        season = state.selectedSeason,
+                        episode = state.selectedEpisode
                     )
                 }
                 state.playerVisible && state.playerLiveTv -> {

@@ -17,7 +17,9 @@ data class ViewerProfile(
     val id: String,
     val name: String,
     val avatarIndex: Int = 0,
-    val avatarUri: String? = null
+    val avatarUri: String? = null,
+    /** JPEG base64 for Firebase sync and cross-device restore */
+    val avatarBase64: String? = null
 )
 
 class ProfileStore(private val context: Context) {
@@ -85,10 +87,15 @@ class ProfileStore(private val context: Context) {
         }
     }
 
-    suspend fun setProfileAvatarUri(id: String, uri: String?) {
+    suspend fun setProfileAvatarData(id: String, avatarUri: String?, avatarBase64: String?) {
         context.profileDataStore.edit { prefs ->
             val current = readProfiles(prefs[profilesKey]).map { p ->
-                if (p.id == id) p.copy(avatarUri = uri) else p
+                if (p.id == id) {
+                    p.copy(
+                        avatarUri = avatarUri,
+                        avatarBase64 = avatarBase64
+                    )
+                } else p
             }
             prefs[profilesKey] = gson.toJson(current)
         }
@@ -97,7 +104,9 @@ class ProfileStore(private val context: Context) {
     suspend fun setProfileAvatarIndex(id: String, index: Int) {
         context.profileDataStore.edit { prefs ->
             val current = readProfiles(prefs[profilesKey]).map { p ->
-                if (p.id == id) p.copy(avatarIndex = index.mod(8), avatarUri = null) else p
+                if (p.id == id) {
+                    p.copy(avatarIndex = index.mod(8), avatarUri = null, avatarBase64 = null)
+                } else p
             }
             prefs[profilesKey] = gson.toJson(current)
         }
@@ -115,9 +124,22 @@ class ProfileStore(private val context: Context) {
 
     suspend fun importFromCloud(profiles: List<ViewerProfile>, activeId: String?) {
         if (profiles.isEmpty()) return
+        val local = readProfiles(context.profileDataStore.data.first()[profilesKey])
+        val merged = profiles.map { remote ->
+            val localP = local.find { it.id == remote.id }
+            when {
+                localP == null -> remote
+                !remote.avatarBase64.isNullOrBlank() -> remote
+                !localP.avatarBase64.isNullOrBlank() -> remote.copy(
+                    avatarBase64 = localP.avatarBase64,
+                    avatarUri = localP.avatarUri ?: remote.avatarUri
+                )
+                else -> remote.copy(name = remote.name.ifBlank { localP.name })
+            }
+        }
         context.profileDataStore.edit { prefs ->
-            prefs[profilesKey] = gson.toJson(profiles.take(6))
-            val active = activeId?.takeIf { id -> profiles.any { it.id == id } } ?: profiles.first().id
+            prefs[profilesKey] = gson.toJson(merged.take(6))
+            val active = activeId?.takeIf { id -> merged.any { it.id == id } } ?: merged.first().id
             prefs[activeKey] = active
         }
     }

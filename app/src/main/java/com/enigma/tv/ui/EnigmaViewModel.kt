@@ -33,6 +33,7 @@ import com.enigma.tv.data.firebase.FirebaseAuthService
 import com.enigma.tv.data.firebase.FirebaseSyncService
 import com.enigma.tv.data.formatRuntime
 import com.enigma.tv.data.FavoritesStore
+import com.enigma.tv.data.ProfileImageStorage
 import coil.ImageLoader
 import coil.request.ImageRequest
 import kotlinx.coroutines.async
@@ -130,6 +131,11 @@ class EnigmaViewModel(application: Application) : AndroidViewModel(application) 
             delay(1200)
             syncIfLoggedIn()
         }
+    }
+
+    private fun syncProfilesImmediately() {
+        if (!_state.value.isLoggedIn) return
+        viewModelScope.launch { syncIfLoggedIn() }
     }
 
     init {
@@ -254,35 +260,44 @@ class EnigmaViewModel(application: Application) : AndroidViewModel(application) 
     fun addProfile(name: String) {
         viewModelScope.launch {
             profileStore.addProfile(name)
-            scheduleCloudSync()
+            syncProfilesImmediately()
         }
     }
 
     fun removeProfile(profileId: String) {
         viewModelScope.launch {
             profileStore.removeProfile(profileId)
-            scheduleCloudSync()
+            syncProfilesImmediately()
         }
     }
 
     fun renameProfile(profileId: String, name: String) {
         viewModelScope.launch {
             profileStore.renameProfile(profileId, name)
-            scheduleCloudSync()
+            syncProfilesImmediately()
         }
     }
 
     fun setProfileAvatarIndex(profileId: String, index: Int) {
         viewModelScope.launch {
             profileStore.setProfileAvatarIndex(profileId, index)
-            scheduleCloudSync()
+            syncProfilesImmediately()
         }
     }
 
     fun setProfileAvatarUri(profileId: String, uri: String?) {
         viewModelScope.launch {
-            profileStore.setProfileAvatarUri(profileId, uri)
-            scheduleCloudSync()
+            if (uri.isNullOrBlank()) {
+                profileStore.setProfileAvatarData(profileId, avatarUri = null, avatarBase64 = null)
+            } else {
+                val base64 = ProfileImageStorage.persistAndEncode(getApplication(), profileId, uri)
+                profileStore.setProfileAvatarData(
+                    profileId,
+                    avatarUri = uri,
+                    avatarBase64 = base64
+                )
+            }
+            syncProfilesImmediately()
         }
     }
 
@@ -921,11 +936,25 @@ class EnigmaViewModel(application: Application) : AndroidViewModel(application) 
         }
     }
 
+    private fun restoreProfileAvatarsFromCloud(profiles: List<ViewerProfile>) {
+        val app = getApplication<android.app.Application>()
+        profiles.forEach { profile ->
+            val b64 = profile.avatarBase64 ?: return@forEach
+            try {
+                val bytes = android.util.Base64.decode(b64, android.util.Base64.NO_WRAP)
+                val dir = java.io.File(app.filesDir, "profile_avatars").apply { mkdirs() }
+                java.io.File(dir, "${profile.id}.jpg").writeBytes(bytes)
+            } catch (_: Exception) {
+            }
+        }
+    }
+
     private suspend fun pullCloudSafe() {
         if (!_state.value.isLoggedIn) return
         val account = syncService.pullAccount() ?: return
 
         profileStore.importFromCloud(account.profiles, account.activeProfileId)
+        restoreProfileAvatarsFromCloud(account.profiles)
 
         for ((profileId, cloud) in account.profileData) {
             if (cloud.favorites.isNotEmpty()) favoritesStore.replaceAll(profileId, cloud.favorites)

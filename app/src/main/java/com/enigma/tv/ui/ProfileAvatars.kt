@@ -31,6 +31,7 @@ import androidx.compose.material.icons.filled.Tv
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -43,6 +44,8 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.platform.LocalContext
+import com.enigma.tv.data.ProfileImageStorage
 import com.enigma.tv.data.ViewerProfile
 import com.enigma.tv.ui.theme.BgDark
 import com.enigma.tv.ui.theme.EnigmaPink
@@ -85,6 +88,10 @@ fun ProfileAvatarCircle(
     onClick: () -> Unit
 ) {
     val color = profileAvatarColor(profile.avatarIndex)
+    val context = LocalContext.current
+    val imageModel = remember(profile.id, profile.avatarBase64, profile.avatarUri) {
+        ProfileImageStorage.avatarModel(profile, context)
+    }
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
         modifier = Modifier
@@ -103,10 +110,9 @@ fun ProfileAvatarCircle(
                 ),
             contentAlignment = Alignment.Center
         ) {
-            val customUri = profile.avatarUri?.takeIf { it.isNotBlank() }
-            if (customUri != null) {
+            if (imageModel != null) {
                 AsyncImage(
-                    model = customUri,
+                    model = imageModel,
                     contentDescription = profile.name,
                     modifier = Modifier.fillMaxSize(),
                     contentScale = ContentScale.Crop

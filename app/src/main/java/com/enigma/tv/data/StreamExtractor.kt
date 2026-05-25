@@ -8,11 +8,9 @@ import android.os.Looper
 import android.view.ViewGroup
 import android.webkit.JavascriptInterface
 import android.webkit.WebResourceRequest
-import android.webkit.WebResourceResponse
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import android.widget.FrameLayout
-import com.enigma.tv.util.isTelevision
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
@@ -21,8 +19,7 @@ import java.util.concurrent.atomic.AtomicBoolean
 import kotlin.coroutines.resume
 
 /**
- * Hidden WebView extractor attached to the activity window (required to avoid native crashes).
- * JS and network callbacks are marshalled to the main thread before completing.
+ * Hidden WebView attached to the activity window; hooks fetch/XHR and intercepts .m3u8/.mp4 traffic.
  */
 class StreamExtractor(private val context: Context) {
 
@@ -31,10 +28,24 @@ class StreamExtractor(private val context: Context) {
         embedUrl: String,
         referer: String? = null,
         activity: Activity? = null
+    ): ResolvedStream? {
+        val url = extractStreamUrlRaw(embedUrl, referer, activity) ?: return null
+        val ref = referer ?: ResolvedStream.embedReferer(embedUrl)
+        return ResolvedStream(
+            url = url,
+            referer = ref,
+            origin = ResolvedStream.embedOrigin(embedUrl),
+            provider = "webview"
+        )
+    }
+
+    suspend fun extractStreamUrlRaw(
+        embedUrl: String,
+        referer: String? = null,
+        activity: Activity? = null
     ): String? {
-        if (context.isTelevision()) return null
         val hostActivity = activity ?: return null
-        return withTimeoutOrNull(15_000) {
+        return withTimeoutOrNull(18_000) {
             withContext(Dispatchers.Main) {
                 suspendCancellableCoroutine { cont ->
                     val finished = AtomicBoolean(false)
@@ -54,6 +65,10 @@ class StreamExtractor(private val context: Context) {
                         }
                     }
 
+                    fun injectHooks(view: WebView?) {
+                        view?.evaluateJavascript(HOOK_JS, null)
+                    }
+
                     try {
                         hostContainer = FrameLayout(hostActivity).apply {
                             layoutParams = FrameLayout.LayoutParams(1, 1)
@@ -70,11 +85,13 @@ class StreamExtractor(private val context: Context) {
                             settings.loadWithOverviewMode = true
                             settings.useWideViewPort = true
                             settings.userAgentString = USER_AGENT
+                            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.LOLLIPOP) {
+                                settings.mixedContentMode =
+                                    android.webkit.WebSettings.MIXED_CONTENT_ALWAYS_ALLOW
+                            }
 
                             addJavascriptInterface(
-                                JsBridge { url ->
-                                    handler.post { complete(url) }
-                                },
+                                JsBridge { url -> complete(url) },
                                 "EnigmaStream"
                             )
 
@@ -82,26 +99,30 @@ class StreamExtractor(private val context: Context) {
                                 override fun shouldInterceptRequest(
                                     view: WebView,
                                     request: WebResourceRequest
-                                ): WebResourceResponse? {
-                                    val url = request.url.toString()
-                                    pickStreamUrl(url)?.let { found ->
+                                ): android.webkit.WebResourceResponse? {
+                                    pickStreamUrl(request.url.toString())?.let { found ->
                                         handler.post { complete(found) }
                                     }
                                     return super.shouldInterceptRequest(view, request)
                                 }
 
+                                override fun onPageStarted(view: WebView?, url: String?, favicon: android.graphics.Bitmap?) {
+                                    injectHooks(view)
+                                }
+
                                 override fun onPageFinished(view: WebView?, url: String?) {
-                                    view?.evaluateJavascript(EXTRACT_JS, null)
+                                    injectHooks(view)
+                                    listOf(800L, 2000L, 4000L, 7000L).forEach { delay ->
+                                        handler.postDelayed({ injectHooks(view) }, delay)
+                                    }
+                                    handler.postDelayed({ view?.evaluateJavascript(EXTRACT_JS, null) }, 1200)
                                 }
                             }
-                            hostContainer?.addView(
-                                this,
-                                FrameLayout.LayoutParams(1, 1)
-                            )
+                            hostContainer?.addView(this, FrameLayout.LayoutParams(1, 1))
                             loadUrl(embedUrl, mapOf("Referer" to refererHeader))
                         }
 
-                        handler.postDelayed({ complete(null) }, 14_000)
+                        handler.postDelayed({ complete(null) }, 17_000)
                     } catch (_: Exception) {
                         complete(null)
                     }
@@ -123,12 +144,9 @@ class StreamExtractor(private val context: Context) {
             webView?.stopLoading()
             webView?.loadUrl("about:blank")
             (webView?.parent as? ViewGroup)?.removeView(webView)
-            container?.let { parent ->
-                (parent.parent as? ViewGroup)?.removeView(parent)
-            }
+            container?.let { (it.parent as? ViewGroup)?.removeView(it) }
             webView?.destroy()
         } catch (_: Exception) {
-            // Ignore teardown races
         }
     }
 
@@ -137,7 +155,8 @@ class StreamExtractor(private val context: Context) {
         if (!lower.startsWith("http")) return null
         if (lower.contains("thumbnail") || lower.contains("preview") || lower.contains("sprite")) return null
         if (lower.contains(".m3u8")) return cleanUrl(url)
-        if (lower.contains(".mp4")) return cleanUrl(url)
+        if (lower.contains(".mp4") && !lower.contains("poster")) return cleanUrl(url)
+        if (lower.contains("/master.") || lower.contains("playlist.m3u8")) return cleanUrl(url)
         return null
     }
 
@@ -154,18 +173,42 @@ class StreamExtractor(private val context: Context) {
     }
 
     companion object {
-        const val USER_AGENT =
-            "Mozilla/5.0 (Linux; Android 10) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36"
+        const val USER_AGENT = StreamResolver.USER_AGENT
+
+        private const val HOOK_JS = """
+(function() {
+  if (window.__enigmaHooked) return;
+  window.__enigmaHooked = true;
+  function notify(u) {
+    if (!u) return;
+    var s = String(u);
+    if (s.indexOf('.m3u8') >= 0 || s.indexOf('.mp4') >= 0) EnigmaStream.onStreamFound(s);
+  }
+  var of = window.fetch;
+  if (of) {
+    window.fetch = function(input, init) {
+      try {
+        if (typeof input === 'string') notify(input);
+        else if (input && input.url) notify(input.url);
+      } catch(e) {}
+      return of.apply(this, arguments);
+    };
+  }
+  var ox = XMLHttpRequest.prototype.open;
+  XMLHttpRequest.prototype.open = function(method, url) {
+    notify(url);
+    return ox.apply(this, arguments);
+  };
+})();
+"""
 
         private const val EXTRACT_JS = """
 (function() {
   try {
-    var found = [];
-    document.querySelectorAll('video, source').forEach(function(el) {
+    document.querySelectorAll('video, source, iframe').forEach(function(el) {
       var s = el.src || el.getAttribute('src');
-      if (s && (s.indexOf('.m3u8') >= 0 || s.indexOf('.mp4') >= 0)) found.push(s);
+      if (s && (s.indexOf('.m3u8') >= 0 || s.indexOf('.mp4') >= 0)) EnigmaStream.onStreamFound(s);
     });
-    if (found.length > 0) EnigmaStream.onStreamFound(found[0]);
   } catch(e) {}
 })();
 """

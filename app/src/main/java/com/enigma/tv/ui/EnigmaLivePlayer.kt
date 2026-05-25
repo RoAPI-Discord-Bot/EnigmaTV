@@ -5,30 +5,24 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import com.enigma.tv.data.LiveEmbedResolver
-import com.enigma.tv.data.StreamExtractor
-import com.enigma.tv.data.StreamResolver
+import com.enigma.tv.data.ResolvedStream
+import com.enigma.tv.data.StreamPlaybackResolver
 import com.enigma.tv.ui.theme.BgDark
 import com.enigma.tv.ui.theme.EnigmaPurple
-import com.enigma.tv.ui.theme.TextSecondary
 import com.enigma.tv.util.findActivity
-import com.enigma.tv.util.isTelevision
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+
+private enum class LivePlayMode { Resolving, Native, Embed }
 
 @Composable
 fun EnigmaLivePlayer(
@@ -49,51 +43,51 @@ fun EnigmaLivePlayer(
 
     val context = LocalContext.current
     val activity = remember(context) { context.findActivity() }
-    val skipWebView = remember(context) { context.isTelevision() }
-    var directUrl by remember(embedUrl, resolveToken) { mutableStateOf<String?>(null) }
-    var resolving by remember(embedUrl, resolveToken) { mutableStateOf(true) }
+    var resolvedStream by remember(embedUrl, resolveToken) { mutableStateOf<ResolvedStream?>(null) }
+    var playUrl by remember(embedUrl, resolveToken) { mutableStateOf(embedUrl) }
+    var mode by remember(embedUrl, resolveToken) { mutableStateOf(LivePlayMode.Resolving) }
 
-    LaunchedEffect(embedUrl, resolveToken, activity, skipWebView) {
-        resolving = true
+    LaunchedEffect(embedUrl, resolveToken, activity) {
+        mode = LivePlayMode.Resolving
         onLoadingChange(true)
-        directUrl = null
+        resolvedStream = null
         try {
             val resolved = withContext(Dispatchers.IO) {
                 LiveEmbedResolver.resolvePlayableUrl(embedUrl)
             }
-            directUrl = withContext(Dispatchers.IO) {
-                StreamResolver.resolveDirectUrl(resolved)
-            }
-            if (directUrl.isNullOrBlank() && !skipWebView && activity != null) {
-                directUrl = StreamExtractor(context).extractStreamUrl(
+            playUrl = resolved
+            resolvedStream = withContext(Dispatchers.IO) {
+                StreamPlaybackResolver.resolve(
+                    context = context,
                     embedUrl = resolved,
-                    referer = embedUrl,
-                    activity = activity
-                )
-            }
-            if (directUrl.isNullOrBlank() && !skipWebView && activity != null) {
-                directUrl = StreamExtractor(context).extractStreamUrl(
+                    activity = activity,
+                    tmdbId = null,
+                    type = null
+                ) ?: StreamPlaybackResolver.resolve(
+                    context = context,
                     embedUrl = embedUrl,
-                    activity = activity
+                    activity = activity,
+                    tmdbId = null,
+                    type = null
                 )
             }
+            mode = if (resolvedStream != null) LivePlayMode.Native else LivePlayMode.Embed
         } catch (_: Exception) {
-            directUrl = null
+            resolvedStream = null
+            mode = LivePlayMode.Embed
         } finally {
-            resolving = false
             onLoadingChange(false)
         }
     }
 
-    val useNative = !directUrl.isNullOrBlank()
-    val loading = streamLoading || resolving
+    val loading = streamLoading || mode == LivePlayMode.Resolving
 
     Box(Modifier.fillMaxSize().background(BgDark)) {
-        when {
-            useNative -> ExoLivePlayer(
+        when (mode) {
+            LivePlayMode.Native -> ExoLivePlayer(
                 visible = true,
                 title = title,
-                streamUrl = directUrl!!,
+                stream = resolvedStream,
                 sourceLabel = "$sourceLabel · Direct",
                 logoUrl = posterUrl,
                 accent = EnigmaPurple,
@@ -103,10 +97,10 @@ fun EnigmaLivePlayer(
                 showNextSource = true,
                 onNextSource = onNextSource
             )
-            resolving -> Column(Modifier.fillMaxSize()) {
+            LivePlayMode.Resolving -> Column(Modifier.fillMaxSize()) {
                 PlayerChrome(
                     title = title,
-                    subtitle = "Extracting stream…",
+                    subtitle = "Finding stream…",
                     posterUrl = posterUrl,
                     accent = EnigmaPurple,
                     onClose = onClose,
@@ -118,40 +112,26 @@ fun EnigmaLivePlayer(
                     message = "LOADING STREAM"
                 )
             }
-            else -> Column(Modifier.fillMaxSize()) {
-                PlayerChrome(
+            LivePlayMode.Embed -> Column(Modifier.fillMaxSize()) {
+                WebViewPlayer(
+                    visible = true,
                     title = title,
-                    subtitle = sourceLabel,
-                    posterUrl = posterUrl,
+                    url = playUrl,
                     accent = EnigmaPurple,
+                    sourceLabel = "$sourceLabel · Player",
+                    posterUrl = posterUrl,
+                    streamLoading = loading,
                     onClose = onClose,
-                    showBack = true,
-                    onBack = onClose,
-                    showNextSource = true,
-                    onNextSource = onNextSource
+                    onNextSource = onNextSource,
+                    onLoadingChange = onLoadingChange,
+                    liveTv = true,
+                    useExternalChrome = true,
+                    onStreamCaptured = { captured ->
+                        resolvedStream = ResolvedStream.fromEmbed(playUrl, captured, "live-capture")
+                        mode = LivePlayMode.Native
+                    },
+                    modifier = Modifier.weight(1f).fillMaxSize()
                 )
-                Box(
-                    Modifier
-                        .weight(1f)
-                        .fillMaxSize(),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text(
-                            if (skipWebView) {
-                                "No direct stream on TV for this source — try next source."
-                            } else {
-                                "Couldn't load this live stream directly. Try another source."
-                            },
-                            color = TextSecondary,
-                            fontSize = 15.sp,
-                            modifier = Modifier.padding(horizontal = 24.dp)
-                        )
-                        TextButton(onClick = onNextSource) {
-                            Text("Try next source", color = EnigmaPurple, fontSize = 16.sp)
-                        }
-                    }
-                }
             }
         }
     }

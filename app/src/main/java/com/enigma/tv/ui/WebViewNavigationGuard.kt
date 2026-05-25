@@ -21,6 +21,8 @@ class WebViewNavigationGuard(initialUrl: String) {
 
     var onBlocked: ((String) -> Unit)? = null
     var onPageLoading: ((Boolean) -> Unit)? = null
+    /** Called on main thread when a direct HLS/MP4 URL is seen in network traffic */
+    var onStreamUrl: ((String) -> Unit)? = null
 
     init {
         resetForUrl(initialUrl)
@@ -115,6 +117,7 @@ class WebViewNavigationGuard(initialUrl: String) {
             ): WebResourceResponse? {
                 if (request.isForMainFrame) return null
                 val url = request.url.toString()
+                captureStreamUrl(url)
                 return if (shouldBlockSubresource(url)) emptyResponse() else null
             }
         }
@@ -155,6 +158,17 @@ class WebViewNavigationGuard(initialUrl: String) {
 
     private fun isBlockedScheme(scheme: String): Boolean =
         scheme in BLOCKED_SCHEMES
+
+    private fun captureStreamUrl(url: String) {
+        val lower = url.lowercase()
+        if (!lower.startsWith("http")) return
+        if (lower.contains("thumbnail") || lower.contains("preview") || lower.contains("sprite")) return
+        if (lower.contains(".m3u8") || (lower.contains(".mp4") && !lower.contains("poster"))) {
+            android.os.Handler(android.os.Looper.getMainLooper()).post {
+                onStreamUrl?.invoke(url)
+            }
+        }
+    }
 
     private fun emptyResponse() = WebResourceResponse(
         "text/plain",

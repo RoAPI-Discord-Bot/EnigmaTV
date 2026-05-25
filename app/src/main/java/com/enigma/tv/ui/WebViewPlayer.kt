@@ -50,13 +50,15 @@ fun WebViewPlayer(
     liveTv: Boolean = false,
     posterUrl: String? = null,
     useExternalChrome: Boolean = false,
+    onStreamCaptured: ((String) -> Unit)? = null,
     modifier: Modifier = Modifier.fillMaxSize()
 ) {
     if (!visible) return
 
     var blockedNotice by remember { mutableStateOf<String?>(null) }
-    val guard = remember(liveTv) {
+    val guard = remember(liveTv, onStreamCaptured) {
         WebViewNavigationGuard("").apply {
+            onStreamUrl = onStreamCaptured
             onBlocked = { blocked ->
                 blockedNotice = when {
                     blocked == "popup_window" -> "Blocked popup"

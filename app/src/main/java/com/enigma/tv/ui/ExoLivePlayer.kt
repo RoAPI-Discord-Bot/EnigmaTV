@@ -34,6 +34,7 @@ import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.hls.HlsMediaSource
 import androidx.media3.exoplayer.source.MediaSource
 import androidx.media3.ui.PlayerView
+import com.enigma.tv.data.ResolvedStream
 import com.enigma.tv.ui.theme.BgDark
 import com.enigma.tv.ui.theme.EnigmaPurple
 import com.enigma.tv.ui.theme.TextPrimary
@@ -43,7 +44,8 @@ import com.enigma.tv.ui.theme.TextPrimary
 fun ExoLivePlayer(
     visible: Boolean,
     title: String,
-    streamUrl: String,
+    streamUrl: String = "",
+    stream: ResolvedStream? = null,
     sourceLabel: String,
     logoUrl: String? = null,
     accent: Color = EnigmaPurple,
@@ -58,7 +60,11 @@ fun ExoLivePlayer(
 
     BackHandler { onClose() }
 
-    if (streamUrl.isBlank()) {
+    val resolved = stream ?: streamUrl.takeIf { it.isNotBlank() }?.let {
+        ResolvedStream(url = it, referer = "", provider = "direct")
+    }
+
+    if (resolved == null || resolved.url.isBlank()) {
         Box(Modifier.fillMaxSize().background(BgDark)) {
             EnigmaLoadingRing(
                 modifier = Modifier.fillMaxSize(),
@@ -69,29 +75,37 @@ fun ExoLivePlayer(
         return
     }
 
+    val playUrl = resolved.url
+    val playbackHeaders = resolved.playbackHeaders()
+
     val context = LocalContext.current
     var playToken by remember { mutableIntStateOf(0) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
 
-    val player = remember(streamUrl, playToken) {
+    val player = remember(playUrl, playToken) {
         ExoPlayer.Builder(context).build().apply {
             playWhenReady = true
         }
     }
 
-    DisposableEffect(streamUrl, playToken) {
+    DisposableEffect(playUrl, playToken, playbackHeaders) {
         errorMessage = null
         onLoadingChange(true)
         var prepared = false
         val dataSourceFactory = DefaultHttpDataSource.Factory()
-            .setUserAgent("EnigmaTV/2.0 (Android)")
+            .setUserAgent(resolved.userAgent)
             .setAllowCrossProtocolRedirects(true)
-            .setConnectTimeoutMs(15_000)
-            .setReadTimeoutMs(20_000)
+            .setConnectTimeoutMs(18_000)
+            .setReadTimeoutMs(25_000)
+            .apply {
+                if (playbackHeaders.isNotEmpty()) {
+                    setDefaultRequestProperties(playbackHeaders)
+                }
+            }
         try {
-            val uri = android.net.Uri.parse(streamUrl)
+            val uri = android.net.Uri.parse(playUrl)
             if (!uri.scheme.isNullOrBlank()) {
-                val mediaSource: MediaSource = if (streamUrl.contains(".m3u8", ignoreCase = true)) {
+                val mediaSource: MediaSource = if (playUrl.contains(".m3u8", ignoreCase = true)) {
                     HlsMediaSource.Factory(dataSourceFactory).createMediaSource(MediaItem.fromUri(uri))
                 } else {
                     androidx.media3.exoplayer.source.ProgressiveMediaSource.Factory(dataSourceFactory)
@@ -122,7 +136,7 @@ fun ExoLivePlayer(
 
             override fun onPlayerError(error: PlaybackException) {
                 onLoadingChange(false)
-                errorMessage = "Stream unavailable — try another source"
+                errorMessage = "Stream blocked — try next server"
             }
         }
         player.addListener(listener)
