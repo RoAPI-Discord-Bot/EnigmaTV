@@ -69,8 +69,6 @@ fun EnigmaMediaPlayer(
                 streamLoading = loading,
                 onClose = onClose,
                 onLoadingChange = onLoadingChange,
-                showBack = true,
-                onBack = onClose,
                 showNextSource = true,
                 onNextSource = onNextSource,
                 tvControls = tvControls

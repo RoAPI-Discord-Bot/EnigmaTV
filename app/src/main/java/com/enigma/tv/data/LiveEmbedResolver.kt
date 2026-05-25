@@ -27,23 +27,22 @@ object LiveEmbedResolver {
     }
 
     private fun unwrapIframe(pageUrl: String): String? {
-        try {
+        return try {
             val request = Request.Builder()
                 .url(pageUrl)
                 .header("User-Agent", USER_AGENT)
                 .header("Referer", pageUrl)
                 .build()
             client.newCall(request).execute().use { response ->
-                if (!response.isSuccessful) return null
-                val html = response.body?.string() ?: return null
+                if (!response.isSuccessful) return@use null
+                val html = response.body?.string() ?: return@use null
                 val candidates = iframeSrcRegex.findAll(html)
                     .map { it.groupValues[1] }
                     .map { decode(it) }
                     .filter { it.startsWith("http") }
                     .distinct()
                     .toList()
-                candidates.firstOrNull { looksLikePlayer(it) }
-                    ?: candidates.firstOrNull()
+                candidates.firstOrNull { looksLikePlayer(it) } ?: candidates.firstOrNull()
             }
         } catch (_: Exception) {
             null
