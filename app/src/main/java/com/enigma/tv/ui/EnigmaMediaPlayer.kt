@@ -160,6 +160,7 @@ fun EnigmaMediaPlayer(
                         onPlaybackProgress = onPlaybackPositionMs?.let { cb ->
                             { ms: Long -> cb(ms) }
                         },
+                        startPositionMs = startPositionMs,
                         modifier = Modifier.fillMaxSize()
                     )
                 }

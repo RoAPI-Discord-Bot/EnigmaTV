@@ -327,11 +327,7 @@ class EnigmaViewModel(application: Application) : AndroidViewModel(application) 
 
     fun setProfileAvatarIndex(profileId: String, index: Int) {
         viewModelScope.launch {
-            profileStore.setProfileAvatarIndex(
-                profileId,
-                index,
-                ProfileAvatarPresets.imageUrl(index)
-            )
+            profileStore.setProfileAvatarIndex(profileId, index)
             syncProfilesImmediately()
         }
     }
@@ -664,9 +660,18 @@ class EnigmaViewModel(application: Application) : AndroidViewModel(application) 
             )
         }
         viewModelScope.launch {
+            val resumeMs = startPositionMs.coerceAtLeast(0L)
             cwStore.addOrUpdate(
                 activeProfileId(),
-                ContinueWatchingEntry(movie.id, movie.title, poster ?: "", 0, 0, ContentType.MOVIE)
+                ContinueWatchingEntry(
+                    id = movie.id,
+                    name = movie.title,
+                    poster = poster ?: "",
+                    season = 0,
+                    episode = 0,
+                    type = ContentType.MOVIE,
+                    positionMs = resumeMs
+                )
             )
             syncIfLoggedIn()
         }
@@ -803,13 +808,7 @@ class EnigmaViewModel(application: Application) : AndroidViewModel(application) 
     }
 
     private fun playLiveEmbed(title: String, embedUrl: String, label: String, pickerIndex: Int? = null) {
-        val candidates = StreamedRepository.embedCandidates(embedUrl)
-        val webEmbed = candidates.firstOrNull { url ->
-            url.startsWith("http", ignoreCase = true) &&
-                !LiveEmbedResolver.isUnplayableUrl(url)
-        } ?: StreamedRepository.normalizeStreamEmbed(embedUrl)
         val idx = pickerIndex ?: _state.value.sourceIndex
-
         _state.update {
             it.copy(
                 playerVisible = true,
@@ -823,10 +822,23 @@ class EnigmaViewModel(application: Application) : AndroidViewModel(application) 
                 sourceLabel = "Live · $label (${idx + 1}/${it.liveStreamPicker.size.coerceAtLeast(1)})",
                 showLiveStreamPicker = false,
                 sourceIndex = idx,
-                playerUrl = webEmbed,
                 playerResolveToken = it.playerResolveToken + 1,
                 error = null
             )
+        }
+        viewModelScope.launch {
+            val candidates = StreamedRepository.embedCandidates(embedUrl)
+            val resolved = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                LiveEmbedResolver.resolvePlayableUrl(embedUrl)
+            }
+            val webEmbed = when {
+                !resolved.isNullOrBlank() && !LiveEmbedResolver.isUnplayableUrl(resolved) -> resolved
+                else -> candidates.firstOrNull { url ->
+                    url.startsWith("http", ignoreCase = true) &&
+                        !LiveEmbedResolver.isUnplayableUrl(url)
+                } ?: StreamedRepository.normalizeStreamEmbed(embedUrl)
+            }
+            _state.update { it.copy(playerUrl = webEmbed) }
         }
     }
 
@@ -943,7 +955,15 @@ class EnigmaViewModel(application: Application) : AndroidViewModel(application) 
                 val posterUrl = detail.posterPath?.let { "https://image.tmdb.org/t/p/w342$it" }
                 cwStore.addOrUpdate(
                     activeProfileId(),
-                    ContinueWatchingEntry(id, name, posterUrl ?: "", startSeason, startEpisode, ContentType.TV)
+                    ContinueWatchingEntry(
+                        id = id,
+                        name = name,
+                        poster = posterUrl ?: "",
+                        season = startSeason,
+                        episode = startEpisode,
+                        type = ContentType.TV,
+                        positionMs = startPositionMs.coerceAtLeast(0L)
+                    )
                 )
                 _state.update { it.copy(playerLogoUrl = posterUrl) }
                 if (seasons.isNotEmpty()) {
@@ -1103,11 +1123,13 @@ class EnigmaViewModel(application: Application) : AndroidViewModel(application) 
                 val id = s.currentMovieId ?: return
                 val next = (s.sourceIndex + 1) % StreamSources.movieSources.size
                 val (name, url) = StreamSources.movieUrl(next, id)
+                val resumeMs = s.playbackPositionMs
                 _state.update {
                     it.copy(
                         playerLoading = false,
                         sourceIndex = next,
                         playerUrl = url,
+                        playbackPositionMs = resumeMs,
                         playerResolveToken = it.playerResolveToken + 1,
                         sourceLabel = "Enigma Player · $name (${next + 1}/${StreamSources.movieSources.size})"
                     )

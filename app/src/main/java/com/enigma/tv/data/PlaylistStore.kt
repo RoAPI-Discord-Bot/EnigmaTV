@@ -20,12 +20,12 @@ class PlaylistStore(private val context: Context) {
     private fun key(profileId: String) = stringPreferencesKey("playlists_$profileId")
 
     fun watch(profileId: String): Flow<List<Playlist>> = context.playlistDataStore.data.map { prefs ->
-        readList(prefs[key(profileId)] ?: prefs[legacyKey])
+        readList(ProfileScopedPrefs.jsonForProfile(prefs, profileId, key(profileId), legacyKey))
     }
 
     suspend fun readOnce(profileId: String): List<Playlist> {
         val prefs = context.playlistDataStore.data.first()
-        return readList(prefs[key(profileId)] ?: prefs[legacyKey])
+        return readList(ProfileScopedPrefs.jsonForProfile(prefs, profileId, key(profileId), legacyKey))
     }
 
     suspend fun replaceAll(profileId: String, items: List<Playlist>) {
@@ -37,7 +37,7 @@ class PlaylistStore(private val context: Context) {
     suspend fun createPlaylist(profileId: String, name: String): Playlist {
         val playlist = Playlist(id = UUID.randomUUID().toString(), name = name.trim())
         context.playlistDataStore.edit { prefs ->
-            val current = readList(prefs[key(profileId)] ?: prefs[legacyKey]).toMutableList()
+            val current = readList(ProfileScopedPrefs.jsonForProfile(prefs, profileId, key(profileId), legacyKey)).toMutableList()
             current.add(0, playlist)
             prefs[key(profileId)] = gson.toJson(current)
         }

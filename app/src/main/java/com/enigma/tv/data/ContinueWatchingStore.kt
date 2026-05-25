@@ -20,13 +20,21 @@ class ContinueWatchingStore(private val context: Context) {
     private fun key(profileId: String) = stringPreferencesKey("continue_$profileId")
 
     fun watch(profileId: String): Flow<List<ContinueWatchingEntry>> = context.dataStore.data.map { prefs ->
-        val json = prefs[key(profileId)] ?: prefs[legacyKey] ?: prefs[legacyCinetvKey] ?: "[]"
-        readList(json)
+        readList(jsonForProfile(prefs, profileId))
     }
 
     suspend fun readOnce(profileId: String): List<ContinueWatchingEntry> {
         val prefs = context.dataStore.data.first()
-        return readList(prefs[key(profileId)] ?: prefs[legacyKey] ?: prefs[legacyCinetvKey])
+        return readList(jsonForProfile(prefs, profileId))
+    }
+
+    private fun jsonForProfile(prefs: androidx.datastore.preferences.core.Preferences, profileId: String): String? {
+        ProfileScopedPrefs.jsonForProfile(prefs, profileId, key(profileId), legacyKey)
+            ?.let { return it }
+        if (profileId == ProfileScopedPrefs.DEFAULT_PROFILE_ID) {
+            return prefs[legacyCinetvKey]
+        }
+        return null
     }
 
     suspend fun replaceAll(profileId: String, items: List<ContinueWatchingEntry>) {
@@ -37,7 +45,7 @@ class ContinueWatchingStore(private val context: Context) {
 
     suspend fun addOrUpdate(profileId: String, entry: ContinueWatchingEntry) {
         context.dataStore.edit { prefs ->
-            val current = readList(prefs[key(profileId)] ?: prefs[legacyKey] ?: prefs[legacyCinetvKey])
+            val current = readList(jsonForProfile(prefs, profileId))
             val stamped = entry.copy(updatedAt = System.currentTimeMillis())
             val updated = (listOf(stamped) + current.filter {
                 it.id != entry.id || it.type != entry.type
@@ -48,7 +56,7 @@ class ContinueWatchingStore(private val context: Context) {
 
     suspend fun updateProgress(profileId: String, id: Int, type: ContentType, season: Int, episode: Int, progressPercent: Int = 0) {
         context.dataStore.edit { prefs ->
-            val current = readList(prefs[key(profileId)] ?: prefs[legacyKey] ?: prefs[legacyCinetvKey]).toMutableList()
+            val current = readList(jsonForProfile(prefs, profileId)).toMutableList()
             val idx = current.indexOfFirst { it.id == id && it.type == type }
             if (idx >= 0) {
                 current[idx] = current[idx].copy(

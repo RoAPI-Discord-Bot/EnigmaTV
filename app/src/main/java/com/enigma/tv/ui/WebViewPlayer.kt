@@ -45,6 +45,7 @@ fun WebViewPlayer(
     onPlaybackReady: (() -> Unit)? = null,
     onPlaybackEnded: (() -> Unit)? = null,
     onPlaybackProgress: ((Long) -> Unit)? = null,
+    startPositionMs: Long = 0L,
     modifier: Modifier = Modifier.fillMaxSize()
 ) {
     if (!visible) return
@@ -85,7 +86,8 @@ fun WebViewPlayer(
         guard.onPlaybackProgress = onPlaybackProgress
     }
 
-    LaunchedEffect(url) {
+    LaunchedEffect(url, startPositionMs) {
+        guard.resetForUrl(url, liveTv = liveTv, resumePositionMs = startPositionMs)
         pageLoading = true
         onLoadingChange(true)
     }
@@ -117,6 +119,7 @@ fun WebViewPlayer(
             url = url,
             liveTv = liveTv,
             guard = guard,
+            startPositionMs = startPositionMs,
             showOverlaySpinner = !useExternalChrome && (pageLoading || streamLoading)
         )
     }
@@ -135,6 +138,7 @@ private fun ColumnScope.WebViewStreamBody(
     url: String,
     liveTv: Boolean,
     guard: WebViewNavigationGuard,
+    startPositionMs: Long,
     showOverlaySpinner: Boolean
 ) {
     DisposableEffect(url) {
@@ -167,7 +171,7 @@ private fun ColumnScope.WebViewStreamBody(
                 if (last != url) {
                     EmbedPlayerShield.stopPeriodic()
                     view.setTag(TAG_STREAM_URL, url)
-                    guard.resetForUrl(url, liveTv = liveTv)
+                    guard.resetForUrl(url, liveTv = liveTv, resumePositionMs = startPositionMs)
                     if (liveTv) LiveWebContent.load(view, url) else view.loadUrl(url)
                 }
             },

@@ -20,6 +20,8 @@ class WebViewNavigationGuard(initialUrl: String) {
     private val sessionHosts = mutableSetOf<String>()
     private var liveTvMode = false
     private var suppressLoadingPulses = false
+    private var resumeTargetMs: Long = 0L
+    private var didSeekResume = false
 
     var onBlocked: ((String) -> Unit)? = null
     var onPageLoading: ((Boolean) -> Unit)? = null
@@ -32,9 +34,11 @@ class WebViewNavigationGuard(initialUrl: String) {
         resetForUrl(initialUrl)
     }
 
-    fun resetForUrl(url: String, liveTv: Boolean = false) {
+    fun resetForUrl(url: String, liveTv: Boolean = false, resumePositionMs: Long = 0L) {
         liveTvMode = liveTv
         suppressLoadingPulses = false
+        resumeTargetMs = resumePositionMs.coerceAtLeast(0L)
+        didSeekResume = false
         sessionHosts.clear()
         extractHost(url)?.let { registerHost(it) }
         STREAM_EMBED_ROOTS.forEach { registerHost(it) }
@@ -110,7 +114,12 @@ class WebViewNavigationGuard(initialUrl: String) {
 
         webView.webChromeClient = object : WebChromeClient() {
             override fun onProgressChanged(view: WebView?, newProgress: Int) {
-                if (newProgress >= 85) view?.let { EmbedPlayerShield.apply(it) }
+                if (newProgress >= 85) {
+                    view?.let {
+                        EmbedPlayerShield.apply(it)
+                        trySeekResume(it)
+                    }
+                }
             }
         }
 
@@ -129,6 +138,7 @@ class WebViewNavigationGuard(initialUrl: String) {
                     EmbedPlayerShield.apply(web)
                     EmbedPlayerShield.startPeriodic(web)
                     web.postDelayed({ probePlayback(web) }, 2200)
+                    web.postDelayed({ trySeekResume(web) }, 3500)
                     web.postDelayed({ probePlaybackProgress(web) }, 8000)
                 }
             }
@@ -226,6 +236,26 @@ class WebViewNavigationGuard(initialUrl: String) {
         }
     }
 
+    private fun trySeekResume(webView: WebView) {
+        if (didSeekResume || resumeTargetMs < 3_000L) return
+        val sec = resumeTargetMs / 1000.0
+        webView.evaluateJavascript(
+            """
+            (function(){
+              try {
+                var v = document.querySelector('video');
+                if (!v) return 'wait';
+                if (v.readyState < 1) return 'wait';
+                if (Math.abs(v.currentTime - $sec) > 2) v.currentTime = $sec;
+                return 'ok';
+              } catch(e) { return 'wait'; }
+            })();
+            """.trimIndent()
+        ) { raw ->
+            if (raw?.contains("ok") == true) didSeekResume = true
+        }
+    }
+
     private fun probePlaybackProgress(webView: WebView) {
         webView.evaluateJavascript(
             """
@@ -285,6 +315,10 @@ class WebViewNavigationGuard(initialUrl: String) {
                 document.body.style.color='transparent';
                 document.querySelectorAll('pre,code').forEach(function(el){
                   el.style.display='none';
+                });
+                document.querySelectorAll('body *').forEach(function(el){
+                  var t = (el.innerText || '').toLowerCase();
+                  if (t.indexOf('sandbox') >= 0 && t.length < 240) el.style.display='none';
                 });
               } catch(e) {}
             })();

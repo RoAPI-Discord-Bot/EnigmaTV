@@ -15,6 +15,7 @@ import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -121,6 +122,13 @@ fun ExoLivePlayer(
     }
 
     val effectiveHeaders = if (stripHeaders) emptyMap() else playbackHeaders
+
+    LaunchedEffect(startPositionMs, hasReachedReady, playUrl, playToken) {
+        if (!isLiveBroadcast && hasReachedReady && !didSeekToResume && startPositionMs >= 3_000L) {
+            player.seekTo(startPositionMs)
+            didSeekToResume = true
+        }
+    }
 
     DisposableEffect(playUrl, playToken, effectiveHeaders, sidecarSubtitle) {
         errorMessage = null

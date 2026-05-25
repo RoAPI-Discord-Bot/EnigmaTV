@@ -8,7 +8,7 @@ import java.util.concurrent.TimeUnit
 
 /**
  * Unwraps live sports embed wrappers so WebView loads the real player page
- * (avoids sandbox iframe errors and raw JSON/API pages on streamed.pk).
+ * Unwraps streamed.pk API JSON into real player pages (loaded directly in WebView, no iframe wrapper).
  */
 object LiveEmbedResolver {
     private val client = OkHttpClient.Builder()
@@ -193,7 +193,6 @@ object LiveEmbedResolver {
         val t = content.trim().take(4000)
         if (t.startsWith("{") || t.startsWith("[")) return true
         if (t.contains("\"embedUrl\"") && !t.contains("<iframe", ignoreCase = true)) return true
-        if (t.contains("sandbox") && t.length < 8000 && !t.contains("<video", ignoreCase = true)) return true
         return false
     }
 

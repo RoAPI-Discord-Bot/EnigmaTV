@@ -19,12 +19,12 @@ class FavoritesStore(private val context: Context) {
     private fun key(profileId: String) = stringPreferencesKey("favorites_$profileId")
 
     fun watch(profileId: String): Flow<List<FavoriteItem>> = context.favoritesDataStore.data.map { prefs ->
-        readList(prefs[key(profileId)] ?: prefs[legacyKey])
+        readList(ProfileScopedPrefs.jsonForProfile(prefs, profileId, key(profileId), legacyKey))
     }
 
     suspend fun readOnce(profileId: String): List<FavoriteItem> {
         val prefs = context.favoritesDataStore.data.first()
-        return readList(prefs[key(profileId)] ?: prefs[legacyKey])
+        return readList(ProfileScopedPrefs.jsonForProfile(prefs, profileId, key(profileId), legacyKey))
     }
 
     suspend fun replaceAll(profileId: String, items: List<FavoriteItem>) {
@@ -36,7 +36,7 @@ class FavoritesStore(private val context: Context) {
     suspend fun toggle(profileId: String, item: FavoriteItem): Boolean {
         var added = false
         context.favoritesDataStore.edit { prefs ->
-            val current = readList(prefs[key(profileId)] ?: prefs[legacyKey]).toMutableList()
+            val current = readList(ProfileScopedPrefs.jsonForProfile(prefs, profileId, key(profileId), legacyKey)).toMutableList()
             val idx = current.indexOfFirst { it.id == item.id && it.type == item.type }
             if (idx >= 0) {
                 current.removeAt(idx)

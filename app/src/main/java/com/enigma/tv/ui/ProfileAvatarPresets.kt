@@ -1,49 +1,72 @@
 package com.enigma.tv.ui
 
-/**
- * Netflix-style profile icons: official TMDB **movie/show posters** (heroes in costume on art),
- * not cast [profile_path] actor headshots. Selecting a preset saves [imageUrl] for Firebase sync.
- */
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.AutoAwesome
+import androidx.compose.material.icons.filled.Bolt
+import androidx.compose.material.icons.filled.Favorite
+import androidx.compose.material.icons.filled.FlashOn
+import androidx.compose.material.icons.filled.LiveTv
+import androidx.compose.material.icons.filled.LocalFireDepartment
+import androidx.compose.material.icons.filled.LocalMovies
+import androidx.compose.material.icons.filled.Masks
+import androidx.compose.material.icons.filled.Movie
+import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.RocketLaunch
+import androidx.compose.material.icons.filled.Security
+import androidx.compose.material.icons.filled.Shield
+import androidx.compose.material.icons.filled.SportsMartialArts
+import androidx.compose.material.icons.filled.Star
+import androidx.compose.material.icons.filled.Thunderstorm
+import androidx.compose.material.icons.filled.Visibility
+import androidx.compose.material.icons.filled.Whatshot
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
+
+/** Netflix-style colored icon avatars (not photos). */
 data class ProfileAvatarPreset(
     val label: String,
-    val imageUrl: String
+    val color: Color,
+    val icon: ImageVector
 )
 
 object ProfileAvatarPresets {
-    private const val IMG = "https://image.tmdb.org/t/p/w342"
-
     val all: List<ProfileAvatarPreset> = listOf(
-        ProfileAvatarPreset("Spider-Man", "$IMG/1g0dhYtq4irTY1GPXvft6k4YLjm.jpg"),
-        ProfileAvatarPreset("Iron Man", "$IMG/78lPtwv72eTNqFW9COBYI0dWDJa.jpg"),
-        ProfileAvatarPreset("Captain America", "$IMG/vSNxAJTlD0r02V9sPYpOjqDZXUK.jpg"),
-        ProfileAvatarPreset("Thor", "$IMG/prSfAi1xGrhLQNxVSUFh61xQ4Qy.jpg"),
-        ProfileAvatarPreset("Hulk", "$IMG/gKzYx79y0AQTL4UAk1cBQJ3nvrm.jpg"),
-        ProfileAvatarPreset("Black Widow", "$IMG/7JPpIjhD2V0sKyFvhB9khUMa30d.jpg"),
-        ProfileAvatarPreset("Hawkeye", "$IMG/ct5pNE5dDHryHLDnxyZPYcqO1sz.jpg"),
-        ProfileAvatarPreset("Doctor Strange", "$IMG/xf8PbyQcR5ucXErmZNzdKR0s8ya.jpg"),
-        ProfileAvatarPreset("Black Panther", "$IMG/uxzzxijgPIY7slzFvMotPv8wjKA.jpg"),
-        ProfileAvatarPreset("Captain Marvel", "$IMG/xsaHr76ReEII0iLwP12IJvu0Ger.jpg"),
-        ProfileAvatarPreset("Scarlet Witch", "$IMG/frobUz2X5Pc8OiVZU8Oo5K3NKMM.jpg"),
-        ProfileAvatarPreset("Loki", "$IMG/kEl2t3OhXc3Zb9FBh1AuYzRTgZp.jpg"),
-        ProfileAvatarPreset("Star-Lord", "$IMG/r7vmZjiyZw9rpJMQJdXpjgiCOk9.jpg"),
-        ProfileAvatarPreset("Gamora", "$IMG/y4MBh0EjBlMuOzv9axM4qJlmhzz.jpg"),
-        ProfileAvatarPreset("Rocket", "$IMG/r2J02Z2OpNTctfOSN1Ydgii51I3.jpg"),
-        ProfileAvatarPreset("Deadpool", "$IMG/3E53WEZJqP6aM84D8CckXx4pIHw.jpg"),
-        ProfileAvatarPreset("Wolverine", "$IMG/fnbjcRDYn6YviCcePDnGdyAkYsB.jpg"),
-        ProfileAvatarPreset("Batman", "$IMG/74xTEgt7R36Fpooo50r9T25onhq.jpg"),
-        ProfileAvatarPreset("Wonder Woman", "$IMG/v4ncgZjG2Zu8ZW5al1vIZTsSjqX.jpg"),
-        ProfileAvatarPreset("Superman", "$IMG/cB46TSg3kGjq2eVy5kVUhlpUa1H.jpg"),
-        ProfileAvatarPreset("Flash", "$IMG/tCnOuAp8gL8LPcLJLGWrOidZMZw.jpg"),
-        ProfileAvatarPreset("Aquaman", "$IMG/ufl63EFcc5XpByEV2Ecdw6WJZAI.jpg"),
-        ProfileAvatarPreset("Joker", "$IMG/udDclJoHjfjb8Ekgsd4FDteOkCU.jpg"),
-        ProfileAvatarPreset("Mandalorian", "$IMG/jJDP4gyTB30xMbUViOvU3YoZngF.jpg")
+        ProfileAvatarPreset("Person", Color(0xFF546E7A), Icons.Default.Person),
+        ProfileAvatarPreset("Movies", Color(0xFF5C6BC0), Icons.Default.Movie),
+        ProfileAvatarPreset("TV", Color(0xFF00897B), Icons.Default.LiveTv),
+        ProfileAvatarPreset("Popcorn", Color(0xFFFF8F00), Icons.Default.LocalMovies),
+        ProfileAvatarPreset("Hero", Color(0xFF1565C0), Icons.Default.Shield),
+        ProfileAvatarPreset("Shield", Color(0xFF0D47A1), Icons.Default.Security),
+        ProfileAvatarPreset("Web", Color(0xFFC62828), Icons.Default.Bolt),
+        ProfileAvatarPreset("Hammer", Color(0xFF6A1B9A), Icons.Default.Thunderstorm),
+        ProfileAvatarPreset("Arc", Color(0xFFE65100), Icons.Default.FlashOn),
+        ProfileAvatarPreset("Claw", Color(0xFFAD1457), Icons.Default.SportsMartialArts),
+        ProfileAvatarPreset("Panther", Color(0xFF212121), Icons.Default.Masks),
+        ProfileAvatarPreset("Spider", Color(0xFFB71C1C), Icons.Default.Whatshot),
+        ProfileAvatarPreset("Strange", Color(0xFF4527A0), Icons.Default.AutoAwesome),
+        ProfileAvatarPreset("Widow", Color(0xFF880E4F), Icons.Default.Visibility),
+        ProfileAvatarPreset("Hulk", Color(0xFF2E7D32), Icons.Default.LocalFireDepartment),
+        ProfileAvatarPreset("Marvel", Color(0xFFD32F2F), Icons.Default.Star),
+        ProfileAvatarPreset("Star", Color(0xFFF9A825), Icons.Default.Star),
+        ProfileAvatarPreset("Rocket", Color(0xFF00838F), Icons.Default.RocketLaunch),
+        ProfileAvatarPreset("Fan", Color(0xFFE91E63), Icons.Default.Favorite),
+        ProfileAvatarPreset("Kid", Color(0xFF43A047), Icons.Default.Person),
+        ProfileAvatarPreset("Guest", Color(0xFF78909C), Icons.Default.Person),
+        ProfileAvatarPreset("Night", Color(0xFF263238), Icons.Default.Masks),
+        ProfileAvatarPreset("Storm", Color(0xFF0277BD), Icons.Default.Thunderstorm),
+        ProfileAvatarPreset("Fire", Color(0xFFFF5722), Icons.Default.LocalFireDepartment),
+        ProfileAvatarPreset("Ice", Color(0xFF00ACC1), Icons.Default.Shield),
+        ProfileAvatarPreset("Power", Color(0xFF7B1FA2), Icons.Default.Bolt),
+        ProfileAvatarPreset("Cosmic", Color(0xFF3949AB), Icons.Default.AutoAwesome)
     )
 
     fun count(): Int = all.size
 
     fun preset(index: Int): ProfileAvatarPreset = all[index.mod(count())]
 
-    fun imageUrl(index: Int): String = preset(index).imageUrl
+    fun color(index: Int): Color = preset(index).color
+
+    fun icon(index: Int): ImageVector = preset(index).icon
 
     fun label(index: Int): String = preset(index).label
 }

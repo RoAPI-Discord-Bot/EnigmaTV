@@ -101,13 +101,13 @@ class ProfileStore(private val context: Context) {
         }
     }
 
-    suspend fun setProfileAvatarIndex(id: String, index: Int, presetImageUrl: String) {
+    suspend fun setProfileAvatarIndex(id: String, index: Int) {
         context.profileDataStore.edit { prefs ->
             val current = readProfiles(prefs[profilesKey]).map { p ->
                 if (p.id == id) {
                     p.copy(
                         avatarIndex = index.mod(ProfileConstants.AVATAR_PRESET_COUNT),
-                        avatarUri = presetImageUrl,
+                        avatarUri = null,
                         avatarBase64 = null
                     )
                 } else p

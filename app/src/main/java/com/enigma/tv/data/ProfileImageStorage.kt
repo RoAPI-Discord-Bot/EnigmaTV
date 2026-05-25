@@ -44,7 +44,10 @@ object ProfileImageStorage {
     }
 
     fun avatarModel(profile: ViewerProfile, context: Context): Any? {
-        profile.avatarUri?.takeIf { it.startsWith("http", ignoreCase = true) }?.let { return it }
+        profile.avatarUri?.takeIf { uri ->
+            uri.startsWith("http", ignoreCase = true) &&
+                !uri.contains("image.tmdb.org", ignoreCase = true)
+        }?.let { return it }
         localFile(context, profile.id)?.let { return it }
         profile.avatarBase64?.takeIf { it.isNotBlank() }?.let {
             return "data:image/jpeg;base64,$it"
