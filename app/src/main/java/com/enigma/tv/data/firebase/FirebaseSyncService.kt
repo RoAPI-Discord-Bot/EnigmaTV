@@ -4,6 +4,7 @@ import com.enigma.tv.data.ContinueWatchingEntry
 import com.enigma.tv.data.FavoriteItem
 import com.enigma.tv.data.Playlist
 import com.enigma.tv.data.UserProfile
+import com.enigma.tv.data.ViewerProfile
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.database.FirebaseDatabase
 import com.google.gson.Gson
@@ -17,63 +18,93 @@ class FirebaseSyncService {
     private val gson = Gson()
 
     private companion object {
-        const val SYNC_TIMEOUT_MS = 8_000L
+        const val SYNC_TIMEOUT_MS = 15_000L
     }
 
-    private fun userRef(profileId: String) = auth.currentUser?.uid?.let { uid ->
-        db.reference.child("users").child(uid).child("profiles").child(profileId)
+    private fun accountRef() = auth.currentUser?.uid?.let { uid ->
+        db.reference.child("users").child(uid)
     }
 
-    suspend fun saveProfile(displayName: String, email: String, profileId: String) = runCatching {
+    private fun profileRef(profileId: String) = accountRef()?.child("profiles")?.child(profileId)
+
+    suspend fun pushAccountMeta(activeProfileId: String, profiles: List<ViewerProfile>) = runCatching {
         withTimeout(SYNC_TIMEOUT_MS) {
-            val ref = userRef(profileId) ?: return@withTimeout
-            ref.child("profile").setValue(
+            accountRef()?.updateChildren(
                 mapOf(
-                    "displayName" to displayName,
-                    "email" to email,
+                    "activeProfileId" to activeProfileId,
+                    "profileList" to gson.toJson(profiles),
                     "updatedAt" to System.currentTimeMillis()
+                )
+            )?.await()
+        }
+    }
+
+    suspend fun pushProfileData(
+        profileId: String,
+        displayName: String,
+        email: String,
+        favorites: List<FavoriteItem>,
+        continueWatching: List<ContinueWatchingEntry>,
+        playlists: List<Playlist>
+    ) = runCatching {
+        withTimeout(SYNC_TIMEOUT_MS) {
+            val ref = profileRef(profileId) ?: return@withTimeout
+            ref.updateChildren(
+                mapOf(
+                    "profile" to mapOf(
+                        "displayName" to displayName,
+                        "email" to email,
+                        "updatedAt" to System.currentTimeMillis()
+                    ),
+                    "favorites" to gson.toJson(favorites),
+                    "continueWatching" to gson.toJson(continueWatching),
+                    "playlists" to gson.toJson(playlists)
                 )
             ).await()
         }
     }
 
-    suspend fun pushFavorites(profileId: String, items: List<FavoriteItem>) = runCatching {
+    suspend fun pullAccount(): AccountCloudData? = runCatching {
         withTimeout(SYNC_TIMEOUT_MS) {
-            userRef(profileId)?.child("favorites")?.setValue(gson.toJson(items))?.await()
-        }
-    }
-
-    suspend fun pushContinueWatching(profileId: String, items: List<ContinueWatchingEntry>) = runCatching {
-        withTimeout(SYNC_TIMEOUT_MS) {
-            userRef(profileId)?.child("continueWatching")?.setValue(gson.toJson(items))?.await()
-        }
-    }
-
-    suspend fun pushPlaylists(profileId: String, items: List<Playlist>) = runCatching {
-        withTimeout(SYNC_TIMEOUT_MS) {
-            userRef(profileId)?.child("playlists")?.setValue(gson.toJson(items))?.await()
-        }
-    }
-
-    suspend fun pullProfile(profileId: String): CloudData? = runCatching {
-        withTimeout(SYNC_TIMEOUT_MS) {
-            val ref = userRef(profileId) ?: return@withTimeout null
+            val ref = accountRef() ?: return@withTimeout null
             val snap = ref.get().await()
             if (!snap.exists()) return@withTimeout null
-            val profileMap = snap.child("profile").value as? Map<*, *>
-            CloudData(
-                profile = UserProfile(
-                    uid = auth.currentUser?.uid ?: "",
-                    email = profileMap?.get("email")?.toString() ?: auth.currentUser?.email.orEmpty(),
-                    displayName = profileMap?.get("displayName")?.toString()
-                        ?: auth.currentUser?.displayName.orEmpty()
-                ),
-                favorites = parseFavorites(snap.child("favorites").getValue(String::class.java)),
-                continueWatching = parseContinue(snap.child("continueWatching").getValue(String::class.java)),
-                playlists = parsePlaylists(snap.child("playlists").getValue(String::class.java))
+
+            val activeProfileId = snap.child("activeProfileId").getValue(String::class.java) ?: "default"
+            val profiles = parseViewerProfiles(snap.child("profileList").getValue(String::class.java))
+                .ifEmpty { listOf(ViewerProfile("default", "Main")) }
+
+            val profileData = mutableMapOf<String, CloudData>()
+            val profilesNode = snap.child("profiles")
+            for (profile in profiles) {
+                val node = profilesNode.child(profile.id)
+                if (!node.exists()) continue
+                val profileMap = node.child("profile").value as? Map<*, *>
+                profileData[profile.id] = CloudData(
+                    profile = UserProfile(
+                        uid = auth.currentUser?.uid ?: "",
+                        email = profileMap?.get("email")?.toString() ?: auth.currentUser?.email.orEmpty(),
+                        displayName = profileMap?.get("displayName")?.toString() ?: profile.name
+                    ),
+                    favorites = parseFavorites(node.child("favorites").getValue(String::class.java)),
+                    continueWatching = parseContinue(node.child("continueWatching").getValue(String::class.java)),
+                    playlists = parsePlaylists(node.child("playlists").getValue(String::class.java))
+                )
+            }
+
+            AccountCloudData(
+                activeProfileId = activeProfileId,
+                profiles = profiles,
+                profileData = profileData
             )
         }
     }.getOrNull()
+
+    private fun parseViewerProfiles(json: String?): List<ViewerProfile> {
+        if (json.isNullOrBlank()) return emptyList()
+        val type = object : TypeToken<List<ViewerProfile>>() {}.type
+        return gson.fromJson(json, type) ?: emptyList()
+    }
 
     private fun parseFavorites(json: String?): List<FavoriteItem> {
         if (json.isNullOrBlank()) return emptyList()
@@ -99,4 +130,10 @@ data class CloudData(
     val favorites: List<FavoriteItem>,
     val continueWatching: List<ContinueWatchingEntry>,
     val playlists: List<Playlist>
+)
+
+data class AccountCloudData(
+    val activeProfileId: String,
+    val profiles: List<ViewerProfile>,
+    val profileData: Map<String, CloudData>
 )

@@ -74,6 +74,22 @@ class ProfileStore(private val context: Context) {
         }
     }
 
+    suspend fun importFromCloud(profiles: List<ViewerProfile>, activeId: String?) {
+        if (profiles.isEmpty()) return
+        context.profileDataStore.edit { prefs ->
+            prefs[profilesKey] = gson.toJson(profiles.take(6))
+            val active = activeId?.takeIf { id -> profiles.any { it.id == id } } ?: profiles.first().id
+            prefs[activeKey] = active
+        }
+    }
+
+    suspend fun snapshot(): Pair<List<ViewerProfile>, String> {
+        val prefs = context.profileDataStore.data.first()
+        val list = readProfiles(prefs[profilesKey]).ifEmpty { listOf(defaultProfile()) }
+        val active = prefs[activeKey] ?: list.first().id
+        return list to active
+    }
+
     suspend fun removeProfile(id: String) {
         context.profileDataStore.edit { prefs ->
             val current = readProfiles(prefs[profilesKey]).filter { it.id != id }

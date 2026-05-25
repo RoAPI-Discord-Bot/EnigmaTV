@@ -99,7 +99,7 @@ fun AuthGateScreen(
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             Image(
-                painter = painterResource(R.drawable.enigma_logo),
+                painter = painterResource(R.drawable.enigma_mark),
                 contentDescription = ENIGMA_TV_BRAND,
                 modifier = Modifier.size(if (layout == ScreenLayout.TV) 120.dp else 96.dp)
             )

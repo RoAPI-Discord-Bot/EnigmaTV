@@ -80,7 +80,7 @@ fun EnigmaLoadingRing(
                     )
                 }
                 Image(
-                    painter = painterResource(R.drawable.enigma_logo),
+                    painter = painterResource(R.drawable.enigma_mark),
                     contentDescription = ENIGMA_TV_BRAND,
                     modifier = Modifier.size(logoSize)
                 )

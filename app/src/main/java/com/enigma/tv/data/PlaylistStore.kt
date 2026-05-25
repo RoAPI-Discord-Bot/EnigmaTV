@@ -7,6 +7,7 @@ import androidx.datastore.preferences.preferencesDataStore
 import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import java.util.UUID
 
@@ -20,6 +21,11 @@ class PlaylistStore(private val context: Context) {
 
     fun watch(profileId: String): Flow<List<Playlist>> = context.playlistDataStore.data.map { prefs ->
         readList(prefs[key(profileId)] ?: prefs[legacyKey])
+    }
+
+    suspend fun readOnce(profileId: String): List<Playlist> {
+        val prefs = context.playlistDataStore.data.first()
+        return readList(prefs[key(profileId)] ?: prefs[legacyKey])
     }
 
     suspend fun replaceAll(profileId: String, items: List<Playlist>) {

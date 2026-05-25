@@ -190,11 +190,17 @@ class EnigmaViewModel(application: Application) : AndroidViewModel(application) 
     }
 
     fun addProfile(name: String) {
-        viewModelScope.launch { profileStore.addProfile(name) }
+        viewModelScope.launch {
+            profileStore.addProfile(name)
+            syncIfLoggedIn()
+        }
     }
 
     fun removeProfile(profileId: String) {
-        viewModelScope.launch { profileStore.removeProfile(profileId) }
+        viewModelScope.launch {
+            profileStore.removeProfile(profileId)
+            syncIfLoggedIn()
+        }
     }
 
     fun loadHome() {
@@ -776,23 +782,38 @@ class EnigmaViewModel(application: Application) : AndroidViewModel(application) 
     private suspend fun syncIfLoggedIn() {
         if (!_state.value.isLoggedIn) return
         val s = _state.value
-        val profileId = activeProfileId()
-        syncService.saveProfile(s.userDisplayName, s.userEmail, profileId)
-        syncService.pushFavorites(profileId, s.favorites)
-        syncService.pushContinueWatching(profileId, s.continueWatching)
-        syncService.pushPlaylists(profileId, s.playlists)
+        val (profiles, activeId) = profileStore.snapshot()
+        syncService.pushAccountMeta(activeId, profiles)
+        for (profile in profiles) {
+            syncService.pushProfileData(
+                profileId = profile.id,
+                displayName = profile.name,
+                email = s.userEmail,
+                favorites = favoritesStore.readOnce(profile.id),
+                continueWatching = cwStore.readOnce(profile.id),
+                playlists = playlistStore.readOnce(profile.id)
+            )
+        }
     }
 
     private suspend fun pullCloudSafe() {
         if (!_state.value.isLoggedIn) return
-        val cloud = syncService.pullProfile(activeProfileId()) ?: return
-        if (cloud.favorites.isNotEmpty()) favoritesStore.replaceAll(activeProfileId(), cloud.favorites)
-        if (cloud.continueWatching.isNotEmpty()) cwStore.replaceAll(activeProfileId(), cloud.continueWatching)
-        if (cloud.playlists.isNotEmpty()) playlistStore.replaceAll(activeProfileId(), cloud.playlists)
+        val account = syncService.pullAccount() ?: return
+
+        profileStore.importFromCloud(account.profiles, account.activeProfileId)
+
+        for ((profileId, cloud) in account.profileData) {
+            if (cloud.favorites.isNotEmpty()) favoritesStore.replaceAll(profileId, cloud.favorites)
+            if (cloud.continueWatching.isNotEmpty()) cwStore.replaceAll(profileId, cloud.continueWatching)
+            if (cloud.playlists.isNotEmpty()) playlistStore.replaceAll(profileId, cloud.playlists)
+        }
+
+        val activeCloud = account.profileData[account.activeProfileId]
         _state.update {
             it.copy(
-                profileMessage = "Library loaded",
-                userDisplayName = cloud.profile.displayName.ifBlank { it.userDisplayName }
+                profileMessage = "Account data loaded",
+                userDisplayName = activeCloud?.profile?.displayName?.ifBlank { null }
+                    ?: it.userDisplayName
             )
         }
     }

@@ -7,6 +7,7 @@ import androidx.datastore.preferences.preferencesDataStore
 import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 
 private val Context.dataStore by preferencesDataStore("enigma_tv_prefs")
@@ -21,6 +22,11 @@ class ContinueWatchingStore(private val context: Context) {
     fun watch(profileId: String): Flow<List<ContinueWatchingEntry>> = context.dataStore.data.map { prefs ->
         val json = prefs[key(profileId)] ?: prefs[legacyKey] ?: prefs[legacyCinetvKey] ?: "[]"
         readList(json)
+    }
+
+    suspend fun readOnce(profileId: String): List<ContinueWatchingEntry> {
+        val prefs = context.dataStore.data.first()
+        return readList(prefs[key(profileId)] ?: prefs[legacyKey] ?: prefs[legacyCinetvKey])
     }
 
     suspend fun replaceAll(profileId: String, items: List<ContinueWatchingEntry>) {
