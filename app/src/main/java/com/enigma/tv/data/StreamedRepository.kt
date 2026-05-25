@@ -85,25 +85,20 @@ class StreamedRepository {
         jobs.awaitAll()
             .flatten()
             .distinctBy { it.id }
-            .let { dedupeByTitleSlot(it) }
+            .map { labelEventSchedule(it) }
             .sortedByDescending { it.dateMs }
     }
 
-    /** Same matchup can appear twice (live + tomorrow) — keep the best slot for right now. */
-    private fun dedupeByTitleSlot(events: List<LiveSportMatch>): List<LiveSportMatch> {
-        val now = System.currentTimeMillis()
-        return events
-            .groupBy { "${it.title.lowercase().trim()}|${it.category.lowercase()}" }
-            .map { (_, group) ->
-                group.minByOrNull { m ->
-                    val delta = m.dateMs - now
-                    when {
-                        delta in -4 * 3_600_000L..30 * 60_000L -> 0L
-                        delta > 0L -> delta
-                        else -> -delta + 10_000_000_000L
-                    }
-                } ?: group.first()
-            }
+    /** Keep duplicate matchups (today vs tomorrow) but label them clearly in the list. */
+    private fun labelEventSchedule(match: LiveSportMatch): LiveSportMatch {
+        val schedule = formatEventSchedule(match.dateMs)
+        if (schedule.isBlank() || schedule == "LIVE NOW") return match
+        val tag = when {
+            schedule.startsWith("Starts") -> schedule
+            else -> schedule
+        }
+        val base = match.title.substringBefore(" · Starts").substringBefore(" · LIVE").trim()
+        return match.copy(title = "$base · $tag")
     }
 
     suspend fun fetchStreams(source: String, id: String): List<LiveStreamLink> {

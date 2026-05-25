@@ -316,12 +316,19 @@ class WebViewNavigationGuard(initialUrl: String) {
             """.trimIndent()
         ) { raw ->
             val verdict = raw?.trim('"', ' ') ?: "empty"
+            val isJsonWall = verdict == "json"
             val ok = verdict == "ok"
             android.os.Handler(android.os.Looper.getMainLooper()).post {
                 if (ok) {
                     suppressLoadingPulses = true
                     streamPlaying = true
                     if (liveTvMode) webView.post { hideRawTextOverlay(webView) }
+                }
+                if (liveTvMode && isJsonWall) {
+                    onPlaybackProbe?.invoke(false)
+                    onPageLoading?.invoke(false)
+                    onLiveWaiting?.invoke()
+                    return@post
                 }
                 onPlaybackProbe?.invoke(ok)
                 onPageLoading?.invoke(!ok)

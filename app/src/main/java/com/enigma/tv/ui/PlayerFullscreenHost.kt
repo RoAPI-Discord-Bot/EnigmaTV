@@ -62,6 +62,7 @@ fun PlayerFullscreenHost(
     showNextSource: Boolean = false,
     streamFailed: Boolean = false,
     streamLoading: Boolean = false,
+    streamPlaying: Boolean = false,
     liveWaitingMessage: String? = null,
     tvControls: TvPlayerControls? = null,
     onPrevEpisode: (() -> Unit)? = null,
@@ -124,7 +125,10 @@ fun PlayerFullscreenHost(
                 }
             }
 
-            val showLiveMessage = !liveWaitingMessage.isNullOrBlank() && !streamFailed && !streamLoading
+            val showLiveMessage = !streamPlaying &&
+                !liveWaitingMessage.isNullOrBlank() &&
+                !streamFailed &&
+                !streamLoading
 
             if (streamLoading && !showLiveMessage) {
                 EnigmaLoadingRing(

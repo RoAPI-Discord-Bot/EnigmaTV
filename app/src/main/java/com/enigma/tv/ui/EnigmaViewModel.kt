@@ -113,6 +113,8 @@ data class EnigmaUiState(
     val profiles: List<ViewerProfile> = emptyList(),
     val activeProfileId: String = "default",
     val showProfilePicker: Boolean = false,
+    /** Non-null while opening a profile — keeps picker mounted with a loading overlay (avoids TV tear-down crash). */
+    val openingProfileId: String? = null,
     val searchSuggestions: List<SearchSuggestion> = emptyList(),
     val playerLiveHint: String? = null,
     val playerLiveEventStartMs: Long = 0L,
@@ -142,8 +144,14 @@ class EnigmaViewModel(application: Application) : AndroidViewModel(application) 
     private var suggestJob: Job? = null
     @Volatile
     private var profileSelectionInProgress = false
+    private var postProfileSyncJob: Job? = null
 
     private fun activeProfileId(): String = _state.value.activeProfileId.ifBlank { "default" }
+
+    private fun cloudSyncBlocked(): Boolean =
+        profileSelectionInProgress ||
+            _state.value.showProfilePicker ||
+            !_state.value.openingProfileId.isNullOrBlank()
 
     private fun scheduleCloudSync() {
         if (!_state.value.isLoggedIn) return
@@ -206,13 +214,6 @@ class EnigmaViewModel(application: Application) : AndroidViewModel(application) 
             }.collect { (favs, lists, cw) ->
                 _state.update { it.copy(favorites = favs, playlists = lists, continueWatching = cw) }
                 scheduleCloudSync()
-                viewModelScope.launch {
-                    val profileId = _state.value.activeProfileId
-                    val enriched = enrichContinueWatchingPosters(profileId, cw)
-                    if (enriched != cw) {
-                        _state.update { it.copy(continueWatching = enriched) }
-                    }
-                }
             }
         }
         viewModelScope.launch {
@@ -243,8 +244,8 @@ class EnigmaViewModel(application: Application) : AndroidViewModel(application) 
                 }
                 if (user != null) {
                     viewModelScope.launch {
-                        syncIfLoggedIn()
-                        pullCloudSafe()
+                        delay(1500)
+                        if (!cloudSyncBlocked()) syncIfLoggedIn()
                     }
                 }
             }
@@ -281,37 +282,38 @@ class EnigmaViewModel(application: Application) : AndroidViewModel(application) 
     fun selectProfileAndContinue(profileId: String) {
         if (profileId.isBlank() || profileSelectionInProgress) return
         profileSelectionInProgress = true
+        postProfileSyncJob?.cancel()
         viewModelScope.launch {
             try {
                 profileStore.setActive(profileId)
                 val (profiles, _) = profileStore.snapshot()
-                if (profiles.none { it.id == profileId }) {
-                    profileStore.ensureDefaultProfile()
-                }
+                val resolvedId = profiles.find { it.id == profileId }?.id
+                    ?: profiles.firstOrNull()?.id
+                    ?: profileStore.ensureDefaultProfile().id
+                if (resolvedId != profileId) profileStore.setActive(resolvedId)
                 _state.update {
                     it.copy(
-                        activeProfileId = profileId,
+                        activeProfileId = resolvedId,
+                        openingProfileId = resolvedId,
+                        showProfilePicker = true,
                         contentLoading = true,
                         homeRows = emptyList(),
-                        error = null
+                        error = null,
+                        profileError = null
                     )
                 }
-                // TV: wait for remote OK/key handling before removing picker (avoids focus crash)
-                kotlinx.coroutines.delay(150)
-                _state.update { it.copy(showProfilePicker = false) }
-                loadHome()
-                if (_state.value.isLoggedIn) {
-                    syncIfLoggedIn()
-                    pullCloudSafe()
-                }
+                loadHome(closeProfileGate = true)
+                schedulePostProfileCloudSync()
             } catch (e: kotlinx.coroutines.CancellationException) {
                 throw e
-            } catch (_: Exception) {
+            } catch (t: Throwable) {
                 _state.update {
                     it.copy(
                         contentLoading = false,
+                        openingProfileId = null,
                         error = "Could not open that profile. Try again.",
-                        showProfilePicker = true
+                        showProfilePicker = true,
+                        profileError = t.message?.take(120)
                     )
                 }
             } finally {
@@ -320,10 +322,21 @@ class EnigmaViewModel(application: Application) : AndroidViewModel(application) 
         }
     }
 
+    private fun schedulePostProfileCloudSync() {
+        postProfileSyncJob?.cancel()
+        postProfileSyncJob = viewModelScope.launch {
+            delay(6000)
+            if (cloudSyncBlocked()) return@launch
+            syncIfLoggedIn()
+            pullCloudSafe()
+        }
+    }
+
     fun dismissProfilePicker() {
         _state.update {
             it.copy(
                 showProfilePicker = false,
+                openingProfileId = null,
                 contentLoading = it.homeRows.isEmpty(),
                 homeRows = if (it.homeRows.isEmpty()) emptyList() else it.homeRows
             )
@@ -332,9 +345,11 @@ class EnigmaViewModel(application: Application) : AndroidViewModel(application) 
     }
 
     fun showProfilePickerScreen() {
+        postProfileSyncJob?.cancel()
         _state.update {
             it.copy(
                 showProfilePicker = true,
+                openingProfileId = null,
                 playerVisible = false,
                 showDetail = false
             )
@@ -359,6 +374,14 @@ class EnigmaViewModel(application: Application) : AndroidViewModel(application) 
         viewModelScope.launch {
             profileStore.renameProfile(profileId, name)
             syncProfilesImmediately()
+        }
+    }
+
+    fun refreshProfilesFromCloud() {
+        if (!_state.value.isLoggedIn || profileSelectionInProgress) return
+        viewModelScope.launch {
+            syncIfLoggedIn()
+            pullCloudSafe()
         }
     }
 
@@ -425,26 +448,40 @@ class EnigmaViewModel(application: Application) : AndroidViewModel(application) 
         return if (changed) out else list
     }
 
-    fun loadHome() {
+    fun loadHome(closeProfileGate: Boolean = false) {
         homeLoadJob?.cancel()
         homeLoadJob = viewModelScope.launch {
             _state.update { it.copy(contentLoading = it.homeRows.isEmpty(), error = null, searchResults = null) }
             try {
                 val rows = repo.buildHomeRows()
                 _state.update {
+                    val closeGate = closeProfileGate || it.openingProfileId != null
                     it.copy(
                         homeRows = rows,
                         contentLoading = false,
+                        showProfilePicker = if (closeGate) false else it.showProfilePicker,
+                        openingProfileId = if (closeGate) null else it.openingProfileId,
                         error = if (rows.isEmpty()) "Could not load EnigmaTV content. Check connection and retry." else null
                     )
                 }
-                if (rows.isNotEmpty()) prefetchHomePosters(rows)
+                if (rows.isNotEmpty()) {
+                    if (getApplication<android.app.Application>().packageManager.hasSystemFeature(
+                            android.content.pm.PackageManager.FEATURE_LEANBACK
+                        )
+                    ) {
+                        delay(400)
+                    }
+                    prefetchHomePosters(rows)
+                }
             } catch (e: kotlinx.coroutines.CancellationException) {
                 throw e
             } catch (_: Exception) {
                 _state.update {
+                    val closeGate = closeProfileGate || it.openingProfileId != null
                     it.copy(
                         contentLoading = false,
+                        showProfilePicker = if (closeGate) false else it.showProfilePicker,
+                        openingProfileId = if (closeGate) null else it.openingProfileId,
                         error = "Could not load EnigmaTV content. Check connection and retry."
                     )
                 }
@@ -454,15 +491,20 @@ class EnigmaViewModel(application: Application) : AndroidViewModel(application) 
 
     private suspend fun finishOnboarding() {
         sessionStore.setOnboardingComplete()
+        val profiles = profileStore.profiles.first()
+        val activeId = profileStore.activeProfileId.first()
         _state.update {
             it.copy(
                 showAuthGate = false,
                 authLoading = false,
                 profileError = null,
                 showProfilePicker = true,
-                contentLoading = false
+                contentLoading = false,
+                profiles = profiles,
+                activeProfileId = activeId.ifBlank { profiles.firstOrNull()?.id ?: "default" }
             )
         }
+        schedulePostProfileCloudSync()
     }
 
     fun setSection(section: NavSection) {
@@ -690,7 +732,12 @@ class EnigmaViewModel(application: Application) : AndroidViewModel(application) 
                 is HomeRow.Movies -> row.items.mapNotNull { it.posterUrl }
                 is HomeRow.TvShows -> row.items.mapNotNull { it.posterUrl }
             }
-        }.distinct().take(36)
+        }.distinct().take(
+            if (getApplication<android.app.Application>().packageManager.hasSystemFeature(
+                    android.content.pm.PackageManager.FEATURE_LEANBACK
+                )
+            ) 12 else 36
+        )
         urls.forEach { url ->
             imageLoader.enqueue(
                 ImageRequest.Builder(getApplication())
@@ -839,6 +886,8 @@ class EnigmaViewModel(application: Application) : AndroidViewModel(application) 
             try {
                 val streams = streamedRepo.fetchStreams(source.source, source.id)
                 _state.update { it.copy(contentLoading = false) }
+                val now = System.currentTimeMillis()
+                val isLiveNow = match.dateMs in (now - 4 * 3_600_000L)..(now + 45 * 60_000L)
                 when {
                     streams.isEmpty() -> _state.update { it.copy(error = "No streams available for this event") }
                     else -> {
@@ -846,7 +895,7 @@ class EnigmaViewModel(application: Application) : AndroidViewModel(application) 
                             it.copy(
                                 liveStreamPicker = streams,
                                 playerTitle = match.title,
-                                playerLiveEventStartMs = match.dateMs,
+                                playerLiveEventStartMs = if (isLiveNow) 0L else match.dateMs,
                                 playerLiveHint = null,
                                 playerStreamPlaying = false
                             )
@@ -888,8 +937,7 @@ class EnigmaViewModel(application: Application) : AndroidViewModel(application) 
 
     private fun playLiveEmbed(title: String, embedUrl: String, label: String, pickerIndex: Int? = null) {
         val idx = pickerIndex ?: _state.value.sourceIndex
-        val immediateUrl = StreamedRepository.normalizeStreamEmbed(embedUrl)
-        val preLive = isPreLiveEvent()
+        val pickerSize = _state.value.liveStreamPicker.size.coerceAtLeast(1)
         _state.update {
             it.copy(
                 playerVisible = true,
@@ -900,10 +948,10 @@ class EnigmaViewModel(application: Application) : AndroidViewModel(application) 
                 playerLiveHint = null,
                 playerStreamPlaying = false,
                 playerTitle = title,
-                playerUrl = immediateUrl,
+                playerUrl = "",
                 playerAccentMovie = false,
                 playingType = null,
-                sourceLabel = "Live · $label (${idx + 1}/${it.liveStreamPicker.size.coerceAtLeast(1)})",
+                sourceLabel = "Live · $label (${idx + 1}/$pickerSize)",
                 showLiveStreamPicker = false,
                 sourceIndex = idx,
                 playerResolveToken = it.playerResolveToken + 1,
@@ -912,23 +960,33 @@ class EnigmaViewModel(application: Application) : AndroidViewModel(application) 
         }
         viewModelScope.launch {
             val candidates = StreamedRepository.embedCandidates(embedUrl)
+                .filter { it.startsWith("http", ignoreCase = true) && !LiveEmbedResolver.isUnplayableUrl(it) }
             val resolved = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
                 LiveEmbedResolver.resolvePlayableUrl(embedUrl)
             }
-            val webEmbed = when {
-                !resolved.isNullOrBlank() && !LiveEmbedResolver.isUnplayableUrl(resolved) -> resolved
-                else -> candidates.firstOrNull { url ->
-                    url.startsWith("http", ignoreCase = true) &&
-                        !LiveEmbedResolver.isUnplayableUrl(url)
-                } ?: immediateUrl
-            }
-            if (webEmbed != _state.value.playerUrl) {
+            val playUrl = listOfNotNull(resolved)
+                .plus(candidates)
+                .firstOrNull { url ->
+                    url.isNotBlank() && !LiveEmbedResolver.isUnplayableUrl(url)
+                }
+            if (playUrl.isNullOrBlank()) {
                 _state.update {
                     it.copy(
-                        playerUrl = webEmbed,
-                        playerResolveToken = it.playerResolveToken + 1
+                        playerLoading = false,
+                        playerStreamFailed = true,
+                        playerLiveHint = "This source returned data instead of a player. Try Next Server."
                     )
                 }
+                return@launch
+            }
+            _state.update {
+                it.copy(
+                    playerUrl = playUrl,
+                    playerLoading = true,
+                    playerStreamFailed = false,
+                    playerLiveHint = null,
+                    playerResolveToken = it.playerResolveToken + 1
+                )
             }
         }
     }
@@ -1292,6 +1350,7 @@ class EnigmaViewModel(application: Application) : AndroidViewModel(application) 
                 playerLoading = false,
                 playerStreamFailed = false,
                 playerLiveHint = null,
+                playerLiveEventStartMs = 0L,
                 playerStreamPlaying = true
             )
         }
@@ -1302,9 +1361,9 @@ class EnigmaViewModel(application: Application) : AndroidViewModel(application) 
         val hint = if (isPreLiveEvent()) {
             formatLiveEventHint(_state.value.playerLiveEventStartMs)
         } else {
-            "Stream not available on this source. Try another server."
+            "This mirror returned code instead of a player. Tap ⋮ then Next Server."
         }
-        _state.update { it.copy(playerLoading = false, playerLiveHint = hint) }
+        _state.update { it.copy(playerLoading = false, playerLiveHint = hint, playerStreamFailed = false) }
     }
 
     private fun formatLiveEventHint(dateMs: Long): String {
@@ -1355,8 +1414,7 @@ class EnigmaViewModel(application: Application) : AndroidViewModel(application) 
             authService.signIn(email, password)
                 .onSuccess {
                     finishOnboarding()
-                    _state.update { it.copy(profileMessage = "Signed in") }
-                    viewModelScope.launch { syncIfLoggedIn() }
+                    _state.update { it.copy(profileMessage = "Signed in — profiles syncing…") }
                 }
                 .onFailure { e ->
                     _state.update { it.copy(profileError = authErrorMessage(e), authLoading = false) }
@@ -1370,8 +1428,7 @@ class EnigmaViewModel(application: Application) : AndroidViewModel(application) 
             authService.signUp(email, password, name)
                 .onSuccess {
                     finishOnboarding()
-                    _state.update { it.copy(profileMessage = "Account created") }
-                    viewModelScope.launch { syncIfLoggedIn() }
+                    _state.update { it.copy(profileMessage = "Account created — profiles syncing…") }
                 }
                 .onFailure { e ->
                     _state.update { it.copy(profileError = authErrorMessage(e), authLoading = false) }
@@ -1418,7 +1475,7 @@ class EnigmaViewModel(application: Application) : AndroidViewModel(application) 
     }
 
     private suspend fun syncIfLoggedIn(): Boolean {
-        if (!_state.value.isLoggedIn) return false
+        if (!_state.value.isLoggedIn || cloudSyncBlocked()) return false
         val s = _state.value
         val (profiles, activeId) = profileStore.snapshot()
         var ok = syncService.pushAccountMeta(activeId, profiles).isSuccess
@@ -1450,7 +1507,7 @@ class EnigmaViewModel(application: Application) : AndroidViewModel(application) 
     }
 
     private suspend fun pullCloudSafe() {
-        if (!_state.value.isLoggedIn) return
+        if (!_state.value.isLoggedIn || cloudSyncBlocked()) return
         val account = syncService.pullAccount() ?: return
 
         profileStore.importFromCloud(account.profiles, account.activeProfileId)

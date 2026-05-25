@@ -80,6 +80,7 @@ import com.enigma.tv.ui.theme.TextSecondary
 fun ProfilePickerGate(
     profiles: List<ViewerProfile>,
     activeProfileId: String,
+    openingProfileId: String? = null,
     layout: ScreenLayout,
     onSelectProfile: (String) -> Unit,
     onAddProfile: (String) -> Unit,
@@ -104,6 +105,7 @@ fun ProfilePickerGate(
     }
 
     val isTv = layout == ScreenLayout.TV
+    val gateLocked = openingProfileId != null
     val avatarSize = when (layout) {
         ScreenLayout.TV -> 132
         ScreenLayout.TABLET -> 100
@@ -194,26 +196,27 @@ fun ProfilePickerGate(
                                 )
                             ProfilePickerTile(
                                 profile = profile,
-                                selected = focused,
-                                highlighted = profile.id == activeProfileId,
+                                focused = focused,
                                 sizeDp = avatarSize,
                                 showEditBadge = manageMode,
                                 isTv = true,
                                 focusRequester = if (isInitialFocus) initialFocusRequester else null,
                                 onFocus = { focusedProfileId = profile.id },
                                 onActivate = {
-                                    focusedProfileId = profile.id
-                                    if (manageMode) {
-                                        editingProfile = profile
-                                        editName = profile.name
-                                        editAvatarIndex = profile.avatarIndex
-                                    } else {
-                                        onSelectProfile(profile.id)
+                                    if (!gateLocked) {
+                                        focusedProfileId = profile.id
+                                        if (manageMode) {
+                                            editingProfile = profile
+                                            editName = profile.name
+                                            editAvatarIndex = profile.avatarIndex
+                                        } else {
+                                            onSelectProfile(profile.id)
+                                        }
                                     }
                                 }
                             )
                         }
-                        if (!manageMode) {
+                        if (!manageMode && !gateLocked) {
                             item(key = "add") {
                                 AddProfileTile(
                                     sizeDp = avatarSize,
@@ -236,26 +239,27 @@ fun ProfilePickerGate(
                         items(profiles, key = { it.id }) { profile ->
                             ProfilePickerTile(
                                 profile = profile,
-                                selected = profile.id == focusedProfileId,
-                                highlighted = profile.id == activeProfileId,
+                                focused = profile.id == focusedProfileId,
                                 sizeDp = avatarSize,
                                 showEditBadge = manageMode,
                                 isTv = false,
                                 focusRequester = null,
                                 onFocus = { focusedProfileId = profile.id },
                                 onActivate = {
-                                    focusedProfileId = profile.id
-                                    if (manageMode) {
-                                        editingProfile = profile
-                                        editName = profile.name
-                                        editAvatarIndex = profile.avatarIndex
-                                    } else {
-                                        onSelectProfile(profile.id)
+                                    if (!gateLocked) {
+                                        focusedProfileId = profile.id
+                                        if (manageMode) {
+                                            editingProfile = profile
+                                            editName = profile.name
+                                            editAvatarIndex = profile.avatarIndex
+                                        } else {
+                                            onSelectProfile(profile.id)
+                                        }
                                     }
                                 }
                             )
                         }
-                        if (!manageMode) {
+                        if (!manageMode && !gateLocked) {
                             item(key = "add") {
                                 AddProfileTile(
                                     sizeDp = avatarSize,
@@ -386,8 +390,7 @@ fun ProfilePickerGate(
 @Composable
 private fun ProfilePickerTile(
     profile: ViewerProfile,
-    selected: Boolean,
-    highlighted: Boolean,
+    focused: Boolean,
     sizeDp: Int,
     showEditBadge: Boolean,
     isTv: Boolean,
@@ -397,7 +400,8 @@ private fun ProfilePickerTile(
 ) {
     val interaction = remember { MutableInteractionSource() }
     val isFocused by interaction.collectIsFocusedAsState()
-    val showFocusRing = selected || isFocused
+    val showFocusRing = if (isTv) isFocused else (focused || isFocused)
+    var lastActivateAt by remember { mutableStateOf(0L) }
 
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
@@ -412,14 +416,16 @@ private fun ProfilePickerTile(
                     Modifier
                         .focusable(interactionSource = interaction)
                         .onKeyEvent { event ->
-                            if (event.type == KeyEventType.KeyUp &&
-                                (event.key == Key.DirectionCenter || event.key == Key.Enter || event.key == Key.NumPadEnter)
-                            ) {
-                                onActivate()
-                                true
-                            } else {
-                                false
-                            }
+                            if (event.type != KeyEventType.KeyDown) return@onKeyEvent false
+                            val okKey = event.key == Key.DirectionCenter ||
+                                event.key == Key.Enter ||
+                                event.key == Key.NumPadEnter
+                            if (!okKey) return@onKeyEvent false
+                            val now = System.currentTimeMillis()
+                            if (now - lastActivateAt < 700L) return@onKeyEvent true
+                            lastActivateAt = now
+                            onActivate()
+                            true
                         }
                 } else {
                     Modifier
@@ -430,23 +436,25 @@ private fun ProfilePickerTile(
             .padding(horizontal = if (isTv) 14.dp else 8.dp, vertical = if (isTv) 10.dp else 6.dp)
     ) {
         Box(
-            modifier = if (isTv && showFocusRing) {
-                Modifier.border(4.dp, EnigmaPink, CircleShape)
-            } else Modifier
+            modifier = when {
+                isTv && showFocusRing -> Modifier.border(4.dp, EnigmaPink, CircleShape)
+                !isTv && showFocusRing -> Modifier.border(3.dp, EnigmaPink, CircleShape)
+                else -> Modifier
+            }
         ) {
             ProfileAvatarCircle(
                 profile = profile,
-                selected = showFocusRing || highlighted,
+                selected = false,
                 sizeDp = sizeDp,
                 showEditBadge = showEditBadge,
                 onClick = null
             )
         }
-        if (showFocusRing && !showEditBadge) {
+        if (!isTv && showFocusRing && !showEditBadge) {
             Text(
-                if (isTv) "Press OK" else "Selected",
+                "Selected",
                 color = EnigmaPink,
-                fontSize = if (isTv) 13.sp else 12.sp,
+                fontSize = 12.sp,
                 fontWeight = FontWeight.SemiBold,
                 modifier = Modifier.padding(top = 6.dp)
             )

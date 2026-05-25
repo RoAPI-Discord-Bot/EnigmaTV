@@ -101,7 +101,11 @@ fun EnigmaShell(viewModel: EnigmaViewModel = viewModel()) {
                 .fillMaxSize()
                 .background(BgDark)
         ) {
-            EnigmaLoadingRing(modifier = Modifier.fillMaxSize(), fullscreen = true)
+            EnigmaLoadingRing(
+                modifier = Modifier.fillMaxSize(),
+                message = "STARTING UP",
+                fullscreen = true
+            )
         }
         return
     }
@@ -119,10 +123,17 @@ fun EnigmaShell(viewModel: EnigmaViewModel = viewModel()) {
     }
 
     if (state.showProfilePicker) {
+        androidx.compose.runtime.LaunchedEffect(state.isLoggedIn, state.showProfilePicker) {
+            if (!state.isLoggedIn || !state.showProfilePicker) return@LaunchedEffect
+            kotlinx.coroutines.delay(8000)
+            if (state.openingProfileId != null) return@LaunchedEffect
+            viewModel.refreshProfilesFromCloud()
+        }
         Box(Modifier.fillMaxSize()) {
             ProfilePickerGate(
                 profiles = state.profiles,
                 activeProfileId = state.activeProfileId,
+                openingProfileId = state.openingProfileId,
                 layout = layout,
                 onSelectProfile = viewModel::selectProfileAndContinue,
                 onAddProfile = viewModel::addProfile,
@@ -131,12 +142,22 @@ fun EnigmaShell(viewModel: EnigmaViewModel = viewModel()) {
                 onSetAvatarIndex = viewModel::setProfileAvatarIndex,
                 onSetAvatarUri = viewModel::setProfileAvatarUri
             )
-            if (state.profiles.isEmpty()) {
-                EnigmaLoadingRing(
-                    modifier = Modifier.fillMaxSize(),
-                    message = "LOADING PROFILES",
-                    fullscreen = true
-                )
+            when {
+                state.openingProfileId != null -> {
+                    val name = state.profiles.find { it.id == state.openingProfileId }?.name ?: "profile"
+                    EnigmaLoadingRing(
+                        modifier = Modifier.fillMaxSize(),
+                        message = "OPENING $name",
+                        fullscreen = true
+                    )
+                }
+                state.profiles.isEmpty() -> {
+                    EnigmaLoadingRing(
+                        modifier = Modifier.fillMaxSize(),
+                        message = "LOADING PROFILES",
+                        fullscreen = true
+                    )
+                }
             }
         }
         return
@@ -354,7 +375,8 @@ private fun EnigmaPlayerOverlay(
             showNextSource = showNext,
             streamFailed = state.playerStreamFailed,
             streamLoading = state.playerLoading && !state.playerStreamFailed,
-            liveWaitingMessage = if (state.playerStreamPlaying) null else state.playerLiveHint,
+            liveWaitingMessage = state.playerLiveHint,
+            streamPlaying = state.playerStreamPlaying,
             tvControls = tvControls,
             onPrevEpisode = { viewModel.playAdjacentEpisode(forward = false) },
             onNextEpisode = { viewModel.playAdjacentEpisode(forward = true) },
