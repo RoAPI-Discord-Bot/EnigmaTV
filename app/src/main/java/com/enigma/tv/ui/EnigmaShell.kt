@@ -1,5 +1,9 @@
 package com.enigma.tv.ui
 
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -108,7 +112,11 @@ fun EnigmaShell(viewModel: EnigmaViewModel = viewModel()) {
             profiles = state.profiles,
             layout = layout,
             onSelectProfile = viewModel::selectProfileAndContinue,
-            onAddProfile = viewModel::addProfile
+            onAddProfile = viewModel::addProfile,
+            onRenameProfile = viewModel::renameProfile,
+            onRemoveProfile = viewModel::removeProfile,
+            onSetAvatarIndex = viewModel::setProfileAvatarIndex,
+            onSetAvatarUri = viewModel::setProfileAvatarUri
         )
         return
     }
@@ -163,42 +171,48 @@ fun EnigmaShell(viewModel: EnigmaViewModel = viewModel()) {
                         message = state.error!!,
                         onDismiss = viewModel::clearError
                     )
-                    else -> when (state.section) {
-                        NavSection.HOME -> UnifiedHomeContent(state, viewModel, layout)
-                        NavSection.LIVE -> LiveTvScreen(
-                            live = state.liveTv,
-                            layout = layout,
-                            onTab = viewModel::setLiveTvTab,
-                            onSearch = viewModel::searchLiveTv,
-                            onReload = viewModel::loadLiveTv,
-                            onPlayChannel = viewModel::playIptvChannel,
-                            onPlayMatch = viewModel::playLiveMatch,
-                            onToggleFavorite = viewModel::toggleLiveChannelFavorite,
-                            onGroupFilter = viewModel::setLiveChannelGroupFilter,
-                            onFavoritesOnly = viewModel::toggleLiveFavoritesOnly,
-                            onQuickPick = viewModel::liveQuickPick
-                        )
-                        NavSection.FAVORITES -> FavoritesContent(state, viewModel, layout)
-                        NavSection.CONTINUE -> ContinueContent(state, viewModel, layout)
-                        NavSection.LISTS -> ListsContent(state, viewModel, layout)
-                        NavSection.PROFILE -> ProfileScreen(
-                            isLoggedIn = state.isLoggedIn,
-                            email = state.userEmail,
-                            displayName = state.userDisplayName,
-                            profiles = state.profiles,
-                            activeProfileId = state.activeProfileId,
-                            statusMessage = state.profileMessage,
-                            error = state.profileError,
-                            onSignIn = viewModel::signIn,
-                            onSignUp = viewModel::signUp,
-                            onGuest = viewModel::signInGuest,
-                            onSignOut = viewModel::signOut,
-                            onSync = {},
-                            onSwitchProfile = viewModel::switchProfile,
-                            onAddProfile = viewModel::addProfile,
-                            onRemoveProfile = viewModel::removeProfile,
-                            onOpenProfilePicker = viewModel::showProfilePickerScreen
-                        )
+                    else -> AnimatedContent(
+                        targetState = state.section,
+                        transitionSpec = { fadeIn() togetherWith fadeOut() },
+                        label = "main_section"
+                    ) { section ->
+                        when (section) {
+                            NavSection.HOME -> UnifiedHomeContent(state, viewModel, layout)
+                            NavSection.LIVE -> LiveTvScreen(
+                                live = state.liveTv,
+                                layout = layout,
+                                onTab = viewModel::setLiveTvTab,
+                                onSearch = viewModel::searchLiveTv,
+                                onReload = viewModel::loadLiveTv,
+                                onPlayChannel = viewModel::playIptvChannel,
+                                onPlayMatch = viewModel::playLiveMatch,
+                                onToggleFavorite = viewModel::toggleLiveChannelFavorite,
+                                onGroupFilter = viewModel::setLiveChannelGroupFilter,
+                                onFavoritesOnly = viewModel::toggleLiveFavoritesOnly,
+                                onQuickPick = viewModel::liveQuickPick
+                            )
+                            NavSection.FAVORITES -> FavoritesContent(state, viewModel, layout)
+                            NavSection.CONTINUE -> ContinueContent(state, viewModel, layout)
+                            NavSection.LISTS -> ListsContent(state, viewModel, layout)
+                            NavSection.PROFILE -> ProfileScreen(
+                                isLoggedIn = state.isLoggedIn,
+                                email = state.userEmail,
+                                displayName = state.userDisplayName,
+                                profiles = state.profiles,
+                                activeProfileId = state.activeProfileId,
+                                statusMessage = state.profileMessage,
+                                error = state.profileError,
+                                onSignIn = viewModel::signIn,
+                                onSignUp = viewModel::signUp,
+                                onGuest = viewModel::signInGuest,
+                                onSignOut = viewModel::signOut,
+                                onSync = {},
+                                onSwitchProfile = viewModel::switchProfile,
+                                onAddProfile = viewModel::addProfile,
+                                onRemoveProfile = viewModel::removeProfile,
+                                onOpenProfilePicker = viewModel::showProfilePickerScreen
+                            )
+                        }
                     }
                 }
             }

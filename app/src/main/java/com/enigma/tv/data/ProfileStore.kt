@@ -16,7 +16,8 @@ private val Context.profileDataStore by preferencesDataStore("enigma_profiles")
 data class ViewerProfile(
     val id: String,
     val name: String,
-    val avatarIndex: Int = 0
+    val avatarIndex: Int = 0,
+    val avatarUri: String? = null
 )
 
 class ProfileStore(private val context: Context) {
@@ -68,6 +69,38 @@ class ProfileStore(private val context: Context) {
             prefs[activeKey] = created.id
         }
         return created
+    }
+
+    suspend fun updateProfile(id: String, name: String? = null, avatarIndex: Int? = null, avatarUri: String? = null) {
+        context.profileDataStore.edit { prefs ->
+            val current = readProfiles(prefs[profilesKey]).map { p ->
+                if (p.id != id) p
+                else p.copy(
+                    name = name?.trim()?.takeIf { it.isNotBlank() } ?: p.name,
+                    avatarIndex = avatarIndex ?: p.avatarIndex,
+                    avatarUri = avatarUri ?: p.avatarUri
+                )
+            }
+            prefs[profilesKey] = gson.toJson(current)
+        }
+    }
+
+    suspend fun setProfileAvatarUri(id: String, uri: String?) {
+        context.profileDataStore.edit { prefs ->
+            val current = readProfiles(prefs[profilesKey]).map { p ->
+                if (p.id == id) p.copy(avatarUri = uri) else p
+            }
+            prefs[profilesKey] = gson.toJson(current)
+        }
+    }
+
+    suspend fun setProfileAvatarIndex(id: String, index: Int) {
+        context.profileDataStore.edit { prefs ->
+            val current = readProfiles(prefs[profilesKey]).map { p ->
+                if (p.id == id) p.copy(avatarIndex = index.mod(8), avatarUri = null) else p
+            }
+            prefs[profilesKey] = gson.toJson(current)
+        }
     }
 
     suspend fun renameProfile(id: String, name: String) {

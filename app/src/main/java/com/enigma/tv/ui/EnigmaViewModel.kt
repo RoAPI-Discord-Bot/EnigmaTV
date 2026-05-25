@@ -33,6 +33,8 @@ import com.enigma.tv.data.firebase.FirebaseAuthService
 import com.enigma.tv.data.firebase.FirebaseSyncService
 import com.enigma.tv.data.formatRuntime
 import com.enigma.tv.data.FavoritesStore
+import coil.ImageLoader
+import coil.request.ImageRequest
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -113,6 +115,7 @@ class EnigmaViewModel(application: Application) : AndroidViewModel(application) 
     private val iptvRepo = IptvRepository()
     private val streamedRepo = StreamedRepository()
     private val liveChannelStore = LiveChannelFavoritesStore(application)
+    private val imageLoader = ImageLoader(application)
 
     private val _state = MutableStateFlow(EnigmaUiState())
     val state: StateFlow<EnigmaUiState> = _state.asStateFlow()
@@ -148,6 +151,13 @@ class EnigmaViewModel(application: Application) : AndroidViewModel(application) 
             }.collect { (favs, lists, cw) ->
                 _state.update { it.copy(favorites = favs, playlists = lists, continueWatching = cw) }
                 scheduleCloudSync()
+                viewModelScope.launch {
+                    val profileId = _state.value.activeProfileId
+                    val enriched = enrichContinueWatchingPosters(profileId, cw)
+                    if (enriched != cw) {
+                        _state.update { it.copy(continueWatching = enriched) }
+                    }
+                }
             }
         }
         viewModelScope.launch {
@@ -242,12 +252,58 @@ class EnigmaViewModel(application: Application) : AndroidViewModel(application) 
         }
     }
 
+    fun renameProfile(profileId: String, name: String) {
+        viewModelScope.launch {
+            profileStore.renameProfile(profileId, name)
+            scheduleCloudSync()
+        }
+    }
+
+    fun setProfileAvatarIndex(profileId: String, index: Int) {
+        viewModelScope.launch {
+            profileStore.setProfileAvatarIndex(profileId, index)
+            scheduleCloudSync()
+        }
+    }
+
+    fun setProfileAvatarUri(profileId: String, uri: String?) {
+        viewModelScope.launch {
+            profileStore.setProfileAvatarUri(profileId, uri)
+            scheduleCloudSync()
+        }
+    }
+
+    private suspend fun enrichContinueWatchingPosters(
+        profileId: String,
+        list: List<ContinueWatchingEntry>
+    ): List<ContinueWatchingEntry> {
+        var changed = false
+        val out = list.map { entry ->
+            if (entry.poster.isNotBlank() || entry.type != ContentType.MOVIE) return@map entry
+            try {
+                val detail = repo.movieDetail(entry.id)
+                val url = detail.posterPath?.let { "https://image.tmdb.org/t/p/w342$it" } ?: ""
+                if (url.isBlank()) entry
+                else {
+                    changed = true
+                    val updated = entry.copy(poster = url)
+                    cwStore.addOrUpdate(profileId, updated)
+                    updated
+                }
+            } catch (_: Exception) {
+                entry
+            }
+        }
+        return if (changed) out else list
+    }
+
     fun loadHome() {
         viewModelScope.launch {
             _state.update { it.copy(contentLoading = it.homeRows.isEmpty(), error = null, searchResults = null) }
             try {
                 val rows = repo.buildHomeRows()
                 _state.update { it.copy(homeRows = rows, contentLoading = false) }
+                prefetchHomePosters(rows)
             } catch (_: Exception) {
                 _state.update { it.copy(contentLoading = false, error = "Could not load EnigmaTV content") }
             }
@@ -409,7 +465,25 @@ class EnigmaViewModel(application: Application) : AndroidViewModel(application) 
         }
     }
 
-    fun playMovie(movie: MovieItem) {
+    private fun prefetchHomePosters(rows: List<HomeRow>) {
+        val urls = rows.flatMap { row ->
+            when (row) {
+                is HomeRow.Movies -> row.items.mapNotNull { it.posterUrl }
+                is HomeRow.TvShows -> row.items.mapNotNull { it.posterUrl }
+            }
+        }.distinct().take(36)
+        urls.forEach { url ->
+            imageLoader.enqueue(
+                ImageRequest.Builder(getApplication())
+                    .data(url)
+                    .size(342, 513)
+                    .build()
+            )
+        }
+    }
+
+    fun playMovie(movie: MovieItem, posterOverride: String? = null) {
+        val poster = posterOverride?.takeIf { it.isNotBlank() } ?: movie.posterUrl
         val (name, url) = StreamSources.movieUrl(0, movie.id)
         _state.update {
             it.copy(
@@ -418,7 +492,7 @@ class EnigmaViewModel(application: Application) : AndroidViewModel(application) 
                 playerHls = false,
                 playerTitle = movie.title,
                 playerUrl = url,
-                playerLogoUrl = movie.posterUrl,
+                playerLogoUrl = poster,
                 playerResolveToken = it.playerResolveToken + 1,
                 playerAccentMovie = true,
                 playerLiveTv = false,
@@ -432,7 +506,7 @@ class EnigmaViewModel(application: Application) : AndroidViewModel(application) 
         viewModelScope.launch {
             cwStore.addOrUpdate(
                 activeProfileId(),
-                ContinueWatchingEntry(movie.id, movie.title, movie.posterUrl ?: "", 0, 0, ContentType.MOVIE)
+                ContinueWatchingEntry(movie.id, movie.title, poster ?: "", 0, 0, ContentType.MOVIE)
             )
         }
     }
@@ -580,7 +654,7 @@ class EnigmaViewModel(application: Application) : AndroidViewModel(application) 
 
     fun resumeContinue(entry: ContinueWatchingEntry) {
         when (entry.type) {
-            ContentType.MOVIE -> playMovie(MovieItem(entry.id, entry.name))
+            ContentType.MOVIE -> playMovie(MovieItem(entry.id, entry.name), entry.poster)
             ContentType.TV -> selectShow(entry.id, entry.name, entry.season, entry.episode)
         }
     }
@@ -646,11 +720,10 @@ class EnigmaViewModel(application: Application) : AndroidViewModel(application) 
             try {
                 val detail = repo.tvDetail(id)
                 val seasons = detail.seasons.filter { it.seasonNumber > 0 }.map { it.seasonNumber }
-                val poster = detail.posterPath?.let { "https://image.tmdb.org/t/p/w200$it" } ?: ""
                 val posterUrl = detail.posterPath?.let { "https://image.tmdb.org/t/p/w342$it" }
                 cwStore.addOrUpdate(
                     activeProfileId(),
-                    ContinueWatchingEntry(id, name, poster, startSeason, startEpisode, ContentType.TV)
+                    ContinueWatchingEntry(id, name, posterUrl ?: "", startSeason, startEpisode, ContentType.TV)
                 )
                 _state.update { it.copy(playerLogoUrl = posterUrl) }
                 if (seasons.isNotEmpty()) {

@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -17,6 +18,7 @@ import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.ChildCare
 import androidx.compose.material.icons.filled.Face
 import androidx.compose.material.icons.filled.Favorite
@@ -33,6 +35,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.layout.ContentScale
+import coil.compose.AsyncImage
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -76,6 +80,7 @@ fun ProfileAvatarCircle(
     profile: ViewerProfile,
     selected: Boolean,
     sizeDp: Int = 88,
+    showEditBadge: Boolean = false,
     onClick: () -> Unit
 ) {
     val color = profileAvatarColor(profile.avatarIndex)
@@ -96,12 +101,35 @@ fun ProfileAvatarCircle(
                 ),
             contentAlignment = Alignment.Center
         ) {
-            Icon(
-                profileAvatarIcon(profile.avatarIndex),
-                contentDescription = profile.name,
-                tint = Color.White,
-                modifier = Modifier.size((sizeDp * 0.45f).dp)
-            )
+            val customUri = profile.avatarUri?.takeIf { it.isNotBlank() }
+            if (customUri != null) {
+                AsyncImage(
+                    model = customUri,
+                    contentDescription = profile.name,
+                    modifier = Modifier.fillMaxSize(),
+                    contentScale = ContentScale.Crop
+                )
+            } else {
+                Icon(
+                    profileAvatarIcon(profile.avatarIndex),
+                    contentDescription = profile.name,
+                    tint = Color.White,
+                    modifier = Modifier.size((sizeDp * 0.45f).dp)
+                )
+            }
+            if (showEditBadge) {
+                Box(
+                    modifier = Modifier
+                        .align(Alignment.BottomEnd)
+                        .size(28.dp)
+                        .clip(CircleShape)
+                        .background(EnigmaPurple)
+                        .border(2.dp, BgDark, CircleShape),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(Icons.Default.Edit, contentDescription = "Edit", tint = Color.White, modifier = Modifier.size(14.dp))
+                }
+            }
         }
         Text(
             profile.name,

@@ -5,18 +5,26 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.padding
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.enigma.tv.data.LiveEmbedResolver
+import com.enigma.tv.data.StreamExtractor
 import com.enigma.tv.data.StreamResolver
 import com.enigma.tv.ui.theme.BgDark
 import com.enigma.tv.ui.theme.EnigmaPurple
+import com.enigma.tv.ui.theme.TextSecondary
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
@@ -37,7 +45,7 @@ fun EnigmaLivePlayer(
 
     BackHandler { onClose() }
 
-    var playUrl by remember(embedUrl, resolveToken) { mutableStateOf(embedUrl) }
+    val appContext = LocalContext.current.applicationContext
     var directUrl by remember(embedUrl, resolveToken) { mutableStateOf<String?>(null) }
     var resolving by remember(embedUrl, resolveToken) { mutableStateOf(true) }
 
@@ -47,24 +55,29 @@ fun EnigmaLivePlayer(
         val resolved = withContext(Dispatchers.IO) {
             LiveEmbedResolver.resolvePlayableUrl(embedUrl)
         }
-        playUrl = resolved
         directUrl = withContext(Dispatchers.IO) {
             StreamResolver.resolveDirectUrl(resolved)
         }
+        if (directUrl.isNullOrBlank()) {
+            directUrl = StreamExtractor(appContext).extractStreamUrl(resolved, referer = embedUrl)
+        }
+        if (directUrl.isNullOrBlank()) {
+            directUrl = StreamExtractor(appContext).extractStreamUrl(embedUrl)
+        }
         resolving = false
-        if (directUrl == null) onLoadingChange(true)
+        onLoadingChange(false)
     }
 
-    val loading = streamLoading || resolving
     val useNative = !directUrl.isNullOrBlank()
+    val loading = streamLoading || resolving
 
     Box(Modifier.fillMaxSize().background(BgDark)) {
-        if (useNative) {
-            ExoLivePlayer(
+        when {
+            useNative -> ExoLivePlayer(
                 visible = true,
                 title = title,
                 streamUrl = directUrl!!,
-                sourceLabel = "$sourceLabel · Native",
+                sourceLabel = "$sourceLabel · Direct",
                 logoUrl = posterUrl,
                 accent = EnigmaPurple,
                 streamLoading = loading,
@@ -73,8 +86,22 @@ fun EnigmaLivePlayer(
                 showNextSource = true,
                 onNextSource = onNextSource
             )
-        } else {
-            Column(Modifier.fillMaxSize()) {
+            resolving -> Column(Modifier.fillMaxSize()) {
+                PlayerChrome(
+                    title = title,
+                    subtitle = "Extracting stream…",
+                    posterUrl = posterUrl,
+                    accent = EnigmaPurple,
+                    onClose = onClose,
+                    showBack = true,
+                    onBack = onClose
+                )
+                EnigmaLoadingRing(
+                    modifier = Modifier.weight(1f).fillMaxSize(),
+                    message = "LOADING STREAM"
+                )
+            }
+            else -> Column(Modifier.fillMaxSize()) {
                 PlayerChrome(
                     title = title,
                     subtitle = sourceLabel,
@@ -86,21 +113,24 @@ fun EnigmaLivePlayer(
                     showNextSource = true,
                     onNextSource = onNextSource
                 )
-                WebViewPlayer(
-                    visible = true,
-                    title = title,
-                    url = playUrl,
-                    accent = EnigmaPurple,
-                    sourceLabel = sourceLabel,
-                    posterUrl = posterUrl,
-                    streamLoading = loading,
-                    onClose = onClose,
-                    onNextSource = onNextSource,
-                    onLoadingChange = onLoadingChange,
-                    liveTv = true,
-                    useExternalChrome = true,
-                    modifier = Modifier.weight(1f)
-                )
+                Box(
+                    Modifier
+                        .weight(1f)
+                        .fillMaxSize(),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text(
+                            "Couldn't load this live stream directly. Try another source.",
+                            color = TextSecondary,
+                            fontSize = 15.sp,
+                            modifier = Modifier.padding(horizontal = 24.dp)
+                        )
+                        TextButton(onClick = onNextSource) {
+                            Text("Try next source", color = EnigmaPurple, fontSize = 16.sp)
+                        }
+                    }
+                }
             }
         }
     }
