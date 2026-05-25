@@ -95,6 +95,17 @@ fun EnigmaShell(viewModel: EnigmaViewModel = viewModel()) {
 
     val layout = rememberScreenLayout()
 
+    if (!state.sessionReady) {
+        Box(
+            Modifier
+                .fillMaxSize()
+                .background(BgDark)
+        ) {
+            EnigmaLoadingRing(modifier = Modifier.fillMaxSize(), fullscreen = true)
+        }
+        return
+    }
+
     if (state.showAuthGate) {
         AuthGateScreen(
             layout = layout,

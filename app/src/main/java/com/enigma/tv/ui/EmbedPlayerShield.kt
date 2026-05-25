@@ -93,6 +93,12 @@ object EmbedPlayerShield {
         v.muted = false;
         v.defaultMuted = false;
         if (typeof v.volume === 'number' && v.volume < 0.01) v.volume = 1;
+        if (v.textTracks) {
+          for (var i = 0; i < v.textTracks.length; i++) {
+            var tr = v.textTracks[i];
+            if (tr.kind === 'subtitles' || tr.kind === 'captions') tr.mode = 'showing';
+          }
+        }
       });
     } catch (e) {}
   }

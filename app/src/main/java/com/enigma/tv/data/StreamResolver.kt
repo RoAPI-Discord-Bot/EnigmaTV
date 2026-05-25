@@ -23,6 +23,26 @@ object StreamResolver {
     private val fileRegex = Regex("""["'](https?://[^"']+/file/[^"']+)["']""")
     private val sourceRegex = Regex("""source:\s*['"](https?://[^'"]+)['"]""", RegexOption.IGNORE_CASE)
     private val fileJsonRegex = Regex("""file:\s*['"](https?://[^'"]+)['"]""", RegexOption.IGNORE_CASE)
+    private val vttRegex = Regex("""(https?://[^\s"'\\<>]+\.vtt[^\s"'\\<>]*)""", RegexOption.IGNORE_CASE)
+
+    suspend fun resolveSubtitleUrl(embedUrl: String): String? = withContext(Dispatchers.IO) {
+        if (embedUrl.contains(".vtt", ignoreCase = true)) return@withContext clean(embedUrl)
+        try {
+            val request = Request.Builder()
+                .url(embedUrl)
+                .header("User-Agent", USER_AGENT)
+                .header("Referer", embedUrl)
+                .build()
+            client.newCall(request).execute().use { response ->
+                if (!response.isSuccessful) return@withContext null
+                val html = response.body?.string() ?: return@withContext null
+                vttRegex.find(html)?.groupValues?.get(1)?.let { return@withContext clean(it) }
+            }
+        } catch (_: Exception) {
+            null
+        }
+        null
+    }
 
     suspend fun resolveDirectUrl(embedUrl: String): String? = withContext(Dispatchers.IO) {
         if (embedUrl.contains(".m3u8", ignoreCase = true)) return@withContext clean(embedUrl)

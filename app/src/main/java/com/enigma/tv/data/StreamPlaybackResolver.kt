@@ -63,8 +63,9 @@ object StreamPlaybackResolver {
         embedUrl: String,
         activity: Activity?
     ): ResolvedStream? {
-        StreamResolver.resolveDirectUrl(embedUrl)?.let {
-            return ResolvedStream.fromEmbed(embedUrl, it, "scrape")
+        StreamResolver.resolveDirectUrl(embedUrl)?.let { stream ->
+            val subs = StreamResolver.resolveSubtitleUrl(embedUrl)
+            return ResolvedStream.fromEmbed(embedUrl, stream, "scrape").copy(subtitleUrl = subs)
         }
         if (activity != null) {
             StreamExtractor(context).extractStreamUrl(embedUrl, activity = activity)?.let { return it }

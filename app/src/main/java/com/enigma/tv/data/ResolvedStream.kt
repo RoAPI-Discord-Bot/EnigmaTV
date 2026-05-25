@@ -10,7 +10,8 @@ data class ResolvedStream(
     val referer: String = "",
     val origin: String = "",
     val userAgent: String = StreamResolver.USER_AGENT,
-    val provider: String = "direct"
+    val provider: String = "direct",
+    val subtitleUrl: String? = null
 ) {
     fun playbackHeaders(): Map<String, String> {
         val headers = linkedMapOf<String, String>()

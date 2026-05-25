@@ -58,7 +58,8 @@ enum class NavSection(val title: String) {
 }
 
 data class EnigmaUiState(
-    val showAuthGate: Boolean = true,
+    val sessionReady: Boolean = false,
+    val showAuthGate: Boolean = false,
     val authLoading: Boolean = false,
     val showSplash: Boolean = false,
     val contentLoading: Boolean = false,
@@ -201,6 +202,7 @@ class EnigmaViewModel(application: Application) : AndroidViewModel(application) 
             val done = sessionStore.isOnboardingComplete()
             _state.update {
                 it.copy(
+                    sessionReady = true,
                     showAuthGate = !done,
                     showSplash = false,
                     showProfilePicker = done,
@@ -666,7 +668,7 @@ class EnigmaViewModel(application: Application) : AndroidViewModel(application) 
                 playerVisible = true,
                 playerHls = false,
                 playerLiveTv = true,
-                playerLoading = false,
+                playerLoading = true,
                 playerTitle = title,
                 playerUrl = embedUrl,
                 playerResolveToken = it.playerResolveToken + 1,

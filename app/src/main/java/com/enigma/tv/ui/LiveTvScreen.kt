@@ -2,9 +2,12 @@ package com.enigma.tv.ui
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.focusable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -20,7 +23,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
-import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.LiveTv
 import androidx.compose.material.icons.filled.Search
@@ -35,15 +37,18 @@ import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
@@ -79,19 +84,24 @@ fun LiveTvScreen(
     onQuickPick: (String) -> Unit
 ) {
     var query by rememberSaveable { mutableStateOf(live.searchQuery) }
+    val pad = layout.contentPaddingDp().dp
+    val titleSize = if (layout == ScreenLayout.PHONE) 24.sp else 26.sp
+    val bodySize = if (layout == ScreenLayout.PHONE) 13.sp else 14.sp
 
     Column(
         Modifier
             .fillMaxSize()
             .background(BgDark)
-            .padding(layout.contentPaddingDp().dp)
+            .padding(horizontal = pad)
+            .padding(top = pad, bottom = 8.dp)
     ) {
-        Text("Live TV", color = TextPrimary, fontSize = 22.sp, fontWeight = FontWeight.Bold)
+        Text("Live TV", color = TextPrimary, fontSize = titleSize, fontWeight = FontWeight.Bold)
         Text(
-            "Watch live channels or pick a game — search teams or networks.",
+            "Live channels and games — scroll the list below.",
             color = TextSecondary,
-            fontSize = 12.sp,
-            modifier = Modifier.padding(top = 4.dp, bottom = 12.dp)
+            fontSize = bodySize,
+            lineHeight = 18.sp,
+            modifier = Modifier.padding(top = 6.dp, bottom = 14.dp)
         )
 
         OutlinedTextField(
@@ -101,11 +111,13 @@ fun LiveTvScreen(
                 onSearch(it)
             },
             modifier = Modifier.fillMaxWidth(),
-            placeholder = { Text("Search teams, games, ESPN…") },
+            placeholder = { Text("Search teams, games, ESPN…", fontSize = bodySize) },
             singleLine = true,
             keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
             keyboardActions = KeyboardActions(onSearch = { onSearch(query) }),
-            leadingIcon = { Icon(Icons.Default.Search, contentDescription = null, tint = TextSecondary) },
+            leadingIcon = {
+                Icon(Icons.Default.Search, contentDescription = "Search", tint = TextSecondary)
+            },
             colors = OutlinedTextFieldDefaults.colors(
                 focusedContainerColor = SearchBg,
                 unfocusedContainerColor = SearchBg,
@@ -114,137 +126,197 @@ fun LiveTvScreen(
                 focusedTextColor = TextPrimary,
                 unfocusedTextColor = TextPrimary
             ),
-            shape = RoundedCornerShape(10.dp)
+            shape = RoundedCornerShape(12.dp)
         )
 
-        Spacer(Modifier.height(10.dp))
+        Spacer(Modifier.height(12.dp))
 
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            LiveTabChip(LiveTvTab.EVENTS, live.tab == LiveTvTab.EVENTS, onTab)
-            LiveTabChip(LiveTvTab.CHANNELS, live.tab == LiveTvTab.CHANNELS, onTab)
+        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            LiveTabChip(LiveTvTab.EVENTS, live.tab == LiveTvTab.EVENTS, onTab, layout)
+            LiveTabChip(LiveTvTab.CHANNELS, live.tab == LiveTvTab.CHANNELS, onTab, layout)
         }
 
         Spacer(Modifier.height(12.dp))
 
-        when {
-            live.loading -> {
-                Column(
-                    Modifier.fillMaxWidth().padding(40.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally
-                ) {
-                    CircularProgressIndicator(color = EnigmaPurple)
-                    Text("Loading live games & channels…", color = TextSecondary, modifier = Modifier.padding(top = 12.dp))
+        Box(Modifier.weight(1f).fillMaxWidth()) {
+            when {
+                live.loading -> {
+                    Column(
+                        Modifier.fillMaxSize(),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.Center
+                    ) {
+                        CircularProgressIndicator(color = EnigmaPurple)
+                        Text(
+                            "Loading live games & channels…",
+                            color = TextSecondary,
+                            fontSize = bodySize,
+                            modifier = Modifier.padding(top = 16.dp)
+                        )
+                    }
                 }
-            }
-            live.error != null -> {
-                Text(live.error, color = Color(0xFFFF6B6B), modifier = Modifier.padding(8.dp))
-                Text("Tap Live TV in menu to retry.", color = TextSecondary, fontSize = 12.sp, modifier = Modifier.clickable { onReload() })
-            }
-            live.tab == LiveTvTab.EVENTS -> LiveEventsList(live.filteredEvents, onPlayMatch)
-            else -> LiveChannelsBrowser(
-                live = live,
-                onPlayChannel = onPlayChannel,
-                onToggleFavorite = onToggleFavorite,
-                onGroupFilter = onGroupFilter,
-                onFavoritesOnly = onFavoritesOnly,
-                onQuickPick = { pick ->
-                    query = pick
-                    onQuickPick(pick)
+                live.error != null -> {
+                    Column(Modifier.padding(12.dp)) {
+                        Text(live.error, color = Color(0xFFFF6B6B), fontSize = bodySize)
+                        Text(
+                            "Open the menu and tap Live TV to retry.",
+                            color = TextSecondary,
+                            fontSize = 12.sp,
+                            modifier = Modifier
+                                .padding(top = 8.dp)
+                                .clickable { onReload() }
+                                .focusable()
+                        )
+                    }
                 }
-            )
+                live.tab == LiveTvTab.EVENTS -> LiveEventsList(
+                    events = live.filteredEvents,
+                    layout = layout,
+                    onPlay = onPlayMatch
+                )
+                else -> LiveChannelsBrowser(
+                    live = live,
+                    layout = layout,
+                    onPlayChannel = onPlayChannel,
+                    onToggleFavorite = onToggleFavorite,
+                    onGroupFilter = onGroupFilter,
+                    onFavoritesOnly = onFavoritesOnly,
+                    onQuickPick = { pick ->
+                        query = pick
+                        onQuickPick(pick)
+                    }
+                )
+            }
         }
     }
 }
 
 @Composable
-private fun LiveTabChip(tab: LiveTvTab, selected: Boolean, onTab: (LiveTvTab) -> Unit) {
+private fun LiveTabChip(tab: LiveTvTab, selected: Boolean, onTab: (LiveTvTab) -> Unit, layout: ScreenLayout) {
     FilterChip(
         selected = selected,
         onClick = { onTab(tab) },
-        label = { Text(tab.label) },
+        label = { Text(tab.label, fontSize = if (layout == ScreenLayout.PHONE) 14.sp else 15.sp) },
         leadingIcon = {
             Icon(
                 if (tab == LiveTvTab.EVENTS) Icons.Default.LiveTv else Icons.Default.Tv,
                 contentDescription = null,
-                modifier = Modifier.size(18.dp)
+                modifier = Modifier.size(20.dp)
             )
-        }
+        },
+        modifier = Modifier.focusable()
     )
 }
 
 @Composable
 private fun LiveChannelsBrowser(
     live: LiveTvBrowseState,
+    layout: ScreenLayout,
     onPlayChannel: (IptvChannel) -> Unit,
     onToggleFavorite: (IptvChannel) -> Unit,
     onGroupFilter: (String?) -> Unit,
     onFavoritesOnly: () -> Unit,
     onQuickPick: (String) -> Unit
 ) {
-    Column {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .horizontalScroll(rememberScrollState()),
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            LIVE_CHANNEL_QUICK_PICKS.forEach { (label, q) ->
-                FilterChip(
-                    selected = live.searchQuery.equals(q, ignoreCase = true),
-                    onClick = { onQuickPick(q) },
-                    label = { Text(label, fontSize = 12.sp) }
-                )
+    val chipScroll = rememberScrollState()
+    val listBottomPad = if (layout.usePermanentDrawer()) 24.dp else 88.dp
+
+    LazyColumn(
+        modifier = Modifier.fillMaxSize(),
+        contentPadding = PaddingValues(bottom = listBottomPad),
+        verticalArrangement = Arrangement.spacedBy(6.dp)
+    ) {
+        item {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .horizontalScroll(chipScroll),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                LIVE_CHANNEL_QUICK_PICKS.forEach { (label, q) ->
+                    FilterChip(
+                        selected = live.searchQuery.equals(q, ignoreCase = true),
+                        onClick = { onQuickPick(q) },
+                        label = { Text(label, fontSize = 13.sp) },
+                        modifier = Modifier.focusable()
+                    )
+                }
             }
         }
 
-        Spacer(Modifier.height(8.dp))
-
-        Row(
-            modifier = Modifier.horizontalScroll(rememberScrollState()),
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            FilterChip(
-                selected = live.channelGroupFilter == null && !live.favoritesOnly,
-                onClick = {
-                    onGroupFilter(null)
-                    if (live.favoritesOnly) onFavoritesOnly()
-                },
-                label = { Text("All") }
-            )
-            FilterChip(
-                selected = live.favoritesOnly,
-                onClick = onFavoritesOnly,
-                label = { Text("♥ Favorites") }
-            )
-            live.channelGroups.forEach { group ->
+        item {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .horizontalScroll(rememberScrollState()),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
                 FilterChip(
-                    selected = live.channelGroupFilter == group,
-                    onClick = { onGroupFilter(group) },
-                    label = { Text(group, maxLines = 1) }
+                    selected = live.channelGroupFilter == null && !live.favoritesOnly,
+                    onClick = {
+                        onGroupFilter(null)
+                        if (live.favoritesOnly) onFavoritesOnly()
+                    },
+                    label = { Text("All") },
+                    modifier = Modifier.focusable()
                 )
+                FilterChip(
+                    selected = live.favoritesOnly,
+                    onClick = onFavoritesOnly,
+                    label = { Text("♥ Favorites") },
+                    modifier = Modifier.focusable()
+                )
+                live.channelGroups.take(24).forEach { group ->
+                    FilterChip(
+                        selected = live.channelGroupFilter == group,
+                        onClick = { onGroupFilter(group) },
+                        label = { Text(group, maxLines = 1) },
+                        modifier = Modifier.focusable()
+                    )
+                }
             }
         }
 
         if (live.recentChannels.isNotEmpty()) {
-            Spacer(Modifier.height(12.dp))
-            Text("Recent", color = TextPrimary, fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
-            Spacer(Modifier.height(6.dp))
-            live.recentChannels.take(8).forEach { ch ->
-                LiveChannelRow(ch, live.favoriteChannelIds.contains(ch.id), onPlayChannel, onToggleFavorite)
+            item {
+                Text(
+                    "Recent",
+                    color = TextPrimary,
+                    fontWeight = FontWeight.SemiBold,
+                    fontSize = 16.sp,
+                    modifier = Modifier.padding(top = 8.dp, bottom = 4.dp)
+                )
+            }
+            items(live.recentChannels.take(8), key = { "recent-${it.id}" }) { ch ->
+                LiveChannelRow(
+                    ch,
+                    live.favoriteChannelIds.contains(ch.id),
+                    layout,
+                    onPlayChannel,
+                    onToggleFavorite
+                )
             }
         }
 
-        Spacer(Modifier.height(12.dp))
-        Text(
-            if (live.favoritesOnly) "Favorite channels" else "Channels (${live.filteredChannels.size})",
-            color = TextPrimary,
-            fontWeight = FontWeight.SemiBold,
-            fontSize = 14.sp
-        )
-        Spacer(Modifier.height(6.dp))
+        item {
+            Text(
+                if (live.favoritesOnly) "Favorite channels" else "Channels (${live.filteredChannels.size})",
+                color = TextPrimary,
+                fontWeight = FontWeight.SemiBold,
+                fontSize = 16.sp,
+                modifier = Modifier.padding(top = 10.dp, bottom = 4.dp)
+            )
+        }
 
         if (live.filteredChannels.isEmpty()) {
-            Text("No channels match. Try ESPN, FOX, MLB, NFL…", color = TextSecondary, modifier = Modifier.padding(8.dp))
+            item {
+                Text(
+                    "No channels match. Try ESPN, FOX, MLB, NFL…",
+                    color = TextSecondary,
+                    fontSize = 14.sp,
+                    modifier = Modifier.padding(12.dp)
+                )
+            }
         } else if (live.searchQuery.isBlank() && live.channelGroupFilter == null && !live.favoritesOnly) {
             val rows = buildList<ChannelListEntry> {
                 live.filteredChannels.groupBy { it.group }.toSortedMap().forEach { (group, channels) ->
@@ -252,88 +324,123 @@ private fun LiveChannelsBrowser(
                     channels.forEach { add(ChannelListEntry.Channel(it)) }
                 }
             }
-            LazyColumn(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                items(rows.size, key = { i ->
-                    when (val row = rows[i]) {
-                        is ChannelListEntry.Header -> "h-${row.group}"
-                        is ChannelListEntry.Channel -> row.channel.id
-                    }
-                }) { i ->
-                    when (val row = rows[i]) {
-                        is ChannelListEntry.Header -> Text(
-                            row.group,
-                            color = EnigmaPink,
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.Bold,
-                            modifier = Modifier.padding(vertical = 8.dp)
-                        )
-                        is ChannelListEntry.Channel -> LiveChannelRow(
-                            row.channel,
-                            live.favoriteChannelIds.contains(row.channel.id),
-                            onPlayChannel,
-                            onToggleFavorite
-                        )
-                    }
+            items(rows.size, key = { i ->
+                when (val row = rows[i]) {
+                    is ChannelListEntry.Header -> "h-${row.group}"
+                    is ChannelListEntry.Channel -> row.channel.id
                 }
-            }
-        } else {
-            LazyColumn(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                items(live.filteredChannels.take(500), key = { it.id }) { ch ->
-                    LiveChannelRow(
-                        ch,
-                        live.favoriteChannelIds.contains(ch.id),
+            }) { i ->
+                when (val row = rows[i]) {
+                    is ChannelListEntry.Header -> Text(
+                        row.group,
+                        color = EnigmaPink,
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier.padding(vertical = 10.dp)
+                    )
+                    is ChannelListEntry.Channel -> LiveChannelRow(
+                        row.channel,
+                        live.favoriteChannelIds.contains(row.channel.id),
+                        layout,
                         onPlayChannel,
                         onToggleFavorite
                     )
                 }
             }
+        } else {
+            items(live.filteredChannels.take(500), key = { it.id }) { ch ->
+                LiveChannelRow(
+                    ch,
+                    live.favoriteChannelIds.contains(ch.id),
+                    layout,
+                    onPlayChannel,
+                    onToggleFavorite
+                )
+            }
         }
     }
 }
 
 @Composable
-private fun LiveEventsList(events: List<LiveSportMatch>, onPlay: (LiveSportMatch) -> Unit) {
+private fun LiveEventsList(
+    events: List<LiveSportMatch>,
+    layout: ScreenLayout,
+    onPlay: (LiveSportMatch) -> Unit
+) {
+    val listBottomPad = if (layout.usePermanentDrawer()) 24.dp else 88.dp
     if (events.isEmpty()) {
-        Text("No live games match your search. Try team names or a sport (baseball, nfl).", color = TextSecondary, modifier = Modifier.padding(8.dp))
+        Text(
+            "No live games match your search. Try team names or a sport (baseball, nfl).",
+            color = TextSecondary,
+            fontSize = 14.sp,
+            modifier = Modifier.padding(12.dp)
+        )
         return
     }
-    LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        items(events, key = { it.id }) { match -> LiveEventCard(match, onPlay) }
+    LazyColumn(
+        modifier = Modifier.fillMaxSize(),
+        contentPadding = PaddingValues(bottom = listBottomPad),
+        verticalArrangement = Arrangement.spacedBy(10.dp)
+    ) {
+        items(events, key = { it.id }) { match ->
+            LiveEventCard(match, layout, onPlay)
+        }
     }
 }
 
 @Composable
-private fun LiveEventCard(match: LiveSportMatch, onPlay: (LiveSportMatch) -> Unit) {
+private fun LiveEventCard(match: LiveSportMatch, layout: ScreenLayout, onPlay: (LiveSportMatch) -> Unit) {
+    var focused by remember { mutableStateOf(false) }
+    val padV = if (layout == ScreenLayout.PHONE) 14.dp else 12.dp
+
     Row(
         Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(10.dp))
-            .background(Color.White.copy(alpha = 0.06f))
+            .clip(RoundedCornerShape(12.dp))
+            .background(
+                if (focused) EnigmaPurple.copy(alpha = 0.22f) else Color.White.copy(alpha = 0.07f)
+            )
             .clickable { onPlay(match) }
-            .padding(12.dp),
+            .focusable()
+            .onFocusChanged { focused = it.isFocused }
+            .padding(horizontal = 14.dp, vertical = padV),
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(12.dp)
+        horizontalArrangement = Arrangement.spacedBy(14.dp)
     ) {
         if (match.posterUrl != null) {
             AsyncImage(
                 model = match.posterUrl,
                 contentDescription = null,
-                modifier = Modifier.size(56.dp).clip(RoundedCornerShape(6.dp)),
+                modifier = Modifier.size(64.dp).clip(RoundedCornerShape(8.dp)),
                 contentScale = ContentScale.Crop
             )
         }
         Column(Modifier.weight(1f)) {
-            Text(match.title, color = TextPrimary, fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
-            Text(match.category.replaceFirstChar { it.uppercase() }, color = EnigmaPink, fontSize = 11.sp)
+            Text(
+                match.title,
+                color = TextPrimary,
+                fontWeight = FontWeight.SemiBold,
+                fontSize = 15.sp,
+                lineHeight = 20.sp
+            )
+            Text(
+                match.category.replaceFirstChar { it.uppercase() },
+                color = EnigmaPink,
+                fontSize = 12.sp,
+                modifier = Modifier.padding(top = 4.dp)
+            )
         }
         Text(
             if (match.sources.isNotEmpty()) "WATCH" else "N/A",
             color = Color.White,
-            fontSize = 10.sp,
+            fontSize = 11.sp,
             fontWeight = FontWeight.Bold,
             modifier = Modifier
-                .background(if (match.sources.isNotEmpty()) EnigmaPurple else Color.Gray, RoundedCornerShape(4.dp))
-                .padding(horizontal = 8.dp, vertical = 4.dp)
+                .background(
+                    if (match.sources.isNotEmpty()) EnigmaPurple else Color.Gray,
+                    RoundedCornerShape(6.dp)
+                )
+                .padding(horizontal = 12.dp, vertical = 8.dp)
         )
     }
 }
@@ -342,16 +449,25 @@ private fun LiveEventCard(match: LiveSportMatch, onPlay: (LiveSportMatch) -> Uni
 private fun LiveChannelRow(
     channel: IptvChannel,
     isFavorite: Boolean,
+    layout: ScreenLayout,
     onPlay: (IptvChannel) -> Unit,
     onToggleFavorite: (IptvChannel) -> Unit
 ) {
+    var focused by remember { mutableStateOf(false) }
+    val rowH = if (layout == ScreenLayout.PHONE) 72.dp else 64.dp
+
     Row(
         Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(8.dp))
-            .background(Color.White.copy(alpha = 0.05f))
+            .height(rowH)
+            .clip(RoundedCornerShape(10.dp))
+            .background(
+                if (focused) EnigmaPurple.copy(alpha = 0.18f) else Color.White.copy(alpha = 0.06f)
+            )
             .clickable { onPlay(channel) }
-            .padding(horizontal = 10.dp, vertical = 8.dp),
+            .focusable()
+            .onFocusChanged { focused = it.isFocused }
+            .padding(horizontal = 12.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         if (!channel.logoUrl.isNullOrBlank()) {
@@ -359,19 +475,35 @@ private fun LiveChannelRow(
                 model = channel.logoUrl,
                 contentDescription = channel.name,
                 modifier = Modifier
-                    .size(44.dp)
-                    .clip(RoundedCornerShape(6.dp))
+                    .size(48.dp)
+                    .clip(RoundedCornerShape(8.dp))
                     .background(Color.White.copy(alpha = 0.06f)),
                 contentScale = ContentScale.Fit
             )
         } else {
-            Text("📺", fontSize = 22.sp, modifier = Modifier.width(44.dp))
+            Text("📺", fontSize = 24.sp, modifier = Modifier.width(48.dp))
         }
-        Column(Modifier.weight(1f).padding(horizontal = 10.dp)) {
-            Text(channel.name, color = TextPrimary, fontSize = 14.sp, fontWeight = FontWeight.Medium, maxLines = 2)
-            Text(channel.group, color = TextSecondary, fontSize = 11.sp)
+        Column(Modifier.weight(1f).padding(horizontal = 12.dp)) {
+            Text(
+                channel.name,
+                color = TextPrimary,
+                fontSize = 15.sp,
+                fontWeight = FontWeight.Medium,
+                maxLines = 2,
+                lineHeight = 18.sp
+            )
+            Text(
+                channel.group,
+                color = TextSecondary,
+                fontSize = 12.sp,
+                maxLines = 1,
+                modifier = Modifier.padding(top = 2.dp)
+            )
         }
-        IconButton(onClick = { onToggleFavorite(channel) }, modifier = Modifier.size(36.dp)) {
+        IconButton(
+            onClick = { onToggleFavorite(channel) },
+            modifier = Modifier.size(40.dp).focusable()
+        ) {
             Icon(
                 if (isFavorite) Icons.Filled.Favorite else Icons.Outlined.FavoriteBorder,
                 contentDescription = "Favorite",
@@ -381,7 +513,7 @@ private fun LiveChannelRow(
         Text(
             "LIVE",
             color = EnigmaPink,
-            fontSize = 10.sp,
+            fontSize = 11.sp,
             fontWeight = FontWeight.Bold,
             modifier = Modifier.padding(end = 4.dp)
         )

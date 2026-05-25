@@ -26,6 +26,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.media3.common.MediaItem
+import androidx.media3.common.MimeTypes
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
 import androidx.media3.common.util.UnstableApi
@@ -109,11 +110,24 @@ fun ExoLivePlayer(
         try {
             val uri = android.net.Uri.parse(playUrl)
             if (!uri.scheme.isNullOrBlank()) {
+                val itemBuilder = MediaItem.Builder().setUri(uri)
+                resolved.subtitleUrl?.takeIf { it.isNotBlank() }?.let { vtt ->
+                    itemBuilder.setSubtitleConfigurations(
+                        listOf(
+                            MediaItem.SubtitleConfiguration.Builder(android.net.Uri.parse(vtt))
+                                .setMimeType(MimeTypes.TEXT_VTT)
+                                .setLanguage("en")
+                                .setLabel("Subtitles")
+                                .build()
+                        )
+                    )
+                }
+                val mediaItem = itemBuilder.build()
                 val mediaSource: MediaSource = if (playUrl.contains(".m3u8", ignoreCase = true)) {
-                    HlsMediaSource.Factory(dataSourceFactory).createMediaSource(MediaItem.fromUri(uri))
+                    HlsMediaSource.Factory(dataSourceFactory).createMediaSource(mediaItem)
                 } else {
                     androidx.media3.exoplayer.source.ProgressiveMediaSource.Factory(dataSourceFactory)
-                        .createMediaSource(MediaItem.fromUri(uri))
+                        .createMediaSource(mediaItem)
                 }
                 player.setMediaSource(mediaSource)
                 player.prepare()
