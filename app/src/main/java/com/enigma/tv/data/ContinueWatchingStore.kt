@@ -38,19 +38,25 @@ class ContinueWatchingStore(private val context: Context) {
     suspend fun addOrUpdate(profileId: String, entry: ContinueWatchingEntry) {
         context.dataStore.edit { prefs ->
             val current = readList(prefs[key(profileId)] ?: prefs[legacyKey] ?: prefs[legacyCinetvKey])
-            val updated = (listOf(entry) + current.filter {
+            val stamped = entry.copy(updatedAt = System.currentTimeMillis())
+            val updated = (listOf(stamped) + current.filter {
                 it.id != entry.id || it.type != entry.type
             }).take(12)
             prefs[key(profileId)] = gson.toJson(updated)
         }
     }
 
-    suspend fun updateProgress(profileId: String, id: Int, type: ContentType, season: Int, episode: Int) {
+    suspend fun updateProgress(profileId: String, id: Int, type: ContentType, season: Int, episode: Int, progressPercent: Int = 0) {
         context.dataStore.edit { prefs ->
-            val current = readList(prefs[key(profileId)] ?: prefs[legacyKey]).toMutableList()
+            val current = readList(prefs[key(profileId)] ?: prefs[legacyKey] ?: prefs[legacyCinetvKey]).toMutableList()
             val idx = current.indexOfFirst { it.id == id && it.type == type }
             if (idx >= 0) {
-                current[idx] = current[idx].copy(season = season, episode = episode)
+                current[idx] = current[idx].copy(
+                    season = season,
+                    episode = episode,
+                    progressPercent = progressPercent.coerceIn(0, 100),
+                    updatedAt = System.currentTimeMillis()
+                )
                 prefs[key(profileId)] = gson.toJson(current)
             }
         }

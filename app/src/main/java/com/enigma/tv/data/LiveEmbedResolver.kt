@@ -42,23 +42,25 @@ object LiveEmbedResolver {
         "streamed.pk", "embedsports", "sandbox", "wrapper", "/redirect", "click."
     )
 
-    suspend fun resolvePlayableUrl(embedUrl: String): String = withContext(Dispatchers.IO) {
-        unwrapStreamApiResponse(embedUrl)?.let { unwrapped ->
-            val resolved = resolveChain(unwrapped, depth = 0, visited = mutableSetOf())
-            if (!looksLikeRawCodePage(resolved)) return@withContext resolved
-        }
-        val resolved = resolveChain(embedUrl, depth = 0, visited = mutableSetOf())
-        if (looksLikeRawCodePage(resolved)) {
-            fetchHtml(embedUrl)?.let { html ->
-                pickBestEmbedFromBody(html, embedUrl)?.let { candidate ->
-                    return@withContext resolveChain(candidate, depth = 0, visited = mutableSetOf())
-                }
+    suspend fun resolvePlayableUrl(embedUrl: String): String? = withContext(Dispatchers.IO) {
+        val candidates = buildList {
+            add(embedUrl.trim())
+            StreamedRepository.embedCandidates(embedUrl).forEach { add(it) }
+        }.distinct()
+
+        for (candidate in candidates) {
+            if (candidate.isBlank()) continue
+            if (candidate.contains(".m3u8", ignoreCase = true)) return@withContext candidate
+
+            unwrapStreamApiResponse(candidate)?.let { unwrapped ->
+                resolveChain(unwrapped, depth = 0, visited = mutableSetOf())?.let { return@withContext it }
             }
+
+            resolveChain(candidate, depth = 0, visited = mutableSetOf())?.let { return@withContext it }
         }
-        resolved
+        null
     }
 
-    /** If the streamed API URL returns JSON, extract the first real embed URL. */
     private suspend fun unwrapStreamApiResponse(url: String): String? {
         if (!looksLikeStreamApi(url)) return null
         val body = fetchHtml(url) ?: return null
@@ -79,20 +81,21 @@ object LiveEmbedResolver {
             .maxByOrNull { scorePlayerUrl(it) }
     }
 
-    private suspend fun resolveChain(url: String, depth: Int, visited: MutableSet<String>): String {
-        if (depth > 5 || url in visited) return url
+    private suspend fun resolveChain(url: String, depth: Int, visited: MutableSet<String>): String? {
+        if (depth > 5 || url in visited) return null
         visited.add(url)
 
         if (url.contains(".m3u8", ignoreCase = true)) return url
 
         StreamResolver.resolveDirectUrl(url)?.let { return it }
 
-        val html = fetchHtml(url) ?: return url
+        val html = fetchHtml(url) ?: return null
 
         if (looksLikeRawCodePage(html)) {
             pickBestEmbedFromBody(html, url)?.let { candidate ->
                 if (candidate != url) return resolveChain(candidate, depth + 1, visited)
             }
+            return null
         }
 
         pickM3u8(html)?.let { return it }
@@ -103,13 +106,17 @@ object LiveEmbedResolver {
 
         for (candidate in candidates) {
             val next = resolveChain(candidate, depth + 1, visited)
-            if (next != candidate || next.contains(".m3u8", true) || !looksLikeWrapper(next)) {
-                return next
-            }
-            if (!looksLikeWrapper(next) && scorePlayerUrl(next) >= 4) return next
+            if (next != null) return next
         }
 
-        return url
+        if (html.contains("<iframe", ignoreCase = true) ||
+            html.contains("<video", ignoreCase = true) ||
+            html.contains("jwplayer", ignoreCase = true) ||
+            html.contains("video-js", ignoreCase = true)
+        ) {
+            return url
+        }
+        return null
     }
 
     private fun fetchHtml(pageUrl: String): String? = try {
@@ -157,15 +164,11 @@ object LiveEmbedResolver {
         if (u.contains("givemereddit")) score += 4
         if (u.contains("ripplestream")) score += 4
         if (u.contains("vidsrc")) score += 4
+        if (u.contains("embedsports.top")) score += 8
         if (WRAPPER_HINTS.any { u.contains(it) }) score -= 3
         if (u.contains("sandbox")) score -= 8
         if (looksLikeStreamApi(u)) score -= 15
         return score
-    }
-
-    private fun looksLikeWrapper(url: String): Boolean {
-        val u = url.lowercase()
-        return WRAPPER_HINTS.any { u.contains(it) } && !u.contains(".m3u8")
     }
 
     private fun looksLikeStreamApi(url: String): Boolean {

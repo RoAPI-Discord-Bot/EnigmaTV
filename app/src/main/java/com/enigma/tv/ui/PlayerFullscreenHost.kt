@@ -12,21 +12,15 @@ import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.Fullscreen
-import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.SkipNext
-import androidx.compose.material.icons.filled.SkipPrevious
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -42,6 +36,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.view.WindowCompat
@@ -49,14 +44,11 @@ import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
 import com.enigma.tv.util.findActivity
 import com.enigma.tv.ui.theme.BgDark
+import com.enigma.tv.ui.theme.EnigmaPink
 import com.enigma.tv.ui.theme.TextPrimary
 import com.enigma.tv.ui.theme.TextSecondary
 import kotlinx.coroutines.delay
 
-/**
- * Full-screen player shell: video fills the display; chrome auto-hides.
- * Tap video to show/hide controls. TV shows prev/next episode in the mini bar.
- */
 @Composable
 fun PlayerFullscreenHost(
     title: String,
@@ -67,6 +59,8 @@ fun PlayerFullscreenHost(
     onClose: () -> Unit,
     onNextSource: (() -> Unit)? = null,
     showNextSource: Boolean = false,
+    streamFailed: Boolean = false,
+    streamLoading: Boolean = false,
     tvControls: TvPlayerControls? = null,
     onPrevEpisode: (() -> Unit)? = null,
     onNextEpisode: (() -> Unit)? = null,
@@ -74,21 +68,34 @@ fun PlayerFullscreenHost(
     hasNextEpisode: Boolean = false,
     content: @Composable () -> Unit
 ) {
-    val startWithChrome = layout == ScreenLayout.TV
-    var chromeVisible by rememberSaveable { mutableStateOf(startWithChrome) }
+    var chromeVisible by rememberSaveable { mutableStateOf(true) }
+    var episodePanelOpen by rememberSaveable { mutableStateOf(false) }
     val interaction = remember { MutableInteractionSource() }
+    val hasTv = tvControls != null
 
-    LaunchedEffect(chromeVisible) {
-        if (chromeVisible) {
+    LaunchedEffect(chromeVisible, streamLoading, streamFailed) {
+        if (chromeVisible && !streamLoading && !streamFailed) {
             delay(if (layout == ScreenLayout.TV) 8_000 else 5_000)
             chromeVisible = false
         }
     }
 
-    ImmersiveSystemBars(enabled = !chromeVisible)
+    LaunchedEffect(chromeVisible) {
+        if (!chromeVisible) episodePanelOpen = false
+    }
+
+    LaunchedEffect(streamFailed) {
+        if (streamFailed) chromeVisible = true
+    }
+
+    ImmersiveSystemBars(enabled = !chromeVisible && !episodePanelOpen)
 
     BackHandler {
-        if (chromeVisible) chromeVisible = false else onClose()
+        when {
+            episodePanelOpen -> episodePanelOpen = false
+            chromeVisible && !streamFailed -> chromeVisible = false
+            else -> onClose()
+        }
     }
 
     Box(
@@ -103,8 +110,61 @@ fun PlayerFullscreenHost(
             content()
         }
 
+        if (streamLoading) {
+            EnigmaLoadingRing(
+                modifier = Modifier.fillMaxSize(),
+                message = if (subtitle.contains("Live", ignoreCase = true)) "CONNECTING LIVE" else "LOADING STREAM",
+                logoSize = 72.dp,
+                ringSize = 110.dp,
+                fullscreen = true
+            )
+        }
+
+        if (streamFailed && showNextSource && onNextSource != null) {
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(Color.Black.copy(alpha = 0.72f))
+                    .padding(24.dp)
+                    .clickable(
+                        interactionSource = remember { MutableInteractionSource() },
+                        indication = null
+                    ) { },
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.Center
+            ) {
+                Text(
+                    "Stream didn't start",
+                    color = TextPrimary,
+                    fontSize = 20.sp,
+                    fontWeight = FontWeight.Bold,
+                    textAlign = TextAlign.Center
+                )
+                Text(
+                    "Try the next server — some feeds only work on certain mirrors.",
+                    color = TextSecondary,
+                    fontSize = 14.sp,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.padding(top = 8.dp, bottom = 24.dp)
+                )
+                Button(
+                    onClick = onNextSource,
+                    colors = ButtonDefaults.buttonColors(containerColor = EnigmaPink),
+                    shape = RoundedCornerShape(12.dp),
+                    modifier = Modifier.fillMaxWidth(0.85f)
+                ) {
+                    Icon(Icons.Default.SkipNext, contentDescription = null, tint = TextPrimary)
+                    Text(
+                        "Next Server",
+                        modifier = Modifier.padding(start = 8.dp),
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+            }
+        }
+
         AnimatedVisibility(
-            visible = chromeVisible,
+            visible = chromeVisible && !streamLoading,
             enter = slideInVertically { -it } + fadeIn(),
             exit = slideOutVertically { -it } + fadeOut(),
             modifier = Modifier
@@ -119,126 +179,26 @@ fun PlayerFullscreenHost(
                     accent = accent,
                     onClose = onClose,
                     showBack = false,
-                    showNextSource = showNextSource,
+                    showNextSource = showNextSource && !streamFailed,
                     onNextSource = onNextSource,
-                    tvControls = tvControls,
+                    showEpisodesButton = hasTv,
+                    onShowEpisodes = if (hasTv) {
+                        { episodePanelOpen = !episodePanelOpen }
+                    } else null,
                     isTvLayout = layout == ScreenLayout.TV,
                     isLive = subtitle.contains("Live", ignoreCase = true)
                 )
             }
         }
 
-        AnimatedVisibility(
-            visible = !chromeVisible,
-            enter = fadeIn(),
-            exit = fadeOut(),
-            modifier = Modifier
-                .align(Alignment.TopEnd)
-                .statusBarsPadding()
-                .padding(8.dp)
-        ) {
-            PlayerMiniBar(
-                onShowChrome = { chromeVisible = true },
-                onClose = onClose,
-                accent = accent
+        if (hasTv) {
+            TvEpisodePickerPanel(
+                visible = episodePanelOpen && chromeVisible,
+                controls = tvControls!!,
+                accent = accent,
+                onDismiss = { episodePanelOpen = false },
+                modifier = Modifier.align(Alignment.BottomCenter)
             )
-        }
-
-        if (tvControls != null && !chromeVisible) {
-            PlayerTvMiniRail(
-                modifier = Modifier
-                    .align(Alignment.BottomCenter)
-                    .navigationBarsPadding()
-                    .padding(12.dp),
-                season = tvControls.selectedSeason,
-                episode = tvControls.selectedEpisode,
-                hasPrev = hasPrevEpisode,
-                hasNext = hasNextEpisode,
-                onPrev = onPrevEpisode,
-                onNext = onNextEpisode,
-                onShowChrome = { chromeVisible = true },
-                accent = accent
-            )
-        }
-
-        if (!chromeVisible) {
-            Text(
-                "Tap screen for controls",
-                color = TextSecondary.copy(alpha = 0.55f),
-                fontSize = 10.sp,
-                modifier = Modifier
-                    .align(Alignment.BottomCenter)
-                    .navigationBarsPadding()
-                    .padding(bottom = if (tvControls != null) 56.dp else 12.dp)
-            )
-        }
-    }
-}
-
-@Composable
-private fun PlayerMiniBar(
-    onShowChrome: () -> Unit,
-    onClose: () -> Unit,
-    accent: Color
-) {
-    Row(
-        modifier = Modifier
-            .glassSurface(cornerRadius = 24.dp)
-            .background(Color.Black.copy(alpha = 0.55f), RoundedCornerShape(24.dp))
-            .padding(horizontal = 4.dp, vertical = 2.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        IconButton(onClick = onShowChrome) {
-            Icon(Icons.Default.Fullscreen, contentDescription = "Show controls", tint = accent)
-        }
-        IconButton(onClick = onClose) {
-            Icon(Icons.Default.Close, contentDescription = "Close", tint = TextPrimary)
-        }
-    }
-}
-
-@Composable
-private fun PlayerTvMiniRail(
-    modifier: Modifier = Modifier,
-    season: Int,
-    episode: Int,
-    hasPrev: Boolean,
-    hasNext: Boolean,
-    onPrev: (() -> Unit)?,
-    onNext: (() -> Unit)?,
-    onShowChrome: () -> Unit,
-    accent: Color
-) {
-    Row(
-        modifier = modifier
-            .fillMaxWidth()
-            .glassSurface(cornerRadius = 14.dp)
-            .background(Color.Black.copy(alpha = 0.72f), RoundedCornerShape(14.dp))
-            .padding(horizontal = 8.dp, vertical = 6.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.SpaceBetween
-    ) {
-        IconButton(
-            onClick = { onPrev?.invoke() },
-            enabled = hasPrev && onPrev != null
-        ) {
-            Icon(Icons.Default.SkipPrevious, contentDescription = "Previous episode", tint = TextPrimary)
-        }
-        Text(
-            "S${season}E$episode",
-            color = TextPrimary,
-            fontWeight = FontWeight.Bold,
-            fontSize = 14.sp,
-            modifier = Modifier.clickable(onClick = onShowChrome)
-        )
-        IconButton(
-            onClick = { onNext?.invoke() },
-            enabled = hasNext && onNext != null
-        ) {
-            Icon(Icons.Default.SkipNext, contentDescription = "Next episode", tint = TextPrimary)
-        }
-        IconButton(onClick = onShowChrome) {
-            Icon(Icons.Default.Settings, contentDescription = "Season & episode", tint = accent)
         }
     }
 }

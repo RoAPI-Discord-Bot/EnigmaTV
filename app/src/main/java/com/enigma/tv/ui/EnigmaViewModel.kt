@@ -34,6 +34,7 @@ import com.enigma.tv.data.firebase.FirebaseAuthService
 import com.enigma.tv.data.firebase.FirebaseSyncService
 import com.enigma.tv.data.formatRuntime
 import com.enigma.tv.data.FavoritesStore
+import com.enigma.tv.data.ImgurUploadService
 import com.enigma.tv.data.ProfileImageStorage
 import coil.ImageLoader
 import coil.request.ImageRequest
@@ -87,6 +88,8 @@ data class EnigmaUiState(
     val playerResolveToken: Int = 0,
     val playerAccentMovie: Boolean = true,
     val playerLiveTv: Boolean = false,
+    val playerStreamFailed: Boolean = false,
+    val playbackProgressPercent: Int = 0,
     val sourceIndex: Int = 0,
     val sourceLabel: String = "",
     val playingType: ContentType? = null,
@@ -139,8 +142,21 @@ class EnigmaViewModel(application: Application) : AndroidViewModel(application) 
     }
 
     private fun syncProfilesImmediately() {
-        if (!_state.value.isLoggedIn) return
-        viewModelScope.launch { syncIfLoggedIn() }
+        viewModelScope.launch {
+            if (!_state.value.isLoggedIn) {
+                _state.update {
+                    it.copy(profileMessage = "Saved on this device. Sign in to sync profiles to the cloud.")
+                }
+                return@launch
+            }
+            val ok = syncIfLoggedIn()
+            _state.update {
+                it.copy(
+                    profileMessage = if (ok) "Profile saved to cloud" else "Could not sync profile — check connection",
+                    profileError = if (ok) null else it.profileError
+                )
+            }
+        }
     }
 
     init {
@@ -297,16 +313,23 @@ class EnigmaViewModel(application: Application) : AndroidViewModel(application) 
 
     fun setProfileAvatarUri(profileId: String, uri: String?) {
         viewModelScope.launch {
+            _state.update { it.copy(profileError = null) }
             if (uri.isNullOrBlank()) {
                 profileStore.setProfileAvatarData(profileId, avatarUri = null, avatarBase64 = null)
-            } else {
-                val base64 = ProfileImageStorage.persistAndEncode(getApplication(), profileId, uri)
-                profileStore.setProfileAvatarData(
-                    profileId,
-                    avatarUri = uri,
-                    avatarBase64 = base64
-                )
+                syncProfilesImmediately()
+                return@launch
             }
+            val base64 = ProfileImageStorage.persistAndEncode(getApplication(), profileId, uri)
+            if (base64.isNullOrBlank()) {
+                _state.update { it.copy(profileError = "Could not read that photo") }
+                return@launch
+            }
+            val imgurUrl = ImgurUploadService.uploadBase64Jpeg(base64)
+            profileStore.setProfileAvatarData(
+                profileId,
+                avatarUri = imgurUrl ?: uri,
+                avatarBase64 = if (imgurUrl != null) null else base64
+            )
             syncProfilesImmediately()
         }
     }
@@ -671,12 +694,13 @@ class EnigmaViewModel(application: Application) : AndroidViewModel(application) 
                 _state.update { it.copy(contentLoading = false) }
                 when {
                     streams.isEmpty() -> _state.update { it.copy(error = "No streams available for this event") }
-                    streams.size == 1 -> {
-                        _state.update { it.copy(liveStreamPicker = streams) }
-                        playLiveEmbed(match.title, streams.first().embedUrl, streams.first().label)
-                    }
-                    else -> _state.update {
-                        it.copy(showLiveStreamPicker = true, liveStreamPicker = streams, playerTitle = match.title)
+                    else -> {
+                        _state.update { it.copy(liveStreamPicker = streams, playerTitle = match.title) }
+                        if (streams.size == 1) {
+                            playLiveEmbed(match.title, streams.first().embedUrl, streams.first().label)
+                        } else {
+                            _state.update { it.copy(showLiveStreamPicker = true) }
+                        }
                     }
                 }
             } catch (_: Exception) {
@@ -705,20 +729,19 @@ class EnigmaViewModel(application: Application) : AndroidViewModel(application) 
                     playerHls = false,
                     playerLiveTv = true,
                     playerLoading = true,
+                    playerStreamFailed = false,
                     playerTitle = title,
                     playerAccentMovie = false,
                     playingType = null,
                     sourceLabel = "Live · $label",
-                    sourceIndex = 0,
                     showLiveStreamPicker = false,
                     error = null
                 )
             }
             var playable: String? = null
-            for (candidate in streamedRepo.embedCandidates(embedUrl)) {
-                val resolved = runCatching {
-                    LiveEmbedResolver.resolvePlayableUrl(candidate)
-                }.getOrDefault(candidate)
+            for (candidate in StreamedRepository.embedCandidates(embedUrl)) {
+                val resolved = LiveEmbedResolver.resolvePlayableUrl(candidate)
+                if (resolved.isNullOrBlank()) continue
                 if (resolved.contains(".m3u8", ignoreCase = true)) {
                     playable = resolved
                     break
@@ -732,8 +755,10 @@ class EnigmaViewModel(application: Application) : AndroidViewModel(application) 
                 _state.update {
                     it.copy(
                         playerLoading = false,
-                        playerVisible = false,
-                        error = "This live stream link could not be opened. Try Next Server or another game."
+                        playerStreamFailed = true,
+                        playerVisible = true,
+                        playerUrl = embedUrl,
+                        error = null
                     )
                 }
                 return@launch
@@ -746,10 +771,21 @@ class EnigmaViewModel(application: Application) : AndroidViewModel(application) 
                 it.copy(
                     playerUrl = playable,
                     playerResolveToken = it.playerResolveToken + 1,
-                    playerLoading = true
+                    playerLoading = true,
+                    playerStreamFailed = false
                 )
             }
         }
+    }
+
+    fun onPlayerStreamFailed() {
+        _state.update {
+            it.copy(playerLoading = false, playerStreamFailed = true)
+        }
+    }
+
+    fun clearPlayerStreamFailed() {
+        _state.update { it.copy(playerStreamFailed = false, playerLoading = true) }
     }
 
     fun playLiveNativeStream(streamUrl: String) {
@@ -892,6 +928,7 @@ class EnigmaViewModel(application: Application) : AndroidViewModel(application) 
                 _state.update { it.copy(selectedEpisode = episode) }
             }
             playCurrentEpisode()
+            persistContinueWatching()
         }
     }
 
@@ -933,10 +970,62 @@ class EnigmaViewModel(application: Application) : AndroidViewModel(application) 
             )
         }
         viewModelScope.launch {
-            cwStore.updateProgress(activeProfileId(), showId, ContentType.TV, s.selectedSeason, s.selectedEpisode)
+            persistContinueWatching()
             delay(400)
             _state.update { it.copy(playerLoading = false) }
         }
+    }
+
+    fun onPlaybackProgress(percent: Int) {
+        val pct = percent.coerceIn(0, 100)
+        _state.update { it.copy(playbackProgressPercent = pct) }
+        if (pct >= 5 && (pct % 10 == 0 || pct >= 90)) {
+            viewModelScope.launch { persistContinueWatching() }
+        }
+    }
+
+    fun onEpisodeFinished() {
+        if (_state.value.playingType != ContentType.TV) return
+        if (!hasAdjacentEpisode(forward = true)) return
+        playAdjacentEpisode(forward = true)
+    }
+
+    private suspend fun persistContinueWatching() {
+        val s = _state.value
+        val profileId = activeProfileId()
+        when (s.playingType) {
+            ContentType.MOVIE -> {
+                val id = s.currentMovieId ?: return
+                cwStore.addOrUpdate(
+                    profileId,
+                    ContinueWatchingEntry(
+                        id = id,
+                        name = s.playerTitle,
+                        poster = s.playerLogoUrl ?: "",
+                        season = 0,
+                        episode = 0,
+                        type = ContentType.MOVIE,
+                        progressPercent = s.playbackProgressPercent
+                    )
+                )
+            }
+            ContentType.TV -> {
+                val id = s.currentShowId ?: return
+                cwStore.addOrUpdate(
+                    profileId,
+                    ContinueWatchingEntry(
+                        id = id,
+                        name = s.playerTitle,
+                        poster = s.playerLogoUrl ?: "",
+                        season = s.selectedSeason,
+                        episode = s.selectedEpisode,
+                        type = ContentType.TV
+                    )
+                )
+            }
+            else -> return
+        }
+        syncIfLoggedIn()
     }
 
     fun nextSource() {
@@ -965,8 +1054,15 @@ class EnigmaViewModel(application: Application) : AndroidViewModel(application) 
                 if (st.liveStreamPicker.size > 1) {
                     val next = (st.sourceIndex + 1) % st.liveStreamPicker.size
                     val link = st.liveStreamPicker[next]
+                    clearPlayerStreamFailed()
                     playLiveEmbed(st.playerTitle, link.embedUrl, link.label)
                     _state.update { it.copy(sourceIndex = next, playerHls = false, playerLiveTv = true) }
+                } else if (st.playerUrl.isNotBlank()) {
+                    val bumped = StreamedRepository.bumpStreamNumber(st.playerUrl)
+                    if (bumped != null) {
+                        clearPlayerStreamFailed()
+                        playLiveEmbed(st.playerTitle, bumped, st.sourceLabel.substringAfter("· ").ifBlank { "Stream" })
+                    }
                 } else {
                     _state.update { it.copy(sourceIndex = it.sourceIndex + 1) }
                 }
@@ -974,19 +1070,35 @@ class EnigmaViewModel(application: Application) : AndroidViewModel(application) 
         }
     }
 
-    fun onPlayerPageLoading(loading: Boolean) = _state.update { it.copy(playerLoading = loading) }
+    fun onPlayerPageLoading(loading: Boolean) {
+        _state.update {
+            it.copy(
+                playerLoading = loading,
+                playerStreamFailed = if (loading) false else it.playerStreamFailed
+            )
+        }
+    }
 
-    fun closePlayer() = _state.update {
-        it.copy(
-            playerVisible = false,
-            playerUrl = "",
-            playerLogoUrl = null,
-            playerResolveToken = 0,
-            playerLoading = false,
-            playingType = null,
-            playerLiveTv = false,
-            playerHls = false
-        )
+    fun onPlayerPlaybackReady() {
+        _state.update { it.copy(playerLoading = false, playerStreamFailed = false) }
+    }
+
+    fun closePlayer() {
+        viewModelScope.launch { persistContinueWatching() }
+        _state.update {
+            it.copy(
+                playerVisible = false,
+                playerUrl = "",
+                playerLogoUrl = null,
+                playerResolveToken = 0,
+                playerLoading = false,
+                playerStreamFailed = false,
+                playbackProgressPercent = 0,
+                playingType = null,
+                playerLiveTv = false,
+                playerHls = false
+            )
+        }
     }
 
     fun signIn(email: String, password: String) {
@@ -1057,11 +1169,12 @@ class EnigmaViewModel(application: Application) : AndroidViewModel(application) 
         }
     }
 
-    private suspend fun syncIfLoggedIn() {
-        if (!_state.value.isLoggedIn) return
+    private suspend fun syncIfLoggedIn(): Boolean {
+        if (!_state.value.isLoggedIn) return false
         val s = _state.value
         val (profiles, activeId) = profileStore.snapshot()
-        syncService.pushAccountMeta(activeId, profiles)
+        var ok = true
+        syncService.pushAccountMeta(activeId, profiles).onFailure { ok = false }
         for (profile in profiles) {
             syncService.pushProfileData(
                 profileId = profile.id,
@@ -1070,13 +1183,15 @@ class EnigmaViewModel(application: Application) : AndroidViewModel(application) 
                 favorites = favoritesStore.readOnce(profile.id),
                 continueWatching = cwStore.readOnce(profile.id),
                 playlists = playlistStore.readOnce(profile.id)
-            )
+            ).onFailure { ok = false }
         }
+        return ok
     }
 
     private fun restoreProfileAvatarsFromCloud(profiles: List<ViewerProfile>) {
         val app = getApplication<android.app.Application>()
         profiles.forEach { profile ->
+            profile.avatarUri?.takeIf { it.startsWith("http", ignoreCase = true) }?.let { return@forEach }
             val b64 = profile.avatarBase64 ?: return@forEach
             try {
                 val bytes = android.util.Base64.decode(b64, android.util.Base64.NO_WRAP)

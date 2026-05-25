@@ -14,6 +14,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.FastForward
+import androidx.compose.material.icons.filled.List
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -47,7 +48,8 @@ fun PlayerChrome(
     onRetry: (() -> Unit)? = null,
     showNextSource: Boolean = false,
     onNextSource: (() -> Unit)? = null,
-    tvControls: TvPlayerControls? = null,
+    showEpisodesButton: Boolean = false,
+    onShowEpisodes: (() -> Unit)? = null,
     isTvLayout: Boolean = false,
     isLive: Boolean = false,
     extraContent: @Composable (() -> Unit)? = null
@@ -129,12 +131,17 @@ fun PlayerChrome(
                     Icon(Icons.Default.Refresh, contentDescription = "Retry", tint = TextSecondary)
                 }
             }
+            if (showEpisodesButton && onShowEpisodes != null) {
+                IconButton(onClick = onShowEpisodes, modifier = Modifier.size(if (isTvLayout) 48.dp else 44.dp)) {
+                    Icon(Icons.Default.List, contentDescription = "Episodes", tint = accent)
+                }
+            }
             IconButton(onClick = onClose, modifier = Modifier.size(if (isTvLayout) 52.dp else 48.dp)) {
                 Icon(Icons.Default.Close, contentDescription = "Close", tint = TextPrimary)
             }
         }
 
-        if (tvControls != null || showNextSource) {
+        if (showNextSource) {
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -142,9 +149,6 @@ fun PlayerChrome(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(if (isTvLayout) 12.dp else 8.dp)
             ) {
-                tvControls?.let {
-                    SeasonEpisodeDropdowns(controls = it, accent = accent, large = isTvLayout)
-                }
                 if (showNextSource && onNextSource != null) {
                     Button(
                         onClick = onNextSource,

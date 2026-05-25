@@ -114,7 +114,10 @@ data class ContinueWatchingEntry(
     val poster: String = "",
     val season: Int = 1,
     val episode: Int = 1,
-    val type: ContentType = ContentType.TV
+    val type: ContentType = ContentType.TV,
+    /** 0–100 for movies; TV uses season/episode */
+    val progressPercent: Int = 0,
+    val updatedAt: Long = System.currentTimeMillis()
 )
 
 data class FavoriteItem(

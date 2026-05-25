@@ -333,6 +333,8 @@ private fun EnigmaPlayerOverlay(
             onClose = { viewModel.closePlayer() },
             onNextSource = { viewModel.nextSource() },
             showNextSource = showNext,
+            streamFailed = state.playerStreamFailed,
+            streamLoading = state.playerLoading && !state.playerStreamFailed,
             tvControls = tvControls,
             onPrevEpisode = { viewModel.playAdjacentEpisode(forward = false) },
             onNextEpisode = { viewModel.playAdjacentEpisode(forward = true) },
@@ -365,7 +367,9 @@ private fun EnigmaPlayerOverlay(
                         onClose = { viewModel.closePlayer() },
                         onNextSource = { viewModel.nextSource() },
                         onLoadingChange = { viewModel.onPlayerPageLoading(it) },
-                        tvControls = tvControls,
+                        onPlaybackEnded = viewModel::onEpisodeFinished,
+                        onPlaybackProgress = viewModel::onPlaybackProgress,
+                        tvControls = null,
                         resolveToken = state.playerResolveToken,
                         tmdbId = state.currentMovieId ?: state.currentShowId,
                         playingType = state.playingType,
@@ -383,9 +387,12 @@ private fun EnigmaPlayerOverlay(
                         posterUrl = state.playerLogoUrl,
                         sourceLabel = state.sourceLabel,
                         streamLoading = state.playerLoading,
+                        streamFailed = state.playerStreamFailed,
                         onClose = { viewModel.closePlayer() },
                         onNextSource = { viewModel.nextSource() },
                         onLoadingChange = { viewModel.onPlayerPageLoading(it) },
+                        onStreamFailed = viewModel::onPlayerStreamFailed,
+                        onPlaybackReady = viewModel::onPlayerPlaybackReady,
                         onNativeStream = viewModel::playLiveNativeStream,
                         resolveToken = state.playerResolveToken,
                         useExternalChrome = true,
@@ -597,7 +604,11 @@ private fun ContinueWatchingSection(entries: List<ContinueWatchingEntry>, vm: En
 private fun ContinueWatchingCard(entry: ContinueWatchingEntry, vm: EnigmaViewModel, cardW: Int) {
     val accent = if (entry.type == ContentType.MOVIE) MovieAccent else TvAccent
     val badge = if (entry.type == ContentType.MOVIE) "MOVIE" else "TV"
-    val subtitle = if (entry.type == ContentType.TV) "S${entry.season}E${entry.episode}" else "Resume"
+    val subtitle = when {
+        entry.type == ContentType.TV -> "S${entry.season}E${entry.episode}"
+        entry.progressPercent > 0 -> "${entry.progressPercent}%"
+        else -> "Resume"
+    }
     PosterCard(
         title = entry.name,
         posterUrl = entry.poster.ifBlank { null },

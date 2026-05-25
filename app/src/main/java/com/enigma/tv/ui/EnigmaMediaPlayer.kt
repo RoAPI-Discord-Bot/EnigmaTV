@@ -44,6 +44,8 @@ fun EnigmaMediaPlayer(
     onClose: () -> Unit,
     onNextSource: () -> Unit,
     onLoadingChange: (Boolean) -> Unit,
+    onPlaybackEnded: (() -> Unit)? = null,
+    onPlaybackProgress: ((Int) -> Unit)? = null,
     tvControls: TvPlayerControls? = null,
     resolveToken: Int = 0,
     tmdbId: Int? = null,
@@ -103,6 +105,8 @@ fun EnigmaMediaPlayer(
                 onNextSource = onNextSource,
                 tvControls = if (useExternalChrome) null else tvControls,
                 useExternalChrome = useExternalChrome,
+                onPlaybackEnded = onPlaybackEnded,
+                onPlaybackProgress = onPlaybackProgress,
                 modifier = Modifier.fillMaxSize()
             )
             MediaPlayMode.Embed -> {
@@ -118,7 +122,8 @@ fun EnigmaMediaPlayer(
                             onBack = onClose,
                             showNextSource = true,
                             onNextSource = onNextSource,
-                            tvControls = tvControls
+                            showEpisodesButton = tvControls != null,
+                            onShowEpisodes = null
                         )
                         if (resolvingNative) {
                             LinearProgressIndicator(
@@ -149,6 +154,8 @@ fun EnigmaMediaPlayer(
                             mode = MediaPlayMode.Native
                             resolvingNative = false
                         },
+                        onPlaybackEnded = if (playingType == ContentType.TV) onPlaybackEnded else null,
+                        onPlaybackProgress = onPlaybackProgress,
                         modifier = Modifier.fillMaxSize()
                     )
                 }

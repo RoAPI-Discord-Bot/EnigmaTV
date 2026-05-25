@@ -19,7 +19,11 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
+import kotlinx.coroutines.launch
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -61,6 +65,8 @@ fun ExoLivePlayer(
     onNextSource: (() -> Unit)? = null,
     tvControls: TvPlayerControls? = null,
     useExternalChrome: Boolean = false,
+    onPlaybackEnded: (() -> Unit)? = null,
+    onPlaybackProgress: ((Int) -> Unit)? = null,
     modifier: Modifier = Modifier.fillMaxSize()
 ) {
     if (!visible) return
@@ -86,6 +92,7 @@ fun ExoLivePlayer(
     val playbackHeaders = resolved.playbackHeaders()
 
     val context = LocalContext.current
+    val scope = rememberCoroutineScope()
     var playToken by remember { mutableIntStateOf(0) }
     var stripHeaders by remember { mutableStateOf(false) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
@@ -162,6 +169,10 @@ fun ExoLivePlayer(
                         errorMessage = null
                     }
                     Player.STATE_BUFFERING -> onLoadingChange(true)
+                    Player.STATE_ENDED -> {
+                        onLoadingChange(false)
+                        if (!isLiveBroadcast) onPlaybackEnded?.invoke()
+                    }
                 }
             }
 
@@ -176,7 +187,20 @@ fun ExoLivePlayer(
             }
         }
         player.addListener(listener)
+        val progressJob = if (!isLiveBroadcast && onPlaybackProgress != null) {
+            scope.launch {
+                while (isActive) {
+                    delay(12_000)
+                    val dur = player.duration
+                    if (dur > 0) {
+                        val pct = ((player.currentPosition * 100) / dur).toInt().coerceIn(0, 100)
+                        onPlaybackProgress(pct)
+                    }
+                }
+            }
+        } else null
         onDispose {
+            progressJob?.cancel()
             player.removeListener(listener)
             player.release()
         }
@@ -249,7 +273,7 @@ fun ExoLivePlayer(
                     onRetry = { playToken++ },
                     showNextSource = showNextSource,
                     onNextSource = onNextSource,
-                    tvControls = tvControls,
+                    showEpisodesButton = tvControls != null,
                     isLive = isLiveBroadcast
                 )
                 Box(Modifier.weight(1f).fillMaxWidth()) {

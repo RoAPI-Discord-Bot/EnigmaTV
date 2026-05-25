@@ -22,6 +22,9 @@ class WebViewNavigationGuard(initialUrl: String) {
     var onBlocked: ((String) -> Unit)? = null
     var onPageLoading: ((Boolean) -> Unit)? = null
     var onStreamUrl: ((String) -> Unit)? = null
+    var onPlaybackProbe: ((Boolean) -> Unit)? = null
+    var onPlaybackProgress: ((Int) -> Unit)? = null
+    var onPlaybackEnded: (() -> Unit)? = null
 
     init {
         resetForUrl(initialUrl)
@@ -111,11 +114,12 @@ class WebViewNavigationGuard(initialUrl: String) {
 
             override fun onPageFinished(view: WebView?, url: String?) {
                 url?.let { extractHost(it)?.let { registerHost(it) } }
-                view?.let {
-                    EmbedPlayerShield.apply(it)
-                    EmbedPlayerShield.startPeriodic(it)
+                view?.let { web ->
+                    EmbedPlayerShield.apply(web)
+                    EmbedPlayerShield.startPeriodic(web)
+                    web.postDelayed({ probePlayback(web) }, 2200)
+                    web.postDelayed({ probePlaybackProgress(web) }, 8000)
                 }
-                onPageLoading?.invoke(false)
             }
 
             override fun shouldOverrideUrlLoading(
@@ -139,8 +143,20 @@ class WebViewNavigationGuard(initialUrl: String) {
                 view: WebView,
                 request: WebResourceRequest
             ): WebResourceResponse? {
-                if (request.isForMainFrame) return null
                 val url = request.url.toString()
+                if (request.isForMainFrame) {
+                    val mime = request.requestHeaders["Content-Type"]
+                        ?: request.requestHeaders["content-type"]
+                    if (mime?.contains("json", ignoreCase = true) == true ||
+                        looksLikeStreamApi(url)
+                    ) {
+                        android.os.Handler(android.os.Looper.getMainLooper()).post {
+                            onPlaybackProbe?.invoke(false)
+                        }
+                        return emptyResponse()
+                    }
+                    return null
+                }
                 captureStreamUrl(url)
                 return if (shouldBlockSubresource(url)) emptyResponse() else null
             }
@@ -200,6 +216,59 @@ class WebViewNavigationGuard(initialUrl: String) {
                 onStreamUrl?.invoke(url)
             }
         }
+    }
+
+    private fun probePlaybackProgress(webView: WebView) {
+        webView.evaluateJavascript(
+            """
+            (function(){
+              try {
+                var v = document.querySelector('video');
+                if (!v || !v.duration || v.duration < 30) return '0';
+                var pct = Math.round((v.currentTime / v.duration) * 100);
+                if (pct >= 92 && v.currentTime > 10) return 'ended';
+                return String(Math.min(100, Math.max(0, pct)));
+              } catch(e) { return '0'; }
+            })();
+            """.trimIndent()
+        ) { raw ->
+            val v = raw?.trim('"', ' ', '\'') ?: "0"
+            android.os.Handler(android.os.Looper.getMainLooper()).post {
+                when (v) {
+                    "ended" -> onPlaybackEnded?.invoke()
+                    else -> v.toIntOrNull()?.takeIf { it > 0 }?.let { onPlaybackProgress?.invoke(it) }
+                }
+            }
+        }
+    }
+
+    private fun probePlayback(webView: WebView) {
+        webView.evaluateJavascript(
+            """
+            (function(){
+              try {
+                var b = document.body ? document.body.innerText.trim() : '';
+                if (b.length > 0 && b.length < 12000 && (b.charAt(0)==='{' || b.charAt(0)==='[')) return 'json';
+                if (document.querySelector('video')) return 'ok';
+                if (document.querySelector('iframe')) return 'ok';
+                if (/player|plyr|jwplayer|video-js/i.test(document.documentElement.innerHTML)) return 'ok';
+                return 'empty';
+              } catch(e) { return 'empty'; }
+            })();
+            """.trimIndent()
+        ) { raw ->
+            val verdict = raw?.trim('"', ' ') ?: "empty"
+            val ok = verdict == "ok"
+            android.os.Handler(android.os.Looper.getMainLooper()).post {
+                onPlaybackProbe?.invoke(ok)
+                onPageLoading?.invoke(!ok)
+            }
+        }
+    }
+
+    private fun looksLikeStreamApi(url: String): Boolean {
+        val u = url.lowercase()
+        return u.contains("/api/stream/") || (u.contains("streamed.pk") && u.contains("/api/"))
     }
 
     private fun emptyResponse() = WebResourceResponse(

@@ -41,20 +41,34 @@ fun WebViewPlayer(
     posterUrl: String? = null,
     useExternalChrome: Boolean = false,
     onStreamCaptured: ((String) -> Unit)? = null,
+    onStreamFailed: (() -> Unit)? = null,
+    onPlaybackReady: (() -> Unit)? = null,
+    onPlaybackEnded: (() -> Unit)? = null,
+    onPlaybackProgress: ((Int) -> Unit)? = null,
     modifier: Modifier = Modifier.fillMaxSize()
 ) {
     if (!visible) return
 
     var pageLoading by remember(url) { mutableStateOf(true) }
 
-    val guard = remember(liveTv, onStreamCaptured) {
+    val guard = remember(liveTv, onStreamCaptured, onStreamFailed, onPlaybackReady, onPlaybackEnded, onPlaybackProgress) {
         WebViewNavigationGuard("").apply {
             onStreamUrl = onStreamCaptured
-            onBlocked = { /* silent — shield handles click hijacks in-page */ }
+            onBlocked = { /* silent */ }
             onPageLoading = { loading ->
                 pageLoading = loading
                 onLoadingChange(loading)
             }
+            onPlaybackProbe = { ok ->
+                if (ok) {
+                    pageLoading = false
+                    onPlaybackReady?.invoke() ?: onLoadingChange(false)
+                } else {
+                    onStreamFailed?.invoke()
+                }
+            }
+            onPlaybackEnded = onPlaybackEnded
+            onPlaybackProgress = onPlaybackProgress
         }
     }
 
@@ -82,8 +96,7 @@ fun WebViewPlayer(
             url = url,
             liveTv = liveTv,
             guard = guard,
-            pageLoading = pageLoading,
-            streamLoading = streamLoading
+            showOverlaySpinner = !useExternalChrome && (pageLoading || streamLoading)
         )
     }
 
@@ -101,8 +114,7 @@ private fun ColumnScope.WebViewStreamBody(
     url: String,
     liveTv: Boolean,
     guard: WebViewNavigationGuard,
-    pageLoading: Boolean,
-    streamLoading: Boolean = false
+    showOverlaySpinner: Boolean
 ) {
     DisposableEffect(url) {
         onDispose { EmbedPlayerShield.stopPeriodic() }
@@ -120,7 +132,7 @@ private fun ColumnScope.WebViewStreamBody(
                         ViewGroup.LayoutParams.MATCH_PARENT,
                         ViewGroup.LayoutParams.MATCH_PARENT
                     )
-                        guard.configureWebView(this, liveTv = liveTv)
+                    guard.configureWebView(this, liveTv = liveTv)
                     settings.userAgentString =
                         "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36"
                     settings.mediaPlaybackRequiresUserGesture = false
@@ -141,7 +153,7 @@ private fun ColumnScope.WebViewStreamBody(
             modifier = Modifier.fillMaxSize()
         )
 
-        if (pageLoading || streamLoading) {
+        if (showOverlaySpinner) {
             EnigmaLoadingRing(
                 modifier = Modifier
                     .fillMaxSize()
