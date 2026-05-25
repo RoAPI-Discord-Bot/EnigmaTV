@@ -52,6 +52,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
+import com.enigma.tv.ui.theme.BgDark
 import com.enigma.tv.ui.theme.BgHeader
 import com.enigma.tv.ui.theme.CardBg
 import com.enigma.tv.ui.theme.GlassBorderAccent
