@@ -23,12 +23,12 @@ import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -47,7 +47,6 @@ import com.enigma.tv.ui.theme.BgDark
 import com.enigma.tv.ui.theme.EnigmaPink
 import com.enigma.tv.ui.theme.TextPrimary
 import com.enigma.tv.ui.theme.TextSecondary
-import kotlinx.coroutines.delay
 
 @Composable
 fun PlayerFullscreenHost(
@@ -68,24 +67,21 @@ fun PlayerFullscreenHost(
     hasNextEpisode: Boolean = false,
     content: @Composable () -> Unit
 ) {
-    var chromeVisible by rememberSaveable { mutableStateOf(true) }
-    var episodePanelOpen by rememberSaveable { mutableStateOf(false) }
-    val interaction = remember { MutableInteractionSource() }
+    var chromeVisible by remember { mutableStateOf(true) }
+    var episodePanelOpen by remember { mutableStateOf(false) }
     val hasTv = tvControls != null
 
-    LaunchedEffect(chromeVisible, streamLoading, streamFailed) {
-        if (chromeVisible && !streamLoading && !streamFailed) {
-            delay(if (layout == ScreenLayout.TV) 8_000 else 5_000)
-            chromeVisible = false
-        }
-    }
-
-    LaunchedEffect(chromeVisible) {
-        if (!chromeVisible) episodePanelOpen = false
+    val syncChrome: (Boolean) -> Unit = { visible ->
+        chromeVisible = visible
+        if (!visible) episodePanelOpen = false
     }
 
     LaunchedEffect(streamFailed) {
         if (streamFailed) chromeVisible = true
+    }
+
+    LaunchedEffect(chromeVisible) {
+        if (!chromeVisible) episodePanelOpen = false
     }
 
     ImmersiveSystemBars(enabled = !chromeVisible && !episodePanelOpen)
@@ -98,107 +94,109 @@ fun PlayerFullscreenHost(
         }
     }
 
-    Box(
-        Modifier
-            .fillMaxSize()
-            .background(BgDark)
-            .clickable(interactionSource = interaction, indication = null) {
-                chromeVisible = !chromeVisible
+    CompositionLocalProvider(LocalPlayerChromeSync provides syncChrome) {
+        Box(
+            Modifier
+                .fillMaxSize()
+                .background(BgDark)
+        ) {
+            Box(Modifier.fillMaxSize()) {
+                content()
             }
-    ) {
-        Box(Modifier.fillMaxSize()) {
-            content()
-        }
 
-        if (streamLoading) {
-            EnigmaLoadingRing(
-                modifier = Modifier.fillMaxSize(),
-                message = if (subtitle.contains("Live", ignoreCase = true)) "CONNECTING LIVE" else "LOADING STREAM",
-                logoSize = 72.dp,
-                ringSize = 110.dp,
-                fullscreen = true
-            )
-        }
+            if (streamLoading) {
+                EnigmaLoadingRing(
+                    modifier = Modifier.fillMaxSize(),
+                    message = if (subtitle.contains("Live", ignoreCase = true)) {
+                        "CONNECTING LIVE"
+                    } else {
+                        "LOADING STREAM"
+                    },
+                    logoSize = 72.dp,
+                    ringSize = 110.dp,
+                    fullscreen = true
+                )
+            }
 
-        if (streamFailed && showNextSource && onNextSource != null) {
-            Column(
+            if (streamFailed && showNextSource && onNextSource != null) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(Color.Black.copy(alpha = 0.72f))
+                        .padding(24.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.Center
+                ) {
+                    Text(
+                        "Stream didn't start",
+                        color = TextPrimary,
+                        fontSize = 20.sp,
+                        fontWeight = FontWeight.Bold,
+                        textAlign = TextAlign.Center
+                    )
+                    Text(
+                        "Try the next server — some feeds only work on certain mirrors.",
+                        color = TextSecondary,
+                        fontSize = 14.sp,
+                        textAlign = TextAlign.Center,
+                        modifier = Modifier.padding(top = 8.dp, bottom = 24.dp)
+                    )
+                    Button(
+                        onClick = onNextSource,
+                        colors = ButtonDefaults.buttonColors(containerColor = EnigmaPink),
+                        shape = RoundedCornerShape(12.dp),
+                        modifier = Modifier.fillMaxWidth(0.85f)
+                    ) {
+                        Icon(Icons.Default.SkipNext, contentDescription = null, tint = TextPrimary)
+                        Text(
+                            "Next Server",
+                            modifier = Modifier.padding(start = 8.dp),
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                }
+            }
+
+            AnimatedVisibility(
+                visible = chromeVisible && !streamLoading,
+                enter = slideInVertically { -it } + fadeIn(),
+                exit = slideOutVertically { -it } + fadeOut(),
                 modifier = Modifier
-                    .fillMaxSize()
-                    .background(Color.Black.copy(alpha = 0.72f))
-                    .padding(24.dp)
+                    .align(Alignment.TopCenter)
                     .clickable(
                         interactionSource = remember { MutableInteractionSource() },
                         indication = null
-                    ) { },
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.Center
+                    ) { /* keep chrome open while interacting */ }
             ) {
-                Text(
-                    "Stream didn't start",
-                    color = TextPrimary,
-                    fontSize = 20.sp,
-                    fontWeight = FontWeight.Bold,
-                    textAlign = TextAlign.Center
-                )
-                Text(
-                    "Try the next server — some feeds only work on certain mirrors.",
-                    color = TextSecondary,
-                    fontSize = 14.sp,
-                    textAlign = TextAlign.Center,
-                    modifier = Modifier.padding(top = 8.dp, bottom = 24.dp)
-                )
-                Button(
-                    onClick = onNextSource,
-                    colors = ButtonDefaults.buttonColors(containerColor = EnigmaPink),
-                    shape = RoundedCornerShape(12.dp),
-                    modifier = Modifier.fillMaxWidth(0.85f)
-                ) {
-                    Icon(Icons.Default.SkipNext, contentDescription = null, tint = TextPrimary)
-                    Text(
-                        "Next Server",
-                        modifier = Modifier.padding(start = 8.dp),
-                        fontWeight = FontWeight.Bold
+                Column(Modifier.fillMaxWidth()) {
+                    PlayerChrome(
+                        title = title,
+                        subtitle = subtitle,
+                        posterUrl = posterUrl,
+                        accent = accent,
+                        onClose = onClose,
+                        showBack = false,
+                        showNextSource = showNextSource && !streamFailed,
+                        onNextSource = onNextSource,
+                        showEpisodesButton = hasTv,
+                        onShowEpisodes = if (hasTv) {
+                            { episodePanelOpen = !episodePanelOpen }
+                        } else null,
+                        isTvLayout = layout == ScreenLayout.TV,
+                        isLive = subtitle.contains("Live", ignoreCase = true)
                     )
                 }
             }
-        }
 
-        AnimatedVisibility(
-            visible = chromeVisible && !streamLoading,
-            enter = slideInVertically { -it } + fadeIn(),
-            exit = slideOutVertically { -it } + fadeOut(),
-            modifier = Modifier
-                .align(Alignment.TopCenter)
-                .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) { }
-        ) {
-            Column(Modifier.fillMaxWidth()) {
-                PlayerChrome(
-                    title = title,
-                    subtitle = subtitle,
-                    posterUrl = posterUrl,
+            if (hasTv) {
+                TvEpisodePickerPanel(
+                    visible = episodePanelOpen && chromeVisible,
+                    controls = tvControls!!,
                     accent = accent,
-                    onClose = onClose,
-                    showBack = false,
-                    showNextSource = showNextSource && !streamFailed,
-                    onNextSource = onNextSource,
-                    showEpisodesButton = hasTv,
-                    onShowEpisodes = if (hasTv) {
-                        { episodePanelOpen = !episodePanelOpen }
-                    } else null,
-                    isTvLayout = layout == ScreenLayout.TV,
-                    isLive = subtitle.contains("Live", ignoreCase = true)
+                    onDismiss = { episodePanelOpen = false },
+                    modifier = Modifier.align(Alignment.BottomCenter)
                 )
             }
-        }
-
-        if (hasTv) {
-            TvEpisodePickerPanel(
-                visible = episodePanelOpen && chromeVisible,
-                controls = tvControls!!,
-                accent = accent,
-                onDismiss = { episodePanelOpen = false },
-                modifier = Modifier.align(Alignment.BottomCenter)
-            )
         }
     }
 }

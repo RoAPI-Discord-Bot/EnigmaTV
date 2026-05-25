@@ -24,9 +24,22 @@ object StreamResolver {
     private val sourceRegex = Regex("""source:\s*['"](https?://[^'"]+)['"]""", RegexOption.IGNORE_CASE)
     private val fileJsonRegex = Regex("""file:\s*['"](https?://[^'"]+)['"]""", RegexOption.IGNORE_CASE)
     private val vttRegex = Regex("""(https?://[^\s"'\\<>]+\.vtt[^\s"'\\<>]*)""", RegexOption.IGNORE_CASE)
+    private val srtRegex = Regex("""(https?://[^\s"'\\<>]+\.srt[^\s"'\\<>]*)""", RegexOption.IGNORE_CASE)
+    private val hlsSubRegex = Regex(
+        """#EXT-X-MEDIA:[^\n]*TYPE=SUBTITLES[^\n]*URI="([^"]+)"""",
+        RegexOption.IGNORE_CASE
+    )
+
+    fun isValidSubtitleUrl(url: String?): Boolean {
+        if (url.isNullOrBlank()) return false
+        val u = url.trim().lowercase()
+        if (!u.startsWith("http")) return false
+        if (u.contains(".json") || u.contains("/api/")) return false
+        return u.contains(".vtt") || u.contains(".srt") || u.contains("subtitle") || u.contains("/sub/")
+    }
 
     suspend fun resolveSubtitleUrl(embedUrl: String): String? = withContext(Dispatchers.IO) {
-        if (embedUrl.contains(".vtt", ignoreCase = true)) return@withContext clean(embedUrl)
+        if (isValidSubtitleUrl(embedUrl)) return@withContext clean(embedUrl)
         try {
             val request = Request.Builder()
                 .url(embedUrl)
@@ -36,12 +49,48 @@ object StreamResolver {
             client.newCall(request).execute().use { response ->
                 if (!response.isSuccessful) return@withContext null
                 val html = response.body?.string() ?: return@withContext null
-                vttRegex.find(html)?.groupValues?.get(1)?.let { return@withContext clean(it) }
+                vttRegex.find(html)?.groupValues?.get(1)?.let { sub ->
+                    return@withContext clean(sub).takeIf { isValidSubtitleUrl(it) }
+                }
+                srtRegex.find(html)?.groupValues?.get(1)?.let { sub ->
+                    return@withContext clean(sub).takeIf { isValidSubtitleUrl(it) }
+                }
             }
         } catch (_: Exception) {
             null
         }
         null
+    }
+
+    suspend fun resolveSubtitleFromHls(m3u8Url: String): String? = withContext(Dispatchers.IO) {
+        if (!m3u8Url.contains(".m3u8", ignoreCase = true)) return@withContext null
+        try {
+            val request = Request.Builder()
+                .url(m3u8Url)
+                .header("User-Agent", USER_AGENT)
+                .header("Referer", m3u8Url)
+                .build()
+            client.newCall(request).execute().use { response ->
+                if (!response.isSuccessful) return@withContext null
+                val text = response.body?.string() ?: return@withContext null
+                val rel = hlsSubRegex.find(text)?.groupValues?.get(1) ?: return@withContext null
+                resolveAgainstPlaylist(m3u8Url, rel)?.takeIf { isValidSubtitleUrl(it) }
+            }
+        } catch (_: Exception) {
+            null
+        }
+    }
+
+    suspend fun resolveSubtitlesForStream(streamUrl: String, embedUrl: String): String? {
+        resolveSubtitleFromHls(streamUrl)?.let { return it }
+        return resolveSubtitleUrl(embedUrl)
+    }
+
+    private fun resolveAgainstPlaylist(m3u8Url: String, relative: String): String? {
+        val cleaned = relative.replace("\\/", "/").trim()
+        if (cleaned.startsWith("http", ignoreCase = true)) return clean(cleaned)
+        val base = m3u8Url.substringBeforeLast('/') + "/"
+        return clean(base + cleaned.removePrefix("/"))
     }
 
     suspend fun resolveDirectUrl(embedUrl: String): String? = withContext(Dispatchers.IO) {

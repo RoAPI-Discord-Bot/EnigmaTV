@@ -64,7 +64,8 @@ object StreamPlaybackResolver {
         activity: Activity?
     ): ResolvedStream? {
         StreamResolver.resolveDirectUrl(embedUrl)?.let { stream ->
-            val subs = StreamResolver.resolveSubtitleUrl(embedUrl)
+            val subs = StreamResolver.resolveSubtitlesForStream(stream, embedUrl)
+                ?.takeIf { StreamResolver.isValidSubtitleUrl(it) }
             return ResolvedStream.fromEmbed(embedUrl, stream, "scrape").copy(subtitleUrl = subs)
         }
         if (activity != null) {

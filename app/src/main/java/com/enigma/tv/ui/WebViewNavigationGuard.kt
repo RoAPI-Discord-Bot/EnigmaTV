@@ -18,6 +18,7 @@ import java.io.ByteArrayInputStream
 class WebViewNavigationGuard(initialUrl: String) {
 
     private val sessionHosts = mutableSetOf<String>()
+    private var liveTvMode = false
 
     var onBlocked: ((String) -> Unit)? = null
     var onPageLoading: ((Boolean) -> Unit)? = null
@@ -31,6 +32,7 @@ class WebViewNavigationGuard(initialUrl: String) {
     }
 
     fun resetForUrl(url: String, liveTv: Boolean = false) {
+        liveTvMode = liveTv
         sessionHosts.clear()
         extractHost(url)?.let { registerHost(it) }
         STREAM_EMBED_ROOTS.forEach { registerHost(it) }
@@ -49,6 +51,10 @@ class WebViewNavigationGuard(initialUrl: String) {
         if (isBlockedScheme(scheme)) return true
 
         val host = uri.host?.lowercase() ?: return true
+        if (liveTvMode && isMainFrame && looksLikeStreamApi(url)) {
+            onBlocked?.invoke(url)
+            return true
+        }
         if (isBlockedHost(host)) {
             onBlocked?.invoke(url)
             return true
@@ -115,6 +121,7 @@ class WebViewNavigationGuard(initialUrl: String) {
             override fun onPageFinished(view: WebView?, url: String?) {
                 url?.let { extractHost(it)?.let { registerHost(it) } }
                 view?.let { web ->
+                    if (liveTvMode) hideRawTextOverlay(web)
                     EmbedPlayerShield.apply(web)
                     EmbedPlayerShield.startPeriodic(web)
                     web.postDelayed({ probePlayback(web) }, 2200)
@@ -260,10 +267,33 @@ class WebViewNavigationGuard(initialUrl: String) {
             val verdict = raw?.trim('"', ' ') ?: "empty"
             val ok = verdict == "ok"
             android.os.Handler(android.os.Looper.getMainLooper()).post {
-                onPlaybackProbe?.invoke(ok)
-                onPageLoading?.invoke(!ok)
+                if (verdict == "json") {
+                    onPlaybackProbe?.invoke(false)
+                    onPageLoading?.invoke(false)
+                } else {
+                    onPlaybackProbe?.invoke(ok)
+                    onPageLoading?.invoke(!ok)
+                }
             }
         }
+    }
+
+    private fun hideRawTextOverlay(webView: WebView) {
+        webView.evaluateJavascript(
+            """
+            (function(){
+              try {
+                document.documentElement.style.background='#000';
+                document.body.style.background='#000';
+                document.body.style.color='transparent';
+                document.querySelectorAll('pre,code').forEach(function(el){
+                  el.style.display='none';
+                });
+              } catch(e) {}
+            })();
+            """.trimIndent(),
+            null
+        )
     }
 
     private fun looksLikeStreamApi(url: String): Boolean {

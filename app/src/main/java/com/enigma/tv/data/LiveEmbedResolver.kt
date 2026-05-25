@@ -177,6 +177,12 @@ object LiveEmbedResolver {
             (u.contains("streamed.pk") && u.contains("/api/"))
     }
 
+    fun isUnplayableUrl(url: String): Boolean {
+        val t = url.trim()
+        if (!t.startsWith("http", ignoreCase = true)) return true
+        return looksLikeStreamApi(t)
+    }
+
     fun isUnplayableContent(content: String): Boolean {
         val t = content.trim()
         if (t.startsWith("http", ignoreCase = true) && looksLikeStreamApi(t)) return true

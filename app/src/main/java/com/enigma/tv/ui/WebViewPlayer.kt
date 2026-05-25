@@ -146,7 +146,7 @@ private fun ColumnScope.WebViewStreamBody(
                     settings.mediaPlaybackRequiresUserGesture = false
                     setTag(TAG_STREAM_URL, url)
                     guard.resetForUrl(url, liveTv = liveTv)
-                    loadUrl(url)
+                    if (liveTv) LiveWebContent.loadInPlayer(this, url) else loadUrl(url)
                 }
             },
             update = { view ->
@@ -155,7 +155,7 @@ private fun ColumnScope.WebViewStreamBody(
                     EmbedPlayerShield.stopPeriodic()
                     view.setTag(TAG_STREAM_URL, url)
                     guard.resetForUrl(url, liveTv = liveTv)
-                    view.loadUrl(url)
+                    if (liveTv) LiveWebContent.loadInPlayer(view, url) else view.loadUrl(url)
                 }
             },
             modifier = Modifier.fillMaxSize()

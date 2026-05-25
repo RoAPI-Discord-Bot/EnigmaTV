@@ -738,26 +738,35 @@ class EnigmaViewModel(application: Application) : AndroidViewModel(application) 
                     error = null
                 )
             }
+            val candidates = StreamedRepository.embedCandidates(embedUrl)
             var playable: String? = null
-            for (candidate in StreamedRepository.embedCandidates(embedUrl)) {
+            for (candidate in candidates) {
                 val resolved = LiveEmbedResolver.resolvePlayableUrl(candidate)
                 if (resolved.isNullOrBlank()) continue
                 if (resolved.contains(".m3u8", ignoreCase = true)) {
                     playable = resolved
                     break
                 }
-                if (!LiveEmbedResolver.isUnplayableContent(resolved)) {
+                if (!LiveEmbedResolver.isUnplayableUrl(resolved) &&
+                    !LiveEmbedResolver.isUnplayableContent(resolved)
+                ) {
                     playable = resolved
                     break
                 }
             }
             if (playable == null) {
+                playable = candidates.firstOrNull { url ->
+                    url.startsWith("http", ignoreCase = true) &&
+                        !LiveEmbedResolver.isUnplayableUrl(url)
+                } ?: embedUrl.takeIf { !LiveEmbedResolver.isUnplayableUrl(it) }
+            }
+            if (playable.isNullOrBlank()) {
                 _state.update {
                     it.copy(
                         playerLoading = false,
                         playerStreamFailed = true,
                         playerVisible = true,
-                        playerUrl = embedUrl,
+                        playerUrl = "",
                         error = null
                     )
                 }

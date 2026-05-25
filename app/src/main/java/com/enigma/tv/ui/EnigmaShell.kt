@@ -350,6 +350,8 @@ private fun EnigmaPlayerOverlay(
                     logoUrl = state.playerLogoUrl,
                     streamLoading = state.playerLoading,
                     isLiveBroadcast = true,
+                    showNextSource = showNext,
+                    onNextSource = { viewModel.nextSource() },
                     onClose = { viewModel.closePlayer() },
                     onLoadingChange = { viewModel.onPlayerPageLoading(it) },
                     useExternalChrome = true,

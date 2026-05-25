@@ -21,9 +21,11 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -31,10 +33,12 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
+import androidx.media3.common.C
 import androidx.media3.common.MediaItem
 import androidx.media3.common.MimeTypes
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
+import androidx.media3.common.Tracks
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.datasource.DefaultHttpDataSource
 import androidx.media3.exoplayer.ExoPlayer
@@ -43,6 +47,7 @@ import androidx.media3.exoplayer.source.MediaSource
 import androidx.media3.ui.PlayerView
 import androidx.media3.ui.R as MediaUiR
 import com.enigma.tv.data.ResolvedStream
+import com.enigma.tv.data.StreamResolver
 import com.enigma.tv.ui.theme.BgDark
 import com.enigma.tv.ui.theme.EnigmaPurple
 import com.enigma.tv.ui.theme.TextPrimary
@@ -90,12 +95,26 @@ fun ExoLivePlayer(
 
     val playUrl = resolved.url
     val playbackHeaders = resolved.playbackHeaders()
+    val syncChrome = LocalPlayerChromeSync.current
+
+    LaunchedEffect(useExternalChrome) {
+        if (useExternalChrome) syncChrome(true)
+    }
 
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     var playToken by remember { mutableIntStateOf(0) }
     var stripHeaders by remember { mutableStateOf(false) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
+    var subtitleUrl by remember(playUrl, playToken) { mutableStateOf<String?>(null) }
+    var hasTextTracks by remember { mutableStateOf(false) }
+
+    LaunchedEffect(playUrl, playToken, resolved.subtitleUrl) {
+        val fromResolved = resolved.subtitleUrl?.takeIf { StreamResolver.isValidSubtitleUrl(it) }
+        subtitleUrl = fromResolved ?: withContext(Dispatchers.IO) {
+            StreamResolver.resolveSubtitlesForStream(playUrl, resolved.referer.ifBlank { playUrl })
+        }?.takeIf { StreamResolver.isValidSubtitleUrl(it) }
+    }
 
     val player = remember(playUrl, playToken) {
         ExoPlayer.Builder(context).build().apply {
@@ -106,7 +125,7 @@ fun ExoLivePlayer(
 
     val effectiveHeaders = if (stripHeaders) emptyMap() else playbackHeaders
 
-    DisposableEffect(playUrl, playToken, effectiveHeaders) {
+    DisposableEffect(playUrl, playToken, effectiveHeaders, subtitleUrl) {
         errorMessage = null
         onLoadingChange(true)
         var prepared = false
@@ -131,13 +150,19 @@ fun ExoLivePlayer(
                             .build()
                     )
                 }
-                resolved.subtitleUrl?.takeIf { it.isNotBlank() }?.let { vtt ->
+                subtitleUrl?.let { sub ->
+                    val subUri = android.net.Uri.parse(sub)
+                    val mime = when {
+                        sub.contains(".srt", ignoreCase = true) -> MimeTypes.APPLICATION_SUBRIP
+                        else -> MimeTypes.TEXT_VTT
+                    }
                     itemBuilder.setSubtitleConfigurations(
                         listOf(
-                            MediaItem.SubtitleConfiguration.Builder(android.net.Uri.parse(vtt))
-                                .setMimeType(MimeTypes.TEXT_VTT)
+                            MediaItem.SubtitleConfiguration.Builder(subUri)
+                                .setMimeType(mime)
                                 .setLanguage("en")
-                                .setLabel("Subtitles")
+                                .setLabel("English")
+                                .setSelectionFlags(C.SELECTION_FLAG_DEFAULT)
                                 .build()
                         )
                     )
@@ -176,6 +201,12 @@ fun ExoLivePlayer(
                 }
             }
 
+            override fun onTracksChanged(tracks: Tracks) {
+                hasTextTracks = tracks.groups.any { group ->
+                    group.type == C.TRACK_TYPE_TEXT && group.length > 0
+                }
+            }
+
             override fun onPlayerError(error: PlaybackException) {
                 onLoadingChange(false)
                 if (!stripHeaders && playbackHeaders.isNotEmpty()) {
@@ -206,6 +237,8 @@ fun ExoLivePlayer(
         }
     }
 
+    val showCcButton = !isLiveBroadcast && hasTextTracks
+
     val videoContent: @Composable () -> Unit = {
             Box(Modifier.fillMaxSize()) {
                 AndroidView(
@@ -219,15 +252,31 @@ fun ExoLivePlayer(
                             useController = true
                             controllerShowTimeoutMs = 5000
                             controllerHideOnTouch = true
-                            setShowSubtitleButton(!isLiveBroadcast)
                             setShowNextButton(false)
                             setShowPreviousButton(false)
+                            if (useExternalChrome) {
+                                setControllerVisibilityListener(
+                                    PlayerView.ControllerVisibilityListener { visibility ->
+                                        syncChrome(visibility == View.VISIBLE)
+                                    }
+                                )
+                            }
                             if (isLiveBroadcast) {
                                 post { hideVodTimeline(this) }
                             }
                         }
                     },
-                    update = { it.player = player },
+                    update = { view ->
+                        view.player = player
+                        view.setShowSubtitleButton(showCcButton)
+                        if (useExternalChrome) {
+                            view.setControllerVisibilityListener(
+                                PlayerView.ControllerVisibilityListener { visibility ->
+                                    syncChrome(visibility == View.VISIBLE)
+                                }
+                            )
+                        }
+                    },
                     modifier = Modifier.fillMaxSize()
                 )
                 if (streamLoading) {
