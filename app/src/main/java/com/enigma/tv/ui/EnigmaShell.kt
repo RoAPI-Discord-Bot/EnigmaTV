@@ -156,11 +156,20 @@ fun EnigmaShell(viewModel: EnigmaViewModel = viewModel()) {
                     sectionLabel = if (state.section == NavSection.HOME) null else state.section.title,
                     placeholder = if (state.section == NavSection.LIVE) "Search games or channels…" else "Search movies & TV…",
                     query = query,
-                    onQueryChange = { query = it },
+                    onQueryChange = {
+                        query = it
+                        if (state.section == NavSection.HOME) viewModel.onSearchQueryChanged(it)
+                    },
                     onSearch = {
                         if (state.section == NavSection.LIVE) viewModel.searchLiveTv(query)
                         else viewModel.search(query)
                     },
+                    searchSuggestions = if (state.section == NavSection.HOME) state.searchSuggestions else emptyList(),
+                    onSuggestionClick = { suggestion ->
+                        query = suggestion.title
+                        viewModel.pickSearchSuggestion(suggestion)
+                    },
+                    onDismissSuggestions = viewModel::clearSearchSuggestions,
                     onMenuClick = if (!useBottomNav) null else null,
                     activeProfile = activeProfile,
                     onProfileClick = { viewModel.showProfilePickerScreen() },
@@ -335,6 +344,7 @@ private fun EnigmaPlayerOverlay(
             showNextSource = showNext,
             streamFailed = state.playerStreamFailed,
             streamLoading = state.playerLoading && !state.playerStreamFailed,
+            liveWaitingMessage = state.playerLiveHint,
             tvControls = tvControls,
             onPrevEpisode = { viewModel.playAdjacentEpisode(forward = false) },
             onNextEpisode = { viewModel.playAdjacentEpisode(forward = true) },
@@ -396,6 +406,7 @@ private fun EnigmaPlayerOverlay(
                         onLoadingChange = { viewModel.onPlayerPageLoading(it) },
                         onStreamFailed = viewModel::onPlayerStreamFailed,
                         onPlaybackReady = viewModel::onPlayerPlaybackReady,
+                        onLiveWaiting = viewModel::onPlayerLiveWaiting,
                         resolveToken = state.playerResolveToken,
                         useExternalChrome = true,
                         modifier = Modifier.fillMaxSize()

@@ -60,6 +60,7 @@ fun PlayerFullscreenHost(
     showNextSource: Boolean = false,
     streamFailed: Boolean = false,
     streamLoading: Boolean = false,
+    liveWaitingMessage: String? = null,
     tvControls: TvPlayerControls? = null,
     onPrevEpisode: (() -> Unit)? = null,
     onNextEpisode: (() -> Unit)? = null,
@@ -116,6 +117,34 @@ fun PlayerFullscreenHost(
                     ringSize = 110.dp,
                     fullscreen = true
                 )
+            }
+
+            if (!streamLoading && !streamFailed && !liveWaitingMessage.isNullOrBlank()) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(Color.Black.copy(alpha = 0.82f))
+                        .padding(28.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.Center
+                ) {
+                    Text(
+                        liveWaitingMessage,
+                        color = TextPrimary,
+                        fontSize = 17.sp,
+                        fontWeight = FontWeight.Medium,
+                        textAlign = TextAlign.Center
+                    )
+                    if (showNextSource && onNextSource != null) {
+                        Button(
+                            onClick = onNextSource,
+                            colors = ButtonDefaults.buttonColors(containerColor = EnigmaPink),
+                            modifier = Modifier.padding(top = 20.dp)
+                        ) {
+                            Text("Try another source")
+                        }
+                    }
+                }
             }
 
             if (streamFailed && showNextSource && onNextSource != null) {

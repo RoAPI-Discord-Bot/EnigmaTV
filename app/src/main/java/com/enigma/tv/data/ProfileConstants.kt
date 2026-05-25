@@ -1,5 +1,6 @@
 package com.enigma.tv.data
 
 object ProfileConstants {
-    const val AVATAR_PRESET_COUNT = 28
+    val AVATAR_PRESET_COUNT: Int
+        get() = com.enigma.tv.ui.ProfileAvatarPresets.count()
 }

@@ -39,6 +39,32 @@ class TmdbRepository {
         popularMovies().take(20)
     )
     suspend fun searchMovies(query: String) = api.searchMovies(key, query).results
+
+    suspend fun searchSuggestions(query: String): List<SearchSuggestion> {
+        if (query.trim().length < 2) return emptyList()
+        return runCatching {
+            api.searchMulti(key, query.trim())
+                .results
+                .mapNotNull { item ->
+                    when (item.mediaType) {
+                        "movie" -> SearchSuggestion(
+                            id = item.id,
+                            title = item.displayTitle,
+                            type = ContentType.MOVIE,
+                            year = item.releaseDate?.split("-")?.firstOrNull() ?: "?"
+                        )
+                        "tv" -> SearchSuggestion(
+                            id = item.id,
+                            title = item.displayTitle,
+                            type = ContentType.TV,
+                            year = item.firstAirDate?.split("-")?.firstOrNull() ?: "?"
+                        )
+                        else -> null
+                    }
+                }
+                .take(8)
+        }.getOrElse { emptyList() }
+    }
     suspend fun movieDetail(id: Int) = api.movieDetail(id, key)
 
     suspend fun trendingTv() = api.trendingTv(key).results

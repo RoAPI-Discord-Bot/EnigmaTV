@@ -27,6 +27,7 @@ import com.enigma.tv.data.Playlist
 import com.enigma.tv.data.PlaylistStore
 import com.enigma.tv.data.ProfileStore
 import com.enigma.tv.data.SearchResults
+import com.enigma.tv.data.SearchSuggestion
 import com.enigma.tv.data.StreamSources
 import com.enigma.tv.data.ViewerProfile
 import com.enigma.tv.data.TmdbRepository
@@ -111,7 +112,10 @@ data class EnigmaUiState(
     val episodes: List<Pair<Int, String>> = emptyList(),
     val profiles: List<ViewerProfile> = emptyList(),
     val activeProfileId: String = "default",
-    val showProfilePicker: Boolean = false
+    val showProfilePicker: Boolean = false,
+    val searchSuggestions: List<SearchSuggestion> = emptyList(),
+    val playerLiveHint: String? = null,
+    val playerLiveEventStartMs: Long = 0L
 )
 
 class EnigmaViewModel(application: Application) : AndroidViewModel(application) {
@@ -134,6 +138,7 @@ class EnigmaViewModel(application: Application) : AndroidViewModel(application) 
     private var tvNavJob: Job? = null
     private var homeLoadJob: Job? = null
     private var persistCwJob: Job? = null
+    private var suggestJob: Job? = null
 
     private fun activeProfileId(): String = _state.value.activeProfileId.ifBlank { "default" }
 
@@ -273,12 +278,14 @@ class EnigmaViewModel(application: Application) : AndroidViewModel(application) 
                 it.copy(
                     contentLoading = true,
                     homeRows = emptyList(),
-                    error = null
+                    error = null,
+                    activeProfileId = profileId
                 )
             }
             profileStore.setActive(profileId)
             _state.update { it.copy(showProfilePicker = false) }
             pullCloudSafe()
+            syncIfLoggedIn()
             loadHome()
         }
     }
@@ -440,8 +447,35 @@ class EnigmaViewModel(application: Application) : AndroidViewModel(application) 
         _state.update { it.copy(selectedPlaylistId = id, section = NavSection.LISTS) }
     }
 
+    fun onSearchQueryChanged(query: String) {
+        suggestJob?.cancel()
+        if (query.trim().length < 2) {
+            _state.update { it.copy(searchSuggestions = emptyList()) }
+            return
+        }
+        suggestJob = viewModelScope.launch {
+            delay(320)
+            val suggestions = repo.searchSuggestions(query)
+            _state.update { it.copy(searchSuggestions = suggestions) }
+        }
+    }
+
+    fun clearSearchSuggestions() {
+        suggestJob?.cancel()
+        _state.update { it.copy(searchSuggestions = emptyList()) }
+    }
+
+    fun pickSearchSuggestion(suggestion: SearchSuggestion) {
+        clearSearchSuggestions()
+        when (suggestion.type) {
+            ContentType.MOVIE -> openMovieDetail(MovieItem(suggestion.id, suggestion.title))
+            ContentType.TV -> openTvDetail(TvItem(suggestion.id, suggestion.title))
+        }
+    }
+
     fun search(query: String) {
         if (query.isBlank()) return
+        clearSearchSuggestions()
         viewModelScope.launch {
             _state.update { it.copy(contentLoading = true, error = null) }
             try {
@@ -643,6 +677,8 @@ class EnigmaViewModel(application: Application) : AndroidViewModel(application) 
         _state.update {
             it.copy(
                 playerVisible = true,
+                playerLiveHint = null,
+                playerLiveEventStartMs = 0L,
                 playerLoading = false,
                 playerHls = false,
                 playerTitle = movie.title,
@@ -776,7 +812,14 @@ class EnigmaViewModel(application: Application) : AndroidViewModel(application) 
                 when {
                     streams.isEmpty() -> _state.update { it.copy(error = "No streams available for this event") }
                     else -> {
-                        _state.update { it.copy(liveStreamPicker = streams, playerTitle = match.title) }
+                        _state.update {
+                            it.copy(
+                                liveStreamPicker = streams,
+                                playerTitle = match.title,
+                                playerLiveEventStartMs = match.dateMs,
+                                playerLiveHint = formatLiveEventHint(match.dateMs)
+                            )
+                        }
                         if (streams.size == 1) {
                             playLiveEmbed(
                                 match.title,
@@ -817,6 +860,7 @@ class EnigmaViewModel(application: Application) : AndroidViewModel(application) 
                 playerLiveTv = true,
                 playerLoading = true,
                 playerStreamFailed = false,
+                playerLiveHint = _state.value.playerLiveHint,
                 playerTitle = title,
                 playerUrl = immediateUrl,
                 playerAccentMovie = false,
@@ -944,6 +988,8 @@ class EnigmaViewModel(application: Application) : AndroidViewModel(application) 
                 it.copy(
                     playerVisible = true,
                     playerLoading = false,
+                    playerLiveHint = null,
+                    playerLiveEventStartMs = 0L,
                     playerHls = false,
                     playerTitle = name,
                     playerResolveToken = it.playerResolveToken + 1,
@@ -1203,7 +1249,30 @@ class EnigmaViewModel(application: Application) : AndroidViewModel(application) 
     }
 
     fun onPlayerPlaybackReady() {
-        _state.update { it.copy(playerLoading = false, playerStreamFailed = false) }
+        _state.update { it.copy(playerLoading = false, playerStreamFailed = false, playerLiveHint = null) }
+    }
+
+    fun onPlayerLiveWaiting() {
+        val hint = formatLiveEventHint(_state.value.playerLiveEventStartMs)
+        _state.update { it.copy(playerLoading = false, playerLiveHint = hint) }
+    }
+
+    private fun formatLiveEventHint(dateMs: Long): String {
+        if (dateMs <= 0L) {
+            return "Stream not live yet. Try again closer to game time, or tap Next source."
+        }
+        val delta = dateMs - System.currentTimeMillis()
+        if (delta > 60_000L) {
+            val totalMin = (delta / 60_000L).toInt()
+            val hours = totalMin / 60
+            val mins = totalMin % 60
+            return if (hours > 0) {
+                "Game starts in ${hours}h ${mins}m — the player may stay blank until then."
+            } else {
+                "Game starts in ${mins}m — the player may stay blank until then."
+            }
+        }
+        return "Waiting for the live stream to start…"
     }
 
     fun closePlayer() {
@@ -1222,7 +1291,9 @@ class EnigmaViewModel(application: Application) : AndroidViewModel(application) 
                 playbackPositionMs = 0L,
                 playingType = null,
                 playerLiveTv = false,
-                playerHls = false
+                playerHls = false,
+                playerLiveHint = null,
+                playerLiveEventStartMs = 0L
             )
         }
     }

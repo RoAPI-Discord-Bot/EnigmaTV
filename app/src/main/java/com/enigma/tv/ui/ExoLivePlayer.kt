@@ -188,7 +188,8 @@ fun ExoLivePlayer(
                     androidx.media3.exoplayer.source.ProgressiveMediaSource.Factory(dataSourceFactory)
                         .createMediaSource(mediaItem)
                 }
-                player.setMediaSource(mediaSource)
+                val startMs = if (isLiveBroadcast) C.TIME_UNSET else startPositionMs.coerceAtLeast(0L)
+                player.setMediaSource(mediaSource, startMs)
                 player.prepare()
                 prepared = true
             }

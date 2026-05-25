@@ -31,6 +31,8 @@ import androidx.compose.material.icons.filled.Movie
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.Tv
+import com.enigma.tv.data.ContentType
+import com.enigma.tv.data.SearchSuggestion
 import com.enigma.tv.data.ViewerProfile
 import androidx.compose.material.icons.outlined.FavoriteBorder
 import androidx.compose.material3.CircularProgressIndicator
@@ -72,6 +74,9 @@ fun EnigmaHeader(
     query: String,
     onQueryChange: (String) -> Unit,
     onSearch: () -> Unit,
+    searchSuggestions: List<SearchSuggestion> = emptyList(),
+    onSuggestionClick: (SearchSuggestion) -> Unit = {},
+    onDismissSuggestions: () -> Unit = {},
     onMenuClick: (() -> Unit)? = null,
     activeProfile: ViewerProfile? = null,
     onProfileClick: (() -> Unit)? = null,
@@ -181,6 +186,65 @@ fun EnigmaHeader(
             ) {
                 Icon(Icons.Default.Search, contentDescription = "Search", tint = TextPrimary)
             }
+            }
+            if (searchSuggestions.isNotEmpty()) {
+                SearchSuggestionsDropdown(
+                    suggestions = searchSuggestions,
+                    onPick = onSuggestionClick,
+                    onDismiss = onDismissSuggestions,
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun SearchSuggestionsDropdown(
+    suggestions: List<SearchSuggestion>,
+    onPick: (SearchSuggestion) -> Unit,
+    onDismiss: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Column(
+        modifier = modifier
+            .padding(top = 6.dp)
+            .clip(RoundedCornerShape(12.dp))
+            .background(SearchBg.copy(alpha = 0.95f))
+            .padding(vertical = 4.dp)
+    ) {
+        suggestions.forEach { item ->
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable {
+                        onPick(item)
+                        onDismiss()
+                    }
+                    .padding(horizontal = 14.dp, vertical = 10.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                Icon(
+                    if (item.type == ContentType.MOVIE) Icons.Default.Movie else Icons.Default.Tv,
+                    contentDescription = null,
+                    tint = if (item.type == ContentType.MOVIE) EnigmaPink else EnigmaPurple,
+                    modifier = Modifier.size(20.dp)
+                )
+                Column(Modifier.weight(1f)) {
+                    Text(
+                        item.title,
+                        color = TextPrimary,
+                        fontSize = 14.sp,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                    Text(
+                        "${if (item.type == ContentType.MOVIE) "Movie" else "TV"} · ${item.year}",
+                        color = TextSecondary,
+                        fontSize = 11.sp
+                    )
+                }
             }
         }
     }

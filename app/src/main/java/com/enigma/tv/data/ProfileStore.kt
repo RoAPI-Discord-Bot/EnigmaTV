@@ -149,7 +149,10 @@ class ProfileStore(private val context: Context) {
         }
         context.profileDataStore.edit { prefs ->
             prefs[profilesKey] = gson.toJson(merged.take(6))
-            val active = activeId?.takeIf { id -> merged.any { it.id == id } } ?: merged.first().id
+            val currentActive = prefs[activeKey]
+            val active = currentActive?.takeIf { id -> merged.any { it.id == id } }
+                ?: activeId?.takeIf { id -> merged.any { it.id == id } }
+                ?: merged.first().id
             prefs[activeKey] = active
         }
     }

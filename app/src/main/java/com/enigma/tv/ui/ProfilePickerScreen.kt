@@ -233,7 +233,7 @@ fun ProfilePickerGate(
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth()
                     )
-                    Text("Pick a character", color = TextSecondary, fontSize = 13.sp)
+                    Text("Pick an icon", color = TextSecondary, fontSize = 13.sp)
                     ProfilePresetPickerGrid(
                         selectedIndex = editAvatarIndex,
                         onSelect = { index ->

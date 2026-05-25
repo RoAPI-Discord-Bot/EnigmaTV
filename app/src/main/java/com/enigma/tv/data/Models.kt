@@ -223,6 +223,24 @@ data class SearchResults(
     val tv: List<TvItem> = emptyList()
 )
 
+data class SearchSuggestion(
+    val id: Int,
+    val title: String,
+    val type: ContentType,
+    val year: String = "?"
+)
+
+data class MultiSearchItem(
+    val id: Int = 0,
+    @SerializedName("media_type") val mediaType: String = "",
+    val title: String? = null,
+    val name: String? = null,
+    @SerializedName("release_date") val releaseDate: String? = null,
+    @SerializedName("first_air_date") val firstAirDate: String? = null
+) {
+    val displayTitle: String get() = (title ?: name).orEmpty()
+}
+
 sealed class HomeRow {
     abstract val title: String
     data class Movies(override val title: String, val items: List<MovieItem>) : HomeRow()

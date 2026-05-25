@@ -27,6 +27,7 @@ class WebViewNavigationGuard(initialUrl: String) {
     var onPageLoading: ((Boolean) -> Unit)? = null
     var onStreamUrl: ((String) -> Unit)? = null
     var onPlaybackProbe: ((Boolean) -> Unit)? = null
+    var onLiveWaiting: (() -> Unit)? = null
     var onPlaybackProgress: ((Long) -> Unit)? = null
     var onPlaybackEnded: (() -> Unit)? = null
 
@@ -138,7 +139,11 @@ class WebViewNavigationGuard(initialUrl: String) {
                     EmbedPlayerShield.apply(web)
                     EmbedPlayerShield.startPeriodic(web)
                     web.postDelayed({ probePlayback(web) }, 2200)
-                    web.postDelayed({ trySeekResume(web) }, 3500)
+                    if (!liveTvMode && resumeTargetMs >= 3_000L) {
+                        scheduleResumeAttempts(web)
+                    } else {
+                        web.postDelayed({ trySeekResume(web) }, 3500)
+                    }
                     web.postDelayed({ probePlaybackProgress(web) }, 8000)
                 }
             }
@@ -227,6 +232,12 @@ class WebViewNavigationGuard(initialUrl: String) {
         }
     }
 
+    private fun scheduleResumeAttempts(webView: WebView) {
+        listOf(800L, 2000L, 3500L, 5500L, 8000L, 12_000L, 18_000L, 26_000L).forEach { delayMs ->
+            webView.postDelayed({ trySeekResume(webView) }, delayMs)
+        }
+    }
+
     private fun trySeekResume(webView: WebView) {
         if (didSeekResume || resumeTargetMs < 3_000L) return
         val sec = resumeTargetMs / 1000.0
@@ -286,12 +297,12 @@ class WebViewNavigationGuard(initialUrl: String) {
             """.trimIndent()
         ) { raw ->
             val verdict = raw?.trim('"', ' ') ?: "empty"
-            val ok = verdict == "ok" ||
-                (liveTvMode && (verdict == "empty" || verdict == "json"))
+            val ok = verdict == "ok"
             android.os.Handler(android.os.Looper.getMainLooper()).post {
                 if (ok) suppressLoadingPulses = true
                 onPlaybackProbe?.invoke(ok)
                 onPageLoading?.invoke(!ok)
+                if (liveTvMode && !ok) onLiveWaiting?.invoke()
             }
         }
     }
