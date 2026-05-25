@@ -174,7 +174,11 @@ object LiveEmbedResolver {
             (u.contains("streamed.pk") && u.contains("/api/"))
     }
 
-    fun isUnplayableContent(content: String): Boolean = looksLikeRawCodePage(content)
+    fun isUnplayableContent(content: String): Boolean {
+        val t = content.trim()
+        if (t.startsWith("http", ignoreCase = true) && looksLikeStreamApi(t)) return true
+        return looksLikeRawCodePage(content)
+    }
 
     private fun looksLikeRawCodePage(content: String): Boolean {
         val t = content.trim().take(4000)

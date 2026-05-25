@@ -41,10 +41,31 @@ class StreamedRepository {
             .sortedByDescending { it.dateMs }
     }
 
+    /** Prefer watch/embed pages over raw /api/stream/ JSON endpoints. */
+    fun embedCandidates(raw: String): List<String> {
+        val trimmed = raw.trim()
+        if (trimmed.isBlank()) return emptyList()
+        val apiMatch = STREAM_API_PATH.find(trimmed)
+        if (apiMatch != null) {
+            val src = apiMatch.groupValues[1]
+            val mid = apiMatch.groupValues[2]
+            return listOf(
+                "https://embedsports.top/embed/$src/$mid",
+                "https://streamed.pk/watch/$src/$mid",
+                "https://streamed.pk/embed/$src/$mid",
+                "https://dlhd.dad/watch/$src-$mid"
+            )
+        }
+        val single = if (!trimmed.startsWith("http")) "https://streamed.pk$trimmed" else trimmed
+        return listOf(single)
+    }
+
+    fun normalizeStreamEmbed(raw: String): String = embedCandidates(raw).firstOrNull().orEmpty()
+
     suspend fun fetchStreams(source: String, id: String): List<LiveStreamLink> {
         return api.streams(source, id).map { s ->
             LiveStreamLink(
-                embedUrl = s.embedUrl,
+                embedUrl = normalizeStreamEmbed(s.embedUrl),
                 label = buildString {
                     append("Stream ${s.streamNo}")
                     if (s.language.isNotBlank()) append(" · ${s.language}")
@@ -87,6 +108,8 @@ class StreamedRepository {
         tokens.forEach { t -> aliases[t]?.let { out.addAll(it) } }
         return out.distinct()
     }
+
+    private val STREAM_API_PATH = Regex("""/api/stream/([^/]+)/([^/?#]+)""", RegexOption.IGNORE_CASE)
 
     private fun StreamedMatchDto.toMatch() = LiveSportMatch(
         id = id,

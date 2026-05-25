@@ -174,7 +174,8 @@ fun EnigmaShell(viewModel: EnigmaViewModel = viewModel()) {
                     )
                     state.error != null -> ErrorPanel(
                         message = state.error!!,
-                        onDismiss = viewModel::clearError
+                        onDismiss = viewModel::clearError,
+                        onRetry = if (state.section == NavSection.HOME) viewModel::loadHome else null
                     )
                     else -> AnimatedContent(
                         targetState = state.section,
@@ -216,96 +217,6 @@ fun EnigmaShell(viewModel: EnigmaViewModel = viewModel()) {
                                 onAddProfile = viewModel::addProfile,
                                 onRemoveProfile = viewModel::removeProfile,
                                 onOpenProfilePicker = viewModel::showProfilePickerScreen
-                            )
-                        }
-                    }
-                }
-            }
-
-            val accent = if (state.playerAccentMovie) MovieAccent else TvAccent
-            val tvControls = if (
-                state.playerVisible &&
-                state.playingType == ContentType.TV &&
-                state.seasons.isNotEmpty()
-            ) {
-                TvPlayerControls(
-                    seasons = state.seasons,
-                    episodes = state.episodes,
-                    selectedSeason = state.selectedSeason,
-                    selectedEpisode = state.selectedEpisode,
-                    onSeasonChange = { viewModel.onSeasonChange(it) },
-                    onEpisodeChange = { viewModel.onEpisodeChange(it) }
-                )
-            } else null
-
-            if (state.playerVisible) {
-                val showNext = state.playingType != null || state.playerLiveTv || state.playerHls
-                PlayerFullscreenHost(
-                    title = state.playerTitle,
-                    subtitle = state.sourceLabel,
-                    posterUrl = state.playerLogoUrl,
-                    accent = accent,
-                    layout = layout,
-                    onClose = { viewModel.closePlayer() },
-                    onNextSource = { viewModel.nextSource() },
-                    showNextSource = showNext,
-                    tvControls = tvControls,
-                    onPrevEpisode = { viewModel.playAdjacentEpisode(forward = false) },
-                    onNextEpisode = { viewModel.playAdjacentEpisode(forward = true) },
-                    hasPrevEpisode = viewModel.hasAdjacentEpisode(forward = false),
-                    hasNextEpisode = viewModel.hasAdjacentEpisode(forward = true)
-                ) {
-                    when {
-                        state.playerHls -> ExoLivePlayer(
-                            visible = true,
-                            title = state.playerTitle,
-                            streamUrl = state.playerUrl,
-                            sourceLabel = state.sourceLabel,
-                            logoUrl = state.playerLogoUrl,
-                            streamLoading = state.playerLoading,
-                            isLiveBroadcast = true,
-                            onClose = { viewModel.closePlayer() },
-                            onLoadingChange = { viewModel.onPlayerPageLoading(it) },
-                            useExternalChrome = true,
-                            modifier = Modifier.fillMaxSize()
-                        )
-                        state.playingType == ContentType.MOVIE || state.playingType == ContentType.TV -> {
-                            EnigmaMediaPlayer(
-                                visible = true,
-                                title = state.playerTitle,
-                                embedUrl = state.playerUrl,
-                                posterUrl = state.playerLogoUrl,
-                                accent = accent,
-                                sourceLabel = state.sourceLabel,
-                                streamLoading = state.playerLoading,
-                                onClose = { viewModel.closePlayer() },
-                                onNextSource = { viewModel.nextSource() },
-                                onLoadingChange = { viewModel.onPlayerPageLoading(it) },
-                                tvControls = tvControls,
-                                resolveToken = state.playerResolveToken,
-                                tmdbId = state.currentMovieId ?: state.currentShowId,
-                                playingType = state.playingType,
-                                season = state.selectedSeason,
-                                episode = state.selectedEpisode,
-                                useExternalChrome = true,
-                                contentModifier = Modifier.fillMaxSize()
-                            )
-                        }
-                        state.playerLiveTv -> {
-                            EnigmaLivePlayer(
-                                visible = true,
-                                title = state.playerTitle,
-                                embedUrl = state.playerUrl,
-                                posterUrl = state.playerLogoUrl,
-                                sourceLabel = state.sourceLabel,
-                                streamLoading = state.playerLoading,
-                                onClose = { viewModel.closePlayer() },
-                                onNextSource = { viewModel.nextSource() },
-                                onLoadingChange = { viewModel.onPlayerPageLoading(it) },
-                                onNativeStream = viewModel::playLiveNativeStream,
-                                resolveToken = state.playerResolveToken,
-                                useExternalChrome = true,
-                                modifier = Modifier.fillMaxSize()
                             )
                         }
                     }
@@ -378,6 +289,110 @@ fun EnigmaShell(viewModel: EnigmaViewModel = viewModel()) {
                 message = "LOADING",
                 fullscreen = true
             )
+        }
+
+        EnigmaPlayerOverlay(state = state, viewModel = viewModel, layout = layout)
+    }
+}
+
+@Composable
+private fun EnigmaPlayerOverlay(
+    state: EnigmaUiState,
+    viewModel: EnigmaViewModel,
+    layout: ScreenLayout
+) {
+    if (!state.playerVisible) return
+
+    val accent = if (state.playerAccentMovie) MovieAccent else TvAccent
+    val tvControls = if (
+        state.playingType == ContentType.TV &&
+        state.seasons.isNotEmpty()
+    ) {
+        TvPlayerControls(
+            seasons = state.seasons,
+            episodes = state.episodes,
+            selectedSeason = state.selectedSeason,
+            selectedEpisode = state.selectedEpisode,
+            onSeasonChange = { viewModel.onSeasonChange(it) },
+            onEpisodeChange = { viewModel.onEpisodeChange(it) }
+        )
+    } else null
+
+    val showNext = state.playingType != null || state.playerLiveTv || state.playerHls
+    Box(
+        Modifier
+            .fillMaxSize()
+            .background(BgDark)
+    ) {
+        PlayerFullscreenHost(
+            title = state.playerTitle,
+            subtitle = state.sourceLabel,
+            posterUrl = state.playerLogoUrl,
+            accent = accent,
+            layout = layout,
+            onClose = { viewModel.closePlayer() },
+            onNextSource = { viewModel.nextSource() },
+            showNextSource = showNext,
+            tvControls = tvControls,
+            onPrevEpisode = { viewModel.playAdjacentEpisode(forward = false) },
+            onNextEpisode = { viewModel.playAdjacentEpisode(forward = true) },
+            hasPrevEpisode = viewModel.hasAdjacentEpisode(forward = false),
+            hasNextEpisode = viewModel.hasAdjacentEpisode(forward = true)
+        ) {
+            when {
+                state.playerHls -> ExoLivePlayer(
+                    visible = true,
+                    title = state.playerTitle,
+                    streamUrl = state.playerUrl,
+                    sourceLabel = state.sourceLabel,
+                    logoUrl = state.playerLogoUrl,
+                    streamLoading = state.playerLoading,
+                    isLiveBroadcast = true,
+                    onClose = { viewModel.closePlayer() },
+                    onLoadingChange = { viewModel.onPlayerPageLoading(it) },
+                    useExternalChrome = true,
+                    modifier = Modifier.fillMaxSize()
+                )
+                state.playingType == ContentType.MOVIE || state.playingType == ContentType.TV -> {
+                    EnigmaMediaPlayer(
+                        visible = true,
+                        title = state.playerTitle,
+                        embedUrl = state.playerUrl,
+                        posterUrl = state.playerLogoUrl,
+                        accent = accent,
+                        sourceLabel = state.sourceLabel,
+                        streamLoading = state.playerLoading,
+                        onClose = { viewModel.closePlayer() },
+                        onNextSource = { viewModel.nextSource() },
+                        onLoadingChange = { viewModel.onPlayerPageLoading(it) },
+                        tvControls = tvControls,
+                        resolveToken = state.playerResolveToken,
+                        tmdbId = state.currentMovieId ?: state.currentShowId,
+                        playingType = state.playingType,
+                        season = state.selectedSeason,
+                        episode = state.selectedEpisode,
+                        useExternalChrome = true,
+                        contentModifier = Modifier.fillMaxSize()
+                    )
+                }
+                state.playerLiveTv -> {
+                    EnigmaLivePlayer(
+                        visible = true,
+                        title = state.playerTitle,
+                        embedUrl = state.playerUrl,
+                        posterUrl = state.playerLogoUrl,
+                        sourceLabel = state.sourceLabel,
+                        streamLoading = state.playerLoading,
+                        onClose = { viewModel.closePlayer() },
+                        onNextSource = { viewModel.nextSource() },
+                        onLoadingChange = { viewModel.onPlayerPageLoading(it) },
+                        onNativeStream = viewModel::playLiveNativeStream,
+                        resolveToken = state.playerResolveToken,
+                        useExternalChrome = true,
+                        modifier = Modifier.fillMaxSize()
+                    )
+                }
+            }
         }
     }
 }
@@ -769,7 +784,11 @@ private fun FavoritePosterCard(item: FavoriteItem, vm: EnigmaViewModel, cardW: I
 }
 
 @Composable
-private fun ErrorPanel(message: String, onDismiss: () -> Unit) {
+private fun ErrorPanel(
+    message: String,
+    onDismiss: () -> Unit,
+    onRetry: (() -> Unit)? = null
+) {
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -787,12 +806,23 @@ private fun ErrorPanel(message: String, onDismiss: () -> Unit) {
             fontSize = 15.sp,
             modifier = Modifier.padding(top = 12.dp, bottom = 16.dp)
         )
-        Button(
-            onClick = onDismiss,
-            colors = androidx.compose.material3.ButtonDefaults.buttonColors(containerColor = EnigmaPurple),
-            shape = RoundedCornerShape(8.dp)
-        ) {
-            Text("Dismiss")
+        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            if (onRetry != null) {
+                Button(
+                    onClick = onRetry,
+                    colors = ButtonDefaults.buttonColors(containerColor = EnigmaPink),
+                    shape = RoundedCornerShape(8.dp)
+                ) {
+                    Text("Retry")
+                }
+            }
+            Button(
+                onClick = onDismiss,
+                colors = ButtonDefaults.buttonColors(containerColor = EnigmaPurple),
+                shape = RoundedCornerShape(8.dp)
+            ) {
+                Text("Dismiss")
+            }
         }
     }
 }

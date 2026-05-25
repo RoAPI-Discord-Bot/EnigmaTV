@@ -1,13 +1,11 @@
 package com.enigma.tv.data
 
 import kotlinx.coroutines.async
-import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.supervisorScope
 import okhttp3.OkHttpClient
 import okhttp3.logging.HttpLoggingInterceptor
 import retrofit2.Retrofit
 import retrofit2.converter.gson.GsonConverterFactory
-import java.time.LocalDate
-
 object TmdbConfig {
     const val API_KEY = "2dca580c2a14b55200e784d157207b4d"
     const val BASE_URL = "https://api.themoviedb.org/3/"
@@ -26,14 +24,19 @@ class TmdbRepository {
         .create(TmdbApi::class.java)
 
     private val key get() = TmdbConfig.API_KEY
-    private val today get() = LocalDate.now().toString()
+
+    private suspend fun <T> safe(block: suspend () -> T, fallback: T): T =
+        runCatching { block() }.getOrElse { fallback }
 
     suspend fun trendingMovies() = api.trendingMovies(key).results
     suspend fun popularMovies() = api.popularMovies(key).results
     suspend fun nowPlayingMovies() = api.nowPlayingMovies(key).results
     suspend fun upcomingMovies() = api.upcomingMovies(key).results
     suspend fun topRatedMovies() = api.topRatedMovies(key).results
-    suspend fun recentlyAddedMovies() = api.discoverMovies(key, sortBy = "release_date.desc").results.take(20)
+    suspend fun recentlyAddedMovies() = safe(
+        { api.discoverMovies(key, sortBy = "release_date.desc").results.take(20) },
+        { popularMovies().take(20) }
+    )
     suspend fun searchMovies(query: String) = api.searchMovies(key, query).results
     suspend fun movieDetail(id: Int) = api.movieDetail(id, key)
 
@@ -46,18 +49,18 @@ class TmdbRepository {
     suspend fun tvDetail(id: Int) = api.tvDetail(id, key)
     suspend fun tvSeason(id: Int, season: Int) = api.tvSeason(id, season, key).episodes
 
-    suspend fun buildHomeRows(): List<HomeRow> = coroutineScope {
-        val inTheaters = async { nowPlayingMovies().take(15) }
-        val upcoming = async { upcomingMovies().take(15) }
-        val topMovies = async { topRatedMovies().take(15) }
-        val trendMovies = async { trendingMovies().take(15) }
-        val popMovies = async { popularMovies().take(15) }
-        val recentMovies = async { recentlyAddedMovies() }
-        val trendTv = async { trendingTv().take(15) }
-        val popTv = async { popularTv().take(15) }
-        val onAir = async { onTheAirTv().take(15) }
-        val topTv = async { topRatedTv().take(15) }
-        val airingToday = async { airingTodayTv().take(15) }
+    suspend fun buildHomeRows(): List<HomeRow> = supervisorScope {
+        val inTheaters = async { safe({ nowPlayingMovies().take(15) }, emptyList()) }
+        val upcoming = async { safe({ upcomingMovies().take(15) }, emptyList()) }
+        val topMovies = async { safe({ topRatedMovies().take(15) }, emptyList()) }
+        val trendMovies = async { safe({ trendingMovies().take(15) }, emptyList()) }
+        val popMovies = async { safe({ popularMovies().take(15) }, emptyList()) }
+        val recentMovies = async { safe({ recentlyAddedMovies() }, emptyList()) }
+        val trendTv = async { safe({ trendingTv().take(15) }, emptyList()) }
+        val popTv = async { safe({ popularTv().take(15) }, emptyList()) }
+        val onAir = async { safe({ onTheAirTv().take(15) }, emptyList()) }
+        val topTv = async { safe({ topRatedTv().take(15) }, emptyList()) }
+        val airingToday = async { safe({ airingTodayTv().take(15) }, emptyList()) }
 
         listOf(
             HomeRow.Movies("🎬 In Theaters", inTheaters.await()),

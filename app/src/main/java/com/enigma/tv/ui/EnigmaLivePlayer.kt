@@ -5,6 +5,13 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.padding
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import com.enigma.tv.ui.theme.TextSecondary
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -56,9 +63,9 @@ fun EnigmaLivePlayer(
                 onNativeStream(resolved)
                 return@LaunchedEffect
             }
-            playUrl = if (LiveEmbedResolver.isUnplayableContent(resolved)) embedUrl else resolved
+            playUrl = if (LiveEmbedResolver.isUnplayableContent(resolved)) null else resolved
         } catch (_: Exception) {
-            playUrl = embedUrl
+            playUrl = null
         } finally {
             resolving = false
         }
@@ -66,12 +73,28 @@ fun EnigmaLivePlayer(
 
     Box(modifier.background(BgDark)) {
         when {
-            resolving || playUrl.isNullOrBlank() -> {
+            resolving -> {
                 EnigmaLoadingRing(
                     modifier = Modifier.fillMaxSize(),
                     message = "CONNECTING LIVE",
                     fullscreen = true
                 )
+            }
+            playUrl.isNullOrBlank() -> {
+                Column(
+                    Modifier
+                        .fillMaxSize()
+                        .padding(24.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = androidx.compose.foundation.layout.Arrangement.Center
+                ) {
+                    Text(
+                        "Could not open this live stream. Try Next Server or another game.",
+                        color = TextSecondary,
+                        fontSize = 15.sp
+                    )
+                    TextButton(onClick = onClose) { Text("Close") }
+                }
             }
             useExternalChrome -> {
                 WebViewPlayer(

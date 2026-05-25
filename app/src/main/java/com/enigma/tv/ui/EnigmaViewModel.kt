@@ -15,6 +15,7 @@ import com.enigma.tv.data.LiveSportMatch
 import com.enigma.tv.data.LiveStreamLink
 import com.enigma.tv.data.LiveTvBrowseState
 import com.enigma.tv.data.LiveTvTab
+import com.enigma.tv.data.LiveEmbedResolver
 import com.enigma.tv.data.StreamedRepository
 import com.enigma.tv.data.MediaDetailUi
 import com.enigma.tv.data.MovieItem
@@ -124,6 +125,7 @@ class EnigmaViewModel(application: Application) : AndroidViewModel(application) 
     val state: StateFlow<EnigmaUiState> = _state.asStateFlow()
     private var syncJob: Job? = null
     private var tvNavJob: Job? = null
+    private var homeLoadJob: Job? = null
 
     private fun activeProfileId(): String = _state.value.activeProfileId.ifBlank { "default" }
 
@@ -216,7 +218,6 @@ class EnigmaViewModel(application: Application) : AndroidViewModel(application) 
                     contentLoading = false
                 )
             }
-            if (done) loadHome()
         }
     }
 
@@ -335,14 +336,28 @@ class EnigmaViewModel(application: Application) : AndroidViewModel(application) 
     }
 
     fun loadHome() {
-        viewModelScope.launch {
+        homeLoadJob?.cancel()
+        homeLoadJob = viewModelScope.launch {
             _state.update { it.copy(contentLoading = it.homeRows.isEmpty(), error = null, searchResults = null) }
             try {
                 val rows = repo.buildHomeRows()
-                _state.update { it.copy(homeRows = rows, contentLoading = false) }
-                prefetchHomePosters(rows)
+                _state.update {
+                    it.copy(
+                        homeRows = rows,
+                        contentLoading = false,
+                        error = if (rows.isEmpty()) "Could not load EnigmaTV content. Check connection and retry." else null
+                    )
+                }
+                if (rows.isNotEmpty()) prefetchHomePosters(rows)
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
             } catch (_: Exception) {
-                _state.update { it.copy(contentLoading = false, error = "Could not load EnigmaTV content") }
+                _state.update {
+                    it.copy(
+                        contentLoading = false,
+                        error = "Could not load EnigmaTV content. Check connection and retry."
+                    )
+                }
             }
         }
     }
@@ -683,22 +698,57 @@ class EnigmaViewModel(application: Application) : AndroidViewModel(application) 
     }
 
     private fun playLiveEmbed(title: String, embedUrl: String, label: String) {
-        _state.update {
-            it.copy(
-                playerVisible = true,
-                playerHls = false,
-                playerLiveTv = true,
-                playerLoading = true,
-                playerTitle = title,
-                playerUrl = embedUrl,
-                playerResolveToken = it.playerResolveToken + 1,
-                playerAccentMovie = false,
-                playingType = null,
-                sourceLabel = "Live · $label",
-                sourceIndex = 0,
-                showLiveStreamPicker = false,
-                error = null
-            )
+        viewModelScope.launch {
+            _state.update {
+                it.copy(
+                    playerVisible = true,
+                    playerHls = false,
+                    playerLiveTv = true,
+                    playerLoading = true,
+                    playerTitle = title,
+                    playerAccentMovie = false,
+                    playingType = null,
+                    sourceLabel = "Live · $label",
+                    sourceIndex = 0,
+                    showLiveStreamPicker = false,
+                    error = null
+                )
+            }
+            var playable: String? = null
+            for (candidate in streamedRepo.embedCandidates(embedUrl)) {
+                val resolved = runCatching {
+                    LiveEmbedResolver.resolvePlayableUrl(candidate)
+                }.getOrDefault(candidate)
+                if (resolved.contains(".m3u8", ignoreCase = true)) {
+                    playable = resolved
+                    break
+                }
+                if (!LiveEmbedResolver.isUnplayableContent(resolved)) {
+                    playable = resolved
+                    break
+                }
+            }
+            if (playable == null) {
+                _state.update {
+                    it.copy(
+                        playerLoading = false,
+                        playerVisible = false,
+                        error = "This live stream link could not be opened. Try Next Server or another game."
+                    )
+                }
+                return@launch
+            }
+            if (playable.contains(".m3u8", ignoreCase = true)) {
+                playLiveNativeStream(playable)
+                return@launch
+            }
+            _state.update {
+                it.copy(
+                    playerUrl = playable,
+                    playerResolveToken = it.playerResolveToken + 1,
+                    playerLoading = true
+                )
+            }
         }
     }
 
