@@ -9,25 +9,19 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
-import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.lazy.grid.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Edit
-import androidx.compose.material.icons.filled.ChildCare
-import androidx.compose.material.icons.filled.Face
-import androidx.compose.material.icons.filled.Favorite
-import androidx.compose.material.icons.filled.Movie
 import androidx.compose.material.icons.filled.Person
-import androidx.compose.material.icons.filled.SportsEsports
-import androidx.compose.material.icons.filled.Star
-import androidx.compose.material.icons.filled.Tv
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -36,15 +30,14 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
-import coil.compose.AsyncImage
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.platform.LocalContext
+import coil.compose.AsyncImage
 import com.enigma.tv.data.ProfileImageStorage
 import com.enigma.tv.data.ViewerProfile
 import com.enigma.tv.ui.theme.BgDark
@@ -52,32 +45,6 @@ import com.enigma.tv.ui.theme.EnigmaPink
 import com.enigma.tv.ui.theme.EnigmaPurple
 import com.enigma.tv.ui.theme.TextPrimary
 import com.enigma.tv.ui.theme.TextSecondary
-
-private val avatarColors = listOf(
-    Color(0xFF6A1B9A),
-    Color(0xFFE040FB),
-    Color(0xFF00ACC1),
-    Color(0xFFFF6F00),
-    Color(0xFF43A047),
-    Color(0xFF5C6BC0),
-    Color(0xFFD81B60),
-    Color(0xFF00838F)
-)
-
-private val avatarIcons = listOf(
-    Icons.Default.Person,
-    Icons.Default.Face,
-    Icons.Default.Star,
-    Icons.Default.Movie,
-    Icons.Default.Tv,
-    Icons.Default.SportsEsports,
-    Icons.Default.Favorite,
-    Icons.Default.ChildCare
-)
-
-fun profileAvatarColor(index: Int): Color = avatarColors[index.mod(avatarColors.size)]
-
-fun profileAvatarIcon(index: Int): ImageVector = avatarIcons[index.mod(avatarIcons.size)]
 
 @Composable
 fun ProfileAvatarCircle(
@@ -87,10 +54,10 @@ fun ProfileAvatarCircle(
     showEditBadge: Boolean = false,
     onClick: () -> Unit
 ) {
-    val color = profileAvatarColor(profile.avatarIndex)
     val context = LocalContext.current
-    val imageModel = remember(profile.id, profile.avatarBase64, profile.avatarUri) {
+    val imageModel = remember(profile.id, profile.avatarBase64, profile.avatarUri, profile.avatarIndex) {
         ProfileImageStorage.avatarModel(profile, context)
+            ?: ProfileAvatarPresets.imageUrl(profile.avatarIndex)
     }
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
@@ -103,28 +70,20 @@ fun ProfileAvatarCircle(
             modifier = Modifier
                 .size(sizeDp.dp)
                 .clip(CircleShape)
-                .background(color)
+                .background(Color.DarkGray)
                 .then(
                     if (selected) Modifier.border(3.dp, EnigmaPink, CircleShape)
                     else Modifier
                 ),
             contentAlignment = Alignment.Center
         ) {
-            if (imageModel != null) {
-                AsyncImage(
-                    model = imageModel,
-                    contentDescription = profile.name,
-                    modifier = Modifier.fillMaxSize(),
-                    contentScale = ContentScale.Crop
-                )
-            } else {
-                Icon(
-                    profileAvatarIcon(profile.avatarIndex),
-                    contentDescription = profile.name,
-                    tint = Color.White,
-                    modifier = Modifier.size((sizeDp * 0.45f).dp)
-                )
-            }
+            AsyncImage(
+                model = imageModel,
+                contentDescription = profile.name,
+                modifier = Modifier.fillMaxSize(),
+                contentScale = ContentScale.Crop,
+                alignment = Alignment.TopCenter
+            )
             if (showEditBadge) {
                 Box(
                     modifier = Modifier
@@ -149,6 +108,56 @@ fun ProfileAvatarCircle(
             textAlign = TextAlign.Center,
             modifier = Modifier.padding(top = 10.dp).fillMaxWidth()
         )
+    }
+}
+
+@Composable
+fun ProfilePresetPickerGrid(
+    selectedIndex: Int,
+    onSelect: (Int) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    LazyVerticalGrid(
+        columns = GridCells.Fixed(4),
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
+        verticalArrangement = Arrangement.spacedBy(10.dp),
+        contentPadding = PaddingValues(vertical = 4.dp),
+        modifier = modifier.height(280.dp)
+    ) {
+        itemsIndexed(ProfileAvatarPresets.all) { index, preset ->
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                modifier = Modifier.clickable { onSelect(index) }
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(64.dp)
+                        .clip(CircleShape)
+                        .background(Color.DarkGray)
+                        .then(
+                            if (selectedIndex == index) Modifier.border(2.dp, EnigmaPink, CircleShape)
+                            else Modifier
+                        )
+                ) {
+                    AsyncImage(
+                        model = preset.imageUrl,
+                        contentDescription = preset.label,
+                        modifier = Modifier.fillMaxSize(),
+                        contentScale = ContentScale.Crop,
+                        alignment = Alignment.TopCenter
+                    )
+                }
+                Text(
+                    preset.label,
+                    color = if (selectedIndex == index) EnigmaPink else TextSecondary,
+                    fontSize = 10.sp,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.padding(top = 4.dp).fillMaxWidth()
+                )
+            }
+        }
     }
 }
 
@@ -193,7 +202,7 @@ fun NetflixProfilePicker(
     ) {
         if (title.isNotBlank()) {
             Text(title, color = TextPrimary, fontSize = 32.sp, fontWeight = FontWeight.Bold)
-            Spacer8()
+            androidx.compose.foundation.layout.Spacer(Modifier.size(8.dp))
         }
         LazyVerticalGrid(
             columns = GridCells.Fixed(columns.coerceIn(2, 5)),
@@ -202,7 +211,8 @@ fun NetflixProfilePicker(
             contentPadding = PaddingValues(vertical = 32.dp),
             modifier = Modifier.weight(1f)
         ) {
-            items(profiles, key = { it.id }) { profile ->
+            items(profiles.size) { i ->
+                val profile = profiles[i]
                 ProfileAvatarCircle(
                     profile = profile,
                     selected = activeProfileId.isNotBlank() && profile.id == activeProfileId,
@@ -226,9 +236,4 @@ fun NetflixProfilePicker(
             }
         }
     }
-}
-
-@Composable
-private fun Spacer8() {
-    androidx.compose.foundation.layout.Spacer(Modifier.size(8.dp))
 }

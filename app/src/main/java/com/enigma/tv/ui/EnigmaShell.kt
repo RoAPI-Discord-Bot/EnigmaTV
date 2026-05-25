@@ -370,7 +370,8 @@ private fun EnigmaPlayerOverlay(
                         onNextSource = { viewModel.nextSource() },
                         onLoadingChange = { viewModel.onPlayerPageLoading(it) },
                         onPlaybackEnded = viewModel::onEpisodeFinished,
-                        onPlaybackProgress = viewModel::onPlaybackProgress,
+                        onPlaybackPositionMs = viewModel::onPlaybackPositionMs,
+                        startPositionMs = state.playbackPositionMs,
                         tvControls = null,
                         resolveToken = state.playerResolveToken,
                         tmdbId = state.currentMovieId ?: state.currentShowId,
@@ -395,7 +396,6 @@ private fun EnigmaPlayerOverlay(
                         onLoadingChange = { viewModel.onPlayerPageLoading(it) },
                         onStreamFailed = viewModel::onPlayerStreamFailed,
                         onPlaybackReady = viewModel::onPlayerPlaybackReady,
-                        onNativeStream = viewModel::playLiveNativeStream,
                         resolveToken = state.playerResolveToken,
                         useExternalChrome = true,
                         modifier = Modifier.fillMaxSize()
@@ -606,9 +606,13 @@ private fun ContinueWatchingSection(entries: List<ContinueWatchingEntry>, vm: En
 private fun ContinueWatchingCard(entry: ContinueWatchingEntry, vm: EnigmaViewModel, cardW: Int) {
     val accent = if (entry.type == ContentType.MOVIE) MovieAccent else TvAccent
     val badge = if (entry.type == ContentType.MOVIE) "MOVIE" else "TV"
+    val resumeTime = ResumeFormat.label(entry.positionMs)
     val subtitle = when {
-        entry.type == ContentType.TV -> "S${entry.season}E${entry.episode}"
-        entry.progressPercent > 0 -> "${entry.progressPercent}%"
+        entry.type == ContentType.TV -> buildString {
+            append("S${entry.season}E${entry.episode}")
+            resumeTime?.let { append(" · $it") }
+        }
+        resumeTime != null -> "Resume $resumeTime"
         else -> "Resume"
     }
     PosterCard(

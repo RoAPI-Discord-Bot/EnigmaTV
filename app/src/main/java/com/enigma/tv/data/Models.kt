@@ -61,6 +61,82 @@ data class CastMember(val id: Int, val name: String, val character: String?, @Se
 
 data class Credits(@SerializedName("cast") val cast: List<CastMember> = emptyList())
 
+data class VideoResults(
+    val results: List<MediaVideo> = emptyList()
+)
+
+data class MediaVideo(
+    val id: String = "",
+    val key: String = "",
+    val name: String = "",
+    val site: String = "",
+    val type: String = "",
+    val official: Boolean = false
+) {
+    val youtubeWatchUrl: String?
+        get() = if (site.equals("YouTube", ignoreCase = true) && key.isNotBlank()) {
+            "https://www.youtube.com/watch?v=$key"
+        } else null
+
+    val youtubeThumbnailUrl: String?
+        get() = if (key.isNotBlank()) "https://img.youtube.com/vi/$key/hqdefault.jpg" else null
+
+    val isTrailerLike: Boolean
+        get() = type.equals("Trailer", ignoreCase = true) ||
+            type.equals("Teaser", ignoreCase = true) ||
+            type.equals("Clip", ignoreCase = true)
+}
+
+fun VideoResults?.pickTrailers(): List<MediaVideo> =
+    this?.results
+        ?.filter { it.youtubeWatchUrl != null && it.isTrailerLike }
+        ?.sortedWith(compareByDescending<MediaVideo> { it.official }.thenBy { it.type != "Trailer" })
+        ?: emptyList()
+
+data class MediaTrailerUi(
+    val name: String,
+    val youtubeUrl: String,
+    val thumbnailUrl: String?,
+    val official: Boolean
+)
+
+data class MovieReleaseDates(val results: List<ReleaseDateCountry> = emptyList())
+
+data class ReleaseDateCountry(
+    @SerializedName("iso_3166_1") val iso31661: String,
+    @SerializedName("release_dates") val releaseDates: List<ReleaseDateEntry> = emptyList()
+)
+
+data class ReleaseDateEntry(
+    val certification: String? = null,
+    val type: Int = 0
+)
+
+data class TvContentRatings(val results: List<TvContentRatingEntry> = emptyList())
+
+data class TvContentRatingEntry(
+    @SerializedName("iso_3166_1") val iso31661: String,
+    val rating: String = ""
+)
+
+/** US MPAA / TV parental guidance label (PG-13, R, TV-14, TV-MA, …). */
+fun MovieReleaseDates?.usContentRating(): String? {
+    val us = this?.results?.find { it.iso31661.equals("US", ignoreCase = true) } ?: return null
+    val rated = us.releaseDates.mapNotNull { entry ->
+        entry.certification?.trim()?.takeIf { it.isNotEmpty() }
+    }
+    if (rated.isEmpty()) return null
+    val theatrical = us.releaseDates.find { it.type == 3 }?.certification?.trim()?.takeIf { it.isNotEmpty() }
+    return theatrical ?: rated.first()
+}
+
+fun TvContentRatings?.usContentRating(): String? =
+    this?.results
+        ?.find { it.iso31661.equals("US", ignoreCase = true) }
+        ?.rating
+        ?.trim()
+        ?.takeIf { it.isNotEmpty() }
+
 data class MovieDetailResponse(
     val id: Int,
     val title: String,
@@ -69,9 +145,12 @@ data class MovieDetailResponse(
     @SerializedName("backdrop_path") val backdropPath: String? = null,
     @SerializedName("release_date") val releaseDate: String? = null,
     @SerializedName("vote_average") val voteAverage: Double = 0.0,
+    @SerializedName("vote_count") val voteCount: Int = 0,
     val runtime: Int? = null,
     val genres: List<Genre> = emptyList(),
-    val credits: Credits? = null
+    val credits: Credits? = null,
+    val videos: VideoResults? = null,
+    @SerializedName("release_dates") val releaseDates: MovieReleaseDates? = null
 )
 
 data class TvShowDetail(
@@ -82,10 +161,13 @@ data class TvShowDetail(
     @SerializedName("backdrop_path") val backdropPath: String? = null,
     @SerializedName("first_air_date") val firstAirDate: String? = null,
     @SerializedName("vote_average") val voteAverage: Double = 0.0,
+    @SerializedName("vote_count") val voteCount: Int = 0,
     val seasons: List<TvSeason> = emptyList(),
     val genres: List<Genre> = emptyList(),
     val credits: Credits? = null,
-    @SerializedName("number_of_seasons") val numberOfSeasons: Int = 0
+    @SerializedName("number_of_seasons") val numberOfSeasons: Int = 0,
+    val videos: VideoResults? = null,
+    @SerializedName("content_ratings") val contentRatings: TvContentRatings? = null
 )
 
 data class TvSeason(
@@ -115,7 +197,9 @@ data class ContinueWatchingEntry(
     val season: Int = 1,
     val episode: Int = 1,
     val type: ContentType = ContentType.TV,
-    /** 0–100 for movies; TV uses season/episode */
+    /** Exact playback position in milliseconds (resume here in Exo). */
+    val positionMs: Long = 0,
+    /** Legacy field — ignored when [positionMs] > 0 */
     val progressPercent: Int = 0,
     val updatedAt: Long = System.currentTimeMillis()
 )
@@ -160,9 +244,13 @@ data class MediaDetailUi(
     val backdropUrl: String?,
     val metaLine: String,
     val releaseLabel: String?,
-    val ratingText: String,
+    val ratingScore: String,
+    val ratingVotes: String?,
+    /** US content rating: PG, PG-13, R, TV-PG, TV-14, TV-MA, etc. */
+    val contentRating: String? = null,
     val genresText: String,
     val cast: List<CastMember>,
+    val trailers: List<MediaTrailerUi> = emptyList(),
     val isPlayable: Boolean,
     val seasons: List<Int> = emptyList(),
     val episodes: List<TvEpisode> = emptyList(),

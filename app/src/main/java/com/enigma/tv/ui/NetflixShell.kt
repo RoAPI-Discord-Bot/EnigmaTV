@@ -104,12 +104,11 @@ private fun BottomNavEntry(
 
 @Composable
 fun ProfileNavIcon(profile: ViewerProfile?, modifier: Modifier = Modifier) {
-    val index = profile?.avatarIndex ?: 0
-    val color = profileAvatarColor(index)
     val context = LocalContext.current
     val imageModel = profile?.let {
-        remember(it.id, it.avatarBase64) {
+        remember(it.id, it.avatarBase64, it.avatarUri, it.avatarIndex) {
             ProfileImageStorage.avatarModel(it, context)
+                ?: ProfileAvatarPresets.imageUrl(it.avatarIndex)
         }
     }
     Box(
@@ -117,7 +116,7 @@ fun ProfileNavIcon(profile: ViewerProfile?, modifier: Modifier = Modifier) {
             .size(36.dp)
             .clip(CircleShape)
             .glassSurface(cornerRadius = 18.dp, accentBorder = true)
-            .background(color),
+            .background(Color.DarkGray),
         contentAlignment = Alignment.Center
     ) {
         if (imageModel != null) {
@@ -126,13 +125,6 @@ fun ProfileNavIcon(profile: ViewerProfile?, modifier: Modifier = Modifier) {
                 contentDescription = "Switch profile",
                 modifier = Modifier.fillMaxSize(),
                 contentScale = ContentScale.Crop
-            )
-        } else {
-            Icon(
-                profileAvatarIcon(index),
-                contentDescription = "Switch profile",
-                tint = Color.White,
-                modifier = Modifier.size(20.dp)
             )
         }
     }

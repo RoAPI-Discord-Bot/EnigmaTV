@@ -128,14 +128,22 @@ fun PlayerFullscreenHost(
                     verticalArrangement = Arrangement.Center
                 ) {
                     Text(
-                        "Stream didn't start",
+                        if (subtitle.contains("Live", ignoreCase = true)) {
+                            "Feed not available yet"
+                        } else {
+                            "Stream didn't start"
+                        },
                         color = TextPrimary,
                         fontSize = 20.sp,
                         fontWeight = FontWeight.Bold,
                         textAlign = TextAlign.Center
                     )
                     Text(
-                        "Try the next server — some feeds only work on certain mirrors.",
+                        if (subtitle.contains("Live", ignoreCase = true)) {
+                            "This game may not be on air yet, or this mirror is down. Try Next Server or check back closer to game time."
+                        } else {
+                            "Try the next server — some feeds only work on certain mirrors."
+                        },
                         color = TextSecondary,
                         fontSize = 14.sp,
                         textAlign = TextAlign.Center,

@@ -18,6 +18,10 @@ import com.enigma.tv.data.LiveTvTab
 import com.enigma.tv.data.LiveEmbedResolver
 import com.enigma.tv.data.StreamedRepository
 import com.enigma.tv.data.MediaDetailUi
+import com.enigma.tv.data.MediaTrailerUi
+import com.enigma.tv.data.VideoResults
+import com.enigma.tv.data.pickTrailers
+import com.enigma.tv.data.usContentRating
 import com.enigma.tv.data.MovieItem
 import com.enigma.tv.data.Playlist
 import com.enigma.tv.data.PlaylistStore
@@ -89,7 +93,7 @@ data class EnigmaUiState(
     val playerAccentMovie: Boolean = true,
     val playerLiveTv: Boolean = false,
     val playerStreamFailed: Boolean = false,
-    val playbackProgressPercent: Int = 0,
+    val playbackPositionMs: Long = 0L,
     val sourceIndex: Int = 0,
     val sourceLabel: String = "",
     val playingType: ContentType? = null,
@@ -323,7 +327,11 @@ class EnigmaViewModel(application: Application) : AndroidViewModel(application) 
 
     fun setProfileAvatarIndex(profileId: String, index: Int) {
         viewModelScope.launch {
-            profileStore.setProfileAvatarIndex(profileId, index)
+            profileStore.setProfileAvatarIndex(
+                profileId,
+                index,
+                ProfileAvatarPresets.imageUrl(index)
+            )
             syncProfilesImmediately()
         }
     }
@@ -342,15 +350,19 @@ class EnigmaViewModel(application: Application) : AndroidViewModel(application) 
                 return@launch
             }
             val imgurUrl = ImgurUploadService.uploadBase64Jpeg(base64)
+            val cloudUrl = imgurUrl?.takeIf { it.startsWith("http", ignoreCase = true) }
             profileStore.setProfileAvatarData(
                 profileId,
-                avatarUri = imgurUrl ?: uri,
-                avatarBase64 = if (imgurUrl != null) null else base64
+                avatarUri = cloudUrl ?: uri,
+                avatarBase64 = if (cloudUrl != null) null else base64
             )
-            if (imgurUrl == null) {
-                _state.update {
-                    it.copy(profileMessage = "Photo saved locally; Imgur upload failed — using device copy")
-                }
+            _state.update {
+                it.copy(
+                    profileMessage = when {
+                        cloudUrl != null -> "Photo uploaded — syncing to cloud"
+                        else -> "Photo saved on device; Imgur upload failed"
+                    }
+                )
             }
             syncProfilesImmediately()
         }
@@ -472,6 +484,7 @@ class EnigmaViewModel(application: Application) : AndroidViewModel(application) 
     private suspend fun buildMovieDetail(id: Int, isFavorite: Boolean): MediaDetailUi {
         val d = repo.movieDetail(id)
         val movie = MovieItem(id, d.title, d.posterPath, d.backdropPath, d.releaseDate, d.voteAverage, d.overview)
+        val rating = formatRating(d.voteAverage, d.voteCount)
         return MediaDetailUi(
             type = ContentType.MOVIE,
             id = id,
@@ -479,11 +492,14 @@ class EnigmaViewModel(application: Application) : AndroidViewModel(application) 
             overview = d.overview.orEmpty(),
             posterUrl = movie.posterUrl,
             backdropUrl = movie.backdropUrl,
-            metaLine = "★ ${"%.1f".format(d.voteAverage)} · ${formatRuntime(d.runtime) ?: "Movie"}",
+            metaLine = buildMetaLine(d.voteAverage, formatRuntime(d.runtime) ?: "Movie", movie.year),
             releaseLabel = movie.comingSoonLabel(),
-            ratingText = "${d.voteAverage}",
+            ratingScore = rating.first,
+            ratingVotes = rating.second,
+            contentRating = d.releaseDates.usContentRating(),
             genresText = d.genres.joinToString(" · ") { it.name },
             cast = d.credits?.cast?.take(15) ?: emptyList(),
+            trailers = mapTrailers(d.videos),
             isPlayable = movie.canStream(),
             isFavorite = isFavorite
         )
@@ -495,6 +511,7 @@ class EnigmaViewModel(application: Application) : AndroidViewModel(application) 
         val seasons = d.seasons.filter { it.seasonNumber > 0 }.map { it.seasonNumber }.ifEmpty { listOf(1) }
         val season = seasons.first()
         val eps = runCatching { repo.tvSeason(id, season) }.getOrDefault(emptyList())
+        val rating = formatRating(d.voteAverage, d.voteCount)
         return MediaDetailUi(
             type = ContentType.TV,
             id = id,
@@ -502,11 +519,14 @@ class EnigmaViewModel(application: Application) : AndroidViewModel(application) 
             overview = d.overview.orEmpty(),
             posterUrl = show.posterUrl,
             backdropUrl = show.backdropUrl,
-            metaLine = "★ ${"%.1f".format(d.voteAverage)} · ${d.numberOfSeasons} seasons",
+            metaLine = buildMetaLine(d.voteAverage, "${d.numberOfSeasons} seasons", show.year),
             releaseLabel = show.comingSoonLabel(),
-            ratingText = "${d.voteAverage}",
+            ratingScore = rating.first,
+            ratingVotes = rating.second,
+            contentRating = d.contentRatings.usContentRating(),
             genresText = d.genres.joinToString(" · ") { it.name },
             cast = d.credits?.cast?.take(15) ?: emptyList(),
+            trailers = mapTrailers(d.videos),
             isPlayable = show.canStream(),
             seasons = seasons,
             episodes = eps,
@@ -515,6 +535,38 @@ class EnigmaViewModel(application: Application) : AndroidViewModel(application) 
             isFavorite = isFavorite
         )
     }
+
+    private fun formatRating(voteAverage: Double, voteCount: Int): Pair<String, String?> {
+        val score = if (voteAverage > 0) String.format("%.1f", voteAverage) else "—"
+        val votes = if (voteCount > 0) {
+            when {
+                voteCount >= 1_000_000 -> String.format("%.1fM ratings", voteCount / 1_000_000.0)
+                voteCount >= 1_000 -> String.format("%,d ratings", voteCount)
+                else -> "$voteCount ratings"
+            }
+        } else null
+        return score to votes
+    }
+
+    private fun buildMetaLine(voteAverage: Double, extra: String, year: String): String {
+        val star = if (voteAverage > 0) "★ ${"%.1f".format(voteAverage)}" else ""
+        return listOf(star, year.takeIf { it.isNotBlank() && it != "?" }, extra)
+            .filter { it.isNotNullOrBlank() }
+            .joinToString(" · ")
+    }
+
+    private fun String?.isNotNullOrBlank() = !isNullOrBlank()
+
+    private fun mapTrailers(videos: VideoResults?): List<MediaTrailerUi> =
+        videos.pickTrailers().mapNotNull { video ->
+            val url = video.youtubeWatchUrl ?: return@mapNotNull null
+            MediaTrailerUi(
+                name = video.name,
+                youtubeUrl = url,
+                thumbnailUrl = video.youtubeThumbnailUrl,
+                official = video.official
+            )
+        }
 
     fun closeDetail() = _state.update { it.copy(showDetail = false, detail = null) }
 
@@ -589,7 +641,7 @@ class EnigmaViewModel(application: Application) : AndroidViewModel(application) 
         }
     }
 
-    fun playMovie(movie: MovieItem, posterOverride: String? = null) {
+    fun playMovie(movie: MovieItem, posterOverride: String? = null, startPositionMs: Long = 0L) {
         val poster = posterOverride?.takeIf { it.isNotBlank() } ?: movie.posterUrl
         val (name, url) = StreamSources.movieUrl(0, movie.id)
         _state.update {
@@ -607,6 +659,7 @@ class EnigmaViewModel(application: Application) : AndroidViewModel(application) 
                 currentMovieId = movie.id,
                 currentShowId = null,
                 sourceIndex = 0,
+                playbackPositionMs = startPositionMs.coerceAtLeast(0L),
                 sourceLabel = "Enigma Player · $name (1/${StreamSources.movieSources.size})"
             )
         }
@@ -804,8 +857,18 @@ class EnigmaViewModel(application: Application) : AndroidViewModel(application) 
 
     fun resumeContinue(entry: ContinueWatchingEntry) {
         when (entry.type) {
-            ContentType.MOVIE -> playMovie(MovieItem(entry.id, entry.name), entry.poster)
-            ContentType.TV -> selectShow(entry.id, entry.name, entry.season, entry.episode)
+            ContentType.MOVIE -> playMovie(
+                MovieItem(entry.id, entry.name),
+                entry.poster,
+                startPositionMs = entry.positionMs
+            )
+            ContentType.TV -> selectShow(
+                entry.id,
+                entry.name,
+                resumeSeason = entry.season,
+                resumeEpisode = entry.episode,
+                startPositionMs = entry.positionMs
+            )
         }
     }
 
@@ -846,7 +909,13 @@ class EnigmaViewModel(application: Application) : AndroidViewModel(application) 
         }
     }
 
-    fun selectShow(id: Int, name: String, resumeSeason: Int? = null, resumeEpisode: Int? = null) {
+    fun selectShow(
+        id: Int,
+        name: String,
+        resumeSeason: Int? = null,
+        resumeEpisode: Int? = null,
+        startPositionMs: Long = 0L
+    ) {
         viewModelScope.launch {
             val startSeason = resumeSeason ?: 1
             val startEpisode = resumeEpisode ?: 1
@@ -864,7 +933,8 @@ class EnigmaViewModel(application: Application) : AndroidViewModel(application) 
                     currentMovieId = null,
                     sourceIndex = 0,
                     selectedSeason = startSeason,
-                    selectedEpisode = startEpisode
+                    selectedEpisode = startEpisode,
+                    playbackPositionMs = startPositionMs.coerceAtLeast(0L)
                 )
             }
             try {
@@ -975,10 +1045,10 @@ class EnigmaViewModel(application: Application) : AndroidViewModel(application) 
         }
     }
 
-    fun onPlaybackProgress(percent: Int) {
-        val pct = percent.coerceIn(0, 100)
-        _state.update { it.copy(playbackProgressPercent = pct) }
-        if (pct >= 1) schedulePersistContinueWatching()
+    fun onPlaybackPositionMs(positionMs: Long) {
+        val ms = positionMs.coerceAtLeast(0L)
+        _state.update { it.copy(playbackPositionMs = ms) }
+        if (ms >= 2_000L) schedulePersistContinueWatching()
     }
 
     fun onEpisodeFinished() {
@@ -1002,7 +1072,7 @@ class EnigmaViewModel(application: Application) : AndroidViewModel(application) 
                         season = 0,
                         episode = 0,
                         type = ContentType.MOVIE,
-                        progressPercent = s.playbackProgressPercent
+                        positionMs = s.playbackPositionMs
                     )
                 )
             }
@@ -1017,7 +1087,7 @@ class EnigmaViewModel(application: Application) : AndroidViewModel(application) 
                         season = s.selectedSeason,
                         episode = s.selectedEpisode,
                         type = ContentType.TV,
-                        progressPercent = s.playbackProgressPercent
+                        positionMs = s.playbackPositionMs
                     )
                 )
             }
@@ -1100,7 +1170,7 @@ class EnigmaViewModel(application: Application) : AndroidViewModel(application) 
                 playerResolveToken = 0,
                 playerLoading = false,
                 playerStreamFailed = false,
-                playbackProgressPercent = 0,
+                playbackPositionMs = 0L,
                 playingType = null,
                 playerLiveTv = false,
                 playerHls = false

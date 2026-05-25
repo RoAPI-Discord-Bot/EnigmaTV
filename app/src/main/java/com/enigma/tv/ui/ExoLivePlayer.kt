@@ -69,7 +69,8 @@ fun ExoLivePlayer(
     tvControls: TvPlayerControls? = null,
     useExternalChrome: Boolean = false,
     onPlaybackEnded: (() -> Unit)? = null,
-    onPlaybackProgress: ((Int) -> Unit)? = null,
+    onPlaybackPositionMs: ((Long) -> Unit)? = null,
+    startPositionMs: Long = 0L,
     modifier: Modifier = Modifier.fillMaxSize()
 ) {
     if (!visible) return
@@ -101,6 +102,7 @@ fun ExoLivePlayer(
     var errorMessage by remember { mutableStateOf<String?>(null) }
     var hasTextTracks by remember { mutableStateOf(false) }
     var hasReachedReady by remember(playUrl, playToken) { mutableStateOf(false) }
+    var didSeekToResume by remember(playUrl, playToken, startPositionMs) { mutableStateOf(false) }
 
     val sidecarSubtitle = remember(playUrl, playToken, resolved.subtitleUrl) {
         resolved.subtitleUrl?.takeIf { StreamResolver.isValidSubtitleUrl(it) }
@@ -123,6 +125,7 @@ fun ExoLivePlayer(
     DisposableEffect(playUrl, playToken, effectiveHeaders, sidecarSubtitle) {
         errorMessage = null
         hasReachedReady = false
+        didSeekToResume = false
         onLoadingChange(true)
         var prepared = false
         val loadTimeoutJob = scope.launch {
@@ -196,6 +199,10 @@ fun ExoLivePlayer(
                         hasReachedReady = true
                         onLoadingChange(false)
                         errorMessage = null
+                        if (!isLiveBroadcast && !didSeekToResume && startPositionMs > 0L) {
+                            player.seekTo(startPositionMs)
+                            didSeekToResume = true
+                        }
                     }
                     Player.STATE_BUFFERING -> {
                         if (!hasReachedReady) onLoadingChange(true)
@@ -214,12 +221,8 @@ fun ExoLivePlayer(
             }
 
             override fun onIsPlayingChanged(isPlaying: Boolean) {
-                if (!isPlaying && hasReachedReady && !isLiveBroadcast && onPlaybackProgress != null) {
-                    val dur = player.duration
-                    if (dur > 0) {
-                        val pct = ((player.currentPosition * 100) / dur).toInt().coerceIn(0, 100)
-                        onPlaybackProgress(pct)
-                    }
+                if (!isPlaying && hasReachedReady && !isLiveBroadcast) {
+                    onPlaybackPositionMs?.invoke(player.currentPosition.coerceAtLeast(0L))
                 }
             }
 
@@ -234,25 +237,19 @@ fun ExoLivePlayer(
             }
         }
         player.addListener(listener)
-        val progressJob = if (!isLiveBroadcast && onPlaybackProgress != null) {
+        val progressJob = if (!isLiveBroadcast && onPlaybackPositionMs != null) {
             scope.launch {
                 while (isActive) {
-                    delay(12_000)
-                    val dur = player.duration
-                    if (dur > 0) {
-                        val pct = ((player.currentPosition * 100) / dur).toInt().coerceIn(0, 100)
-                        onPlaybackProgress(pct)
+                    delay(5_000)
+                    if (player.isPlaying || player.currentPosition > 0L) {
+                        onPlaybackPositionMs(player.currentPosition.coerceAtLeast(0L))
                     }
                 }
             }
         } else null
         onDispose {
-            if (!isLiveBroadcast && onPlaybackProgress != null) {
-                val dur = player.duration
-                if (dur > 0) {
-                    val pct = ((player.currentPosition * 100) / dur).toInt().coerceIn(0, 100)
-                    onPlaybackProgress(pct)
-                }
+            if (!isLiveBroadcast) {
+                onPlaybackPositionMs?.invoke(player.currentPosition.coerceAtLeast(0L))
             }
             loadTimeoutJob.cancel()
             progressJob?.cancel()

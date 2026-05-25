@@ -64,7 +64,7 @@ class ProfileStore(private val context: Context) {
             created = ViewerProfile(
                 id = UUID.randomUUID().toString(),
                 name = trimmed,
-                avatarIndex = current.size % 8
+                avatarIndex = current.size % ProfileConstants.AVATAR_PRESET_COUNT
             )
             current.add(created)
             prefs[profilesKey] = gson.toJson(current.take(6))
@@ -101,11 +101,15 @@ class ProfileStore(private val context: Context) {
         }
     }
 
-    suspend fun setProfileAvatarIndex(id: String, index: Int) {
+    suspend fun setProfileAvatarIndex(id: String, index: Int, presetImageUrl: String) {
         context.profileDataStore.edit { prefs ->
             val current = readProfiles(prefs[profilesKey]).map { p ->
                 if (p.id == id) {
-                    p.copy(avatarIndex = index.mod(8), avatarUri = null, avatarBase64 = null)
+                    p.copy(
+                        avatarIndex = index.mod(ProfileConstants.AVATAR_PRESET_COUNT),
+                        avatarUri = presetImageUrl,
+                        avatarBase64 = null
+                    )
                 } else p
             }
             prefs[profilesKey] = gson.toJson(current)
@@ -134,7 +138,13 @@ class ProfileStore(private val context: Context) {
                     avatarBase64 = localP.avatarBase64,
                     avatarUri = localP.avatarUri ?: remote.avatarUri
                 )
-                else -> remote.copy(name = remote.name.ifBlank { localP.name })
+                else -> remote.copy(
+                    name = remote.name.ifBlank { localP.name },
+                    avatarUri = remote.avatarUri?.takeIf { it.isNotBlank() }
+                        ?: localP.avatarUri,
+                    avatarBase64 = remote.avatarBase64?.takeIf { it.isNotBlank() }
+                        ?: localP.avatarBase64
+                )
             }
         }
         context.profileDataStore.edit { prefs ->

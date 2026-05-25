@@ -31,7 +31,7 @@ fun EnigmaLivePlayer(
     onLoadingChange: (Boolean) -> Unit,
     onStreamFailed: () -> Unit,
     onPlaybackReady: () -> Unit,
-    onNativeStream: (String) -> Unit,
+    onNativeStream: ((String) -> Unit)? = null,
     resolveToken: Int = 0,
     useExternalChrome: Boolean = true,
     modifier: Modifier = Modifier.fillMaxSize()
@@ -63,7 +63,7 @@ fun EnigmaLivePlayer(
             onPlaybackReady = onPlaybackReady,
             liveTv = true,
             useExternalChrome = useExternalChrome,
-            onStreamCaptured = onNativeStream,
+            onStreamCaptured = null,
             modifier = Modifier.fillMaxSize()
         )
     }

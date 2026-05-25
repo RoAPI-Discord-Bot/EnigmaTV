@@ -44,7 +44,7 @@ fun WebViewPlayer(
     onStreamFailed: (() -> Unit)? = null,
     onPlaybackReady: (() -> Unit)? = null,
     onPlaybackEnded: (() -> Unit)? = null,
-    onPlaybackProgress: ((Int) -> Unit)? = null,
+    onPlaybackProgress: ((Long) -> Unit)? = null,
     modifier: Modifier = Modifier.fillMaxSize()
 ) {
     if (!visible) return

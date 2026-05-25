@@ -25,7 +25,7 @@ class WebViewNavigationGuard(initialUrl: String) {
     var onPageLoading: ((Boolean) -> Unit)? = null
     var onStreamUrl: ((String) -> Unit)? = null
     var onPlaybackProbe: ((Boolean) -> Unit)? = null
-    var onPlaybackProgress: ((Int) -> Unit)? = null
+    var onPlaybackProgress: ((Long) -> Unit)? = null
     var onPlaybackEnded: (() -> Unit)? = null
 
     init {
@@ -232,10 +232,9 @@ class WebViewNavigationGuard(initialUrl: String) {
             (function(){
               try {
                 var v = document.querySelector('video');
-                if (!v || !v.duration || v.duration < 30) return '0';
-                var pct = Math.round((v.currentTime / v.duration) * 100);
-                if (pct >= 92 && v.currentTime > 10) return 'ended';
-                return String(Math.min(100, Math.max(0, pct)));
+                if (!v) return '0';
+                if (v.duration && v.duration >= 30 && v.currentTime >= v.duration - 8) return 'ended';
+                return String(Math.max(0, Math.floor(v.currentTime * 1000)));
               } catch(e) { return '0'; }
             })();
             """.trimIndent()
@@ -244,7 +243,7 @@ class WebViewNavigationGuard(initialUrl: String) {
             android.os.Handler(android.os.Looper.getMainLooper()).post {
                 when (v) {
                     "ended" -> onPlaybackEnded?.invoke()
-                    else -> v.toIntOrNull()?.takeIf { it > 0 }?.let { onPlaybackProgress?.invoke(it) }
+                    else -> v.toLongOrNull()?.takeIf { it > 0L }?.let { onPlaybackProgress?.invoke(it) }
                 }
             }
         }

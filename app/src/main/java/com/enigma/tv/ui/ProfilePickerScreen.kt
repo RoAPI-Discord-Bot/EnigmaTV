@@ -89,7 +89,10 @@ fun ProfilePickerGate(
 
     val photoPicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
         val profile = editingProfile ?: return@rememberLauncherForActivityResult
-        if (uri != null) onSetAvatarUri(profile.id, uri.toString())
+        if (uri != null) {
+            onSetAvatarUri(profile.id, uri.toString())
+            editingProfile = profile.copy(avatarUri = uri.toString())
+        }
     }
 
     AppAmbientBackground(Modifier.fillMaxSize()) {
@@ -105,7 +108,9 @@ fun ProfilePickerGate(
                 painter = painterResource(R.drawable.enigma_mark),
                 contentDescription = ENIGMA_TV_BRAND,
                 contentScale = ContentScale.Fit,
-                modifier = Modifier.size(if (layout == ScreenLayout.TV) 72.dp else 56.dp)
+                modifier = Modifier
+                    .size(if (layout == ScreenLayout.TV) 64.dp else 52.dp)
+                    .padding(6.dp)
             )
             Spacer(Modifier.height(10.dp))
             Text(
@@ -228,34 +233,15 @@ fun ProfilePickerGate(
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth()
                     )
-                    Text("Avatar", color = TextSecondary, fontSize = 13.sp)
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        (0 until 8).forEach { index ->
-                            val color = profileAvatarColor(index)
-                            Box(
-                                modifier = Modifier
-                                    .size(40.dp)
-                                    .clip(CircleShape)
-                                    .background(color)
-                                    .then(
-                                        if (editAvatarIndex == index) Modifier.border(2.dp, EnigmaPink, CircleShape)
-                                        else Modifier
-                                    )
-                                    .clickable {
-                                        editAvatarIndex = index
-                                        onSetAvatarIndex(profile.id, index)
-                                    },
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Icon(
-                                    profileAvatarIcon(index),
-                                    contentDescription = null,
-                                    tint = Color.White,
-                                    modifier = Modifier.size(20.dp)
-                                )
-                            }
-                        }
-                    }
+                    Text("Pick a character", color = TextSecondary, fontSize = 13.sp)
+                    ProfilePresetPickerGrid(
+                        selectedIndex = editAvatarIndex,
+                        onSelect = { index ->
+                            editAvatarIndex = index
+                            onSetAvatarIndex(profile.id, index)
+                        },
+                        modifier = Modifier.fillMaxWidth()
+                    )
                     TextButton(
                         onClick = { photoPicker.launch("image/*") },
                         modifier = Modifier.fillMaxWidth()
