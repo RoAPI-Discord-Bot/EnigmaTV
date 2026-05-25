@@ -13,8 +13,8 @@ android {
         applicationId = "com.enigmatv"
         minSdk = 26
         targetSdk = 35
-        versionCode = 19
-        versionName = "2.13.3"
+        versionCode = 20
+        versionName = "2.14.0"
     }
 
     buildTypes {

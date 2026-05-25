@@ -809,6 +809,7 @@ class EnigmaViewModel(application: Application) : AndroidViewModel(application) 
 
     private fun playLiveEmbed(title: String, embedUrl: String, label: String, pickerIndex: Int? = null) {
         val idx = pickerIndex ?: _state.value.sourceIndex
+        val immediateUrl = StreamedRepository.normalizeStreamEmbed(embedUrl)
         _state.update {
             it.copy(
                 playerVisible = true,
@@ -817,6 +818,7 @@ class EnigmaViewModel(application: Application) : AndroidViewModel(application) 
                 playerLoading = true,
                 playerStreamFailed = false,
                 playerTitle = title,
+                playerUrl = immediateUrl,
                 playerAccentMovie = false,
                 playingType = null,
                 sourceLabel = "Live · $label (${idx + 1}/${it.liveStreamPicker.size.coerceAtLeast(1)})",
@@ -836,9 +838,16 @@ class EnigmaViewModel(application: Application) : AndroidViewModel(application) 
                 else -> candidates.firstOrNull { url ->
                     url.startsWith("http", ignoreCase = true) &&
                         !LiveEmbedResolver.isUnplayableUrl(url)
-                } ?: StreamedRepository.normalizeStreamEmbed(embedUrl)
+                } ?: immediateUrl
             }
-            _state.update { it.copy(playerUrl = webEmbed) }
+            if (webEmbed != _state.value.playerUrl) {
+                _state.update {
+                    it.copy(
+                        playerUrl = webEmbed,
+                        playerResolveToken = it.playerResolveToken + 1
+                    )
+                }
+            }
         }
     }
 
@@ -1113,7 +1122,25 @@ class EnigmaViewModel(application: Application) : AndroidViewModel(application) 
             }
             else -> return
         }
-        syncIfLoggedIn()
+        syncActiveProfileLibrary()
+    }
+
+    private fun syncActiveProfileLibrary() {
+        if (!_state.value.isLoggedIn) return
+        viewModelScope.launch {
+            val s = _state.value
+            val profileId = activeProfileId()
+            val profile = s.profiles.find { it.id == profileId }
+            syncService.pushProfileData(
+                profileId = profileId,
+                displayName = profile?.name ?: "Profile",
+                email = s.userEmail,
+                favorites = favoritesStore.readOnce(profileId),
+                continueWatching = cwStore.readOnce(profileId),
+                playlists = playlistStore.readOnce(profileId)
+            )
+            scheduleCloudSync()
+        }
     }
 
     fun nextSource() {
@@ -1307,11 +1334,27 @@ class EnigmaViewModel(application: Application) : AndroidViewModel(application) 
         profileStore.importFromCloud(account.profiles, account.activeProfileId)
         restoreProfileAvatarsFromCloud(account.profiles)
 
-        for ((profileId, cloud) in account.profileData) {
-            if (cloud.favorites.isNotEmpty()) favoritesStore.replaceAll(profileId, cloud.favorites)
-            if (cloud.continueWatching.isNotEmpty()) cwStore.replaceAll(profileId, cloud.continueWatching)
-            if (cloud.playlists.isNotEmpty()) playlistStore.replaceAll(profileId, cloud.playlists)
+        val profileIds = (account.profileData.keys + profileStore.snapshot().first.map { it.id }).toSet()
+        for (profileId in profileIds) {
+            val cloud = account.profileData[profileId]
+            val localFavs = favoritesStore.readOnce(profileId)
+            val localCw = cwStore.readOnce(profileId)
+            val localLists = playlistStore.readOnce(profileId)
+            favoritesStore.replaceAll(
+                profileId,
+                mergeFavorites(localFavs, cloud?.favorites.orEmpty())
+            )
+            cwStore.replaceAll(
+                profileId,
+                mergeContinueWatching(localCw, cloud?.continueWatching.orEmpty())
+            )
+            playlistStore.replaceAll(
+                profileId,
+                mergePlaylists(localLists, cloud?.playlists.orEmpty())
+            )
         }
+
+        syncIfLoggedIn()
 
         val activeCloud = account.profileData[account.activeProfileId]
         _state.update {
@@ -1321,5 +1364,31 @@ class EnigmaViewModel(application: Application) : AndroidViewModel(application) 
                     ?: it.userDisplayName
             )
         }
+    }
+
+    private fun mergeContinueWatching(
+        local: List<ContinueWatchingEntry>,
+        remote: List<ContinueWatchingEntry>
+    ): List<ContinueWatchingEntry> {
+        if (remote.isEmpty()) return local
+        if (local.isEmpty()) return remote.take(12)
+        return (local + remote)
+            .groupBy { "${it.type}_${it.id}" }
+            .map { (_, entries) -> entries.maxBy { it.updatedAt } }
+            .sortedByDescending { it.updatedAt }
+            .take(12)
+    }
+
+    private fun mergeFavorites(local: List<FavoriteItem>, remote: List<FavoriteItem>): List<FavoriteItem> {
+        if (remote.isEmpty()) return local
+        if (local.isEmpty()) return remote
+        return (local + remote)
+            .distinctBy { "${it.type}_${it.id}" }
+    }
+
+    private fun mergePlaylists(local: List<Playlist>, remote: List<Playlist>): List<Playlist> {
+        if (remote.isEmpty()) return local
+        if (local.isEmpty()) return remote
+        return (local + remote).distinctBy { it.id }
     }
 }

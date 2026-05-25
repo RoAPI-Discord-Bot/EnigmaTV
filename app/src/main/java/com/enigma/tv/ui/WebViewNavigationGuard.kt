@@ -164,17 +164,8 @@ class WebViewNavigationGuard(initialUrl: String) {
                 view: WebView,
                 request: WebResourceRequest
             ): WebResourceResponse? {
+                if (request.isForMainFrame) return null
                 val url = request.url.toString()
-                if (request.isForMainFrame) {
-                    val mime = request.requestHeaders["Content-Type"]
-                        ?: request.requestHeaders["content-type"]
-                    if (mime?.contains("json", ignoreCase = true) == true ||
-                        looksLikeStreamApi(url)
-                    ) {
-                        return emptyResponse()
-                    }
-                    return null
-                }
                 captureStreamUrl(url)
                 return if (shouldBlockSubresource(url)) emptyResponse() else null
             }

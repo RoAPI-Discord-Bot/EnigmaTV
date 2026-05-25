@@ -148,6 +148,8 @@ fun EnigmaMediaPlayer(
                         onClose = onClose,
                         onNextSource = onNextSource,
                         onLoadingChange = onLoadingChange,
+                        onPlaybackReady = { onLoadingChange(false) },
+                        onStreamFailed = { onLoadingChange(false) },
                         tvControls = null,
                         liveTv = false,
                         useExternalChrome = true,

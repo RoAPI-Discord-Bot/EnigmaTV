@@ -44,7 +44,6 @@ fun EnigmaLivePlayer(
 
     LaunchedEffect(embedUrl, resolveToken) {
         playUrl = embedUrl
-        onLoadingChange(true)
     }
 
     Box(modifier.background(BgDark)) {
