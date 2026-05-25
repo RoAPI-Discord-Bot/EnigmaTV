@@ -96,11 +96,6 @@ fun ExoLivePlayer(
     val playUrl = resolved.url
     val playbackHeaders = resolved.playbackHeaders()
     val syncChrome = LocalPlayerChromeSync.current
-
-    LaunchedEffect(useExternalChrome) {
-        if (useExternalChrome) syncChrome(true)
-    }
-
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     var playToken by remember { mutableIntStateOf(0) }
@@ -109,11 +104,19 @@ fun ExoLivePlayer(
     var subtitleUrl by remember(playUrl, playToken) { mutableStateOf<String?>(null) }
     var hasTextTracks by remember { mutableStateOf(false) }
 
-    LaunchedEffect(playUrl, playToken, resolved.subtitleUrl) {
-        val fromResolved = resolved.subtitleUrl?.takeIf { StreamResolver.isValidSubtitleUrl(it) }
-        subtitleUrl = fromResolved ?: withContext(Dispatchers.IO) {
-            StreamResolver.resolveSubtitlesForStream(playUrl, resolved.referer.ifBlank { playUrl })
-        }?.takeIf { StreamResolver.isValidSubtitleUrl(it) }
+    DisposableEffect(useExternalChrome) {
+        if (useExternalChrome) syncChrome(true)
+        onDispose { }
+    }
+
+    DisposableEffect(playUrl, playToken, resolved.subtitleUrl) {
+        val job = scope.launch {
+            val fromResolved = resolved.subtitleUrl?.takeIf { StreamResolver.isValidSubtitleUrl(it) }
+            subtitleUrl = fromResolved ?: withContext(Dispatchers.IO) {
+                StreamResolver.resolveSubtitlesForStream(playUrl, resolved.referer.ifBlank { playUrl })
+            }?.takeIf { StreamResolver.isValidSubtitleUrl(it) }
+        }
+        onDispose { job.cancel() }
     }
 
     val player = remember(playUrl, playToken) {
