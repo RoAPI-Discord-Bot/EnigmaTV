@@ -65,9 +65,10 @@ fun WebViewPlayer(
         guard.onStreamUrl = onStreamCaptured
         guard.onBlocked = { /* silent */ }
         guard.onPageLoading = { loading ->
-            if (loading && liveTv && !pageLoading) return
-            pageLoading = loading
-            onLoadingChange(loading)
+            if (!(loading && liveTv && !pageLoading)) {
+                pageLoading = loading
+                onLoadingChange(loading)
+            }
         }
         guard.onPlaybackProbe = { ok ->
             if (ok) {
