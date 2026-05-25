@@ -121,6 +121,7 @@ fun EnigmaShell(viewModel: EnigmaViewModel = viewModel()) {
         return
     }
 
+    val bootstrapLoading = state.contentLoading && state.homeRows.isEmpty()
     val activeProfile = state.profiles.find { it.id == state.activeProfileId }
     val useBottomNav = !layout.usePermanentDrawer()
 
@@ -138,14 +139,6 @@ fun EnigmaShell(viewModel: EnigmaViewModel = viewModel()) {
 
     val bodyContent: @Composable () -> Unit = {
         Box(Modifier.fillMaxSize()) {
-            val initialLoading = state.contentLoading && state.homeRows.isEmpty() && state.section == NavSection.HOME
-            if (initialLoading) {
-                EnigmaLoadingRing(
-                    modifier = Modifier.fillMaxSize(),
-                    message = "LOADING",
-                    fullscreen = true
-                )
-            }
             Column(Modifier.fillMaxSize()) {
                 EnigmaHeader(
                     sectionLabel = if (state.section == NavSection.HOME) null else state.section.title,
@@ -163,7 +156,7 @@ fun EnigmaShell(viewModel: EnigmaViewModel = viewModel()) {
                 )
 
                 when {
-                    state.contentLoading && !initialLoading -> EnigmaLoadingRing(
+                    state.contentLoading && !bootstrapLoading -> EnigmaLoadingRing(
                         modifier = Modifier.fillMaxWidth().height(320.dp),
                         message = "LOADING"
                     )
@@ -302,40 +295,49 @@ fun EnigmaShell(viewModel: EnigmaViewModel = viewModel()) {
         }
     }
 
-    if (layout.usePermanentDrawer()) {
-        PermanentNavigationDrawer(
-            drawerContent = {
-                PermanentDrawerSheet(
-                    drawerContainerColor = BgSidebar,
-                    modifier = Modifier.width(layout.drawerWidthDp().dp)
-                ) { drawerContent() }
-            },
-            content = { bodyContent() }
-        )
-    } else if (useBottomNav) {
-        Scaffold(
-            containerColor = BgDark,
-            bottomBar = {
-                NetflixBottomBar(
-                    current = state.section,
-                    onSelect = { viewModel.setSection(it) }
-                )
-            },
-            content = { padding ->
-                Box(Modifier.padding(padding)) { bodyContent() }
-            }
-        )
-    } else {
-        ModalNavigationDrawer(
-            drawerState = drawerState,
-            drawerContent = {
-                ModalDrawerSheet(
-                    drawerContainerColor = BgSidebar,
-                    modifier = Modifier.width(layout.drawerWidthDp().dp)
-                ) { drawerContent() }
-            },
-            content = { bodyContent() }
-        )
+    Box(Modifier.fillMaxSize()) {
+        if (layout.usePermanentDrawer()) {
+            PermanentNavigationDrawer(
+                drawerContent = {
+                    PermanentDrawerSheet(
+                        drawerContainerColor = BgSidebar,
+                        modifier = Modifier.width(layout.drawerWidthDp().dp)
+                    ) { drawerContent() }
+                },
+                content = { bodyContent() }
+            )
+        } else if (useBottomNav) {
+            Scaffold(
+                containerColor = BgDark,
+                bottomBar = {
+                    NetflixBottomBar(
+                        current = state.section,
+                        onSelect = { viewModel.setSection(it) }
+                    )
+                },
+                content = { padding ->
+                    Box(Modifier.padding(padding)) { bodyContent() }
+                }
+            )
+        } else {
+            ModalNavigationDrawer(
+                drawerState = drawerState,
+                drawerContent = {
+                    ModalDrawerSheet(
+                        drawerContainerColor = BgSidebar,
+                        modifier = Modifier.width(layout.drawerWidthDp().dp)
+                    ) { drawerContent() }
+                },
+                content = { bodyContent() }
+            )
+        }
+        if (bootstrapLoading) {
+            EnigmaLoadingRing(
+                modifier = Modifier.fillMaxSize(),
+                message = "LOADING",
+                fullscreen = true
+            )
+        }
     }
 }
 

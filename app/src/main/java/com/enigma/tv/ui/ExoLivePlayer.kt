@@ -58,6 +58,17 @@ fun ExoLivePlayer(
 
     BackHandler { onClose() }
 
+    if (streamUrl.isBlank()) {
+        Box(Modifier.fillMaxSize().background(BgDark)) {
+            EnigmaLoadingRing(
+                modifier = Modifier.fillMaxSize(),
+                message = "LOADING STREAM",
+                fullscreen = true
+            )
+        }
+        return
+    }
+
     val context = LocalContext.current
     var playToken by remember { mutableIntStateOf(0) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
@@ -71,19 +82,33 @@ fun ExoLivePlayer(
     DisposableEffect(streamUrl, playToken) {
         errorMessage = null
         onLoadingChange(true)
+        var prepared = false
         val dataSourceFactory = DefaultHttpDataSource.Factory()
             .setUserAgent("EnigmaTV/2.0 (Android)")
             .setAllowCrossProtocolRedirects(true)
             .setConnectTimeoutMs(15_000)
             .setReadTimeoutMs(20_000)
-        val mediaSource: MediaSource = if (streamUrl.contains(".m3u8", ignoreCase = true)) {
-            HlsMediaSource.Factory(dataSourceFactory).createMediaSource(MediaItem.fromUri(streamUrl))
-        } else {
-            androidx.media3.exoplayer.source.ProgressiveMediaSource.Factory(dataSourceFactory)
-                .createMediaSource(MediaItem.fromUri(streamUrl))
+        try {
+            val uri = android.net.Uri.parse(streamUrl)
+            if (!uri.scheme.isNullOrBlank()) {
+                val mediaSource: MediaSource = if (streamUrl.contains(".m3u8", ignoreCase = true)) {
+                    HlsMediaSource.Factory(dataSourceFactory).createMediaSource(MediaItem.fromUri(uri))
+                } else {
+                    androidx.media3.exoplayer.source.ProgressiveMediaSource.Factory(dataSourceFactory)
+                        .createMediaSource(MediaItem.fromUri(uri))
+                }
+                player.setMediaSource(mediaSource)
+                player.prepare()
+                prepared = true
+            }
+        } catch (_: Exception) {
+            prepared = false
         }
-        player.setMediaSource(mediaSource)
-        player.prepare()
+        if (!prepared) {
+            onLoadingChange(false)
+            errorMessage = "Stream unavailable — try another source"
+            return@DisposableEffect onDispose { }
+        }
         val listener = object : Player.Listener {
             override fun onPlaybackStateChanged(state: Int) {
                 when (state) {

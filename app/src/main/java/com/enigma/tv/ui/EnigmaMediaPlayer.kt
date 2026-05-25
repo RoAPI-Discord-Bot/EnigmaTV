@@ -24,6 +24,8 @@ import com.enigma.tv.data.StreamExtractor
 import com.enigma.tv.data.StreamResolver
 import com.enigma.tv.ui.theme.BgDark
 import com.enigma.tv.ui.theme.TextSecondary
+import com.enigma.tv.util.findActivity
+import com.enigma.tv.util.isTelevision
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
@@ -49,21 +51,32 @@ fun EnigmaMediaPlayer(
 
     BackHandler { onClose() }
 
-    val appContext = LocalContext.current.applicationContext
+    val context = LocalContext.current
+    val activity = remember(context) { context.findActivity() }
+    val skipWebView = remember(context) { context.isTelevision() }
     var directUrl by remember(embedUrl, resolveToken) { mutableStateOf<String?>(null) }
     var resolving by remember(embedUrl, resolveToken) { mutableStateOf(true) }
 
-    LaunchedEffect(embedUrl, resolveToken) {
+    LaunchedEffect(embedUrl, resolveToken, activity, skipWebView) {
         resolving = true
         onLoadingChange(true)
-        directUrl = withContext(Dispatchers.IO) {
-            StreamResolver.resolveDirectUrl(embedUrl)
+        directUrl = null
+        try {
+            directUrl = withContext(Dispatchers.IO) {
+                StreamResolver.resolveDirectUrl(embedUrl)
+            }
+            if (directUrl.isNullOrBlank() && !skipWebView && activity != null) {
+                directUrl = StreamExtractor(context).extractStreamUrl(
+                    embedUrl = embedUrl,
+                    activity = activity
+                )
+            }
+        } catch (_: Exception) {
+            directUrl = null
+        } finally {
+            resolving = false
+            onLoadingChange(false)
         }
-        if (directUrl.isNullOrBlank()) {
-            directUrl = StreamExtractor(appContext).extractStreamUrl(embedUrl)
-        }
-        resolving = false
-        onLoadingChange(false)
     }
 
     val useNative = !directUrl.isNullOrBlank()
@@ -122,7 +135,11 @@ fun EnigmaMediaPlayer(
                 ) {
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
                         Text(
-                            "Couldn't extract a direct stream for this source.",
+                            if (skipWebView) {
+                                "No direct stream on TV for this source — try next server."
+                            } else {
+                                "Couldn't extract a direct stream for this source."
+                            },
                             color = TextSecondary,
                             fontSize = 15.sp,
                             modifier = Modifier.padding(horizontal = 24.dp)

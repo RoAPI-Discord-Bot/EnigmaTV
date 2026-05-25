@@ -3,6 +3,7 @@ package com.enigma.tv.ui
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.focusable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -87,6 +88,7 @@ fun ProfileAvatarCircle(
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
         modifier = Modifier
+            .focusable()
             .clickable(onClick = onClick)
             .padding(8.dp)
     ) {
@@ -149,6 +151,7 @@ fun AddProfileTile(sizeDp: Int = 88, onClick: () -> Unit) {
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
         modifier = Modifier
+            .focusable()
             .clickable(onClick = onClick)
             .padding(8.dp)
     ) {

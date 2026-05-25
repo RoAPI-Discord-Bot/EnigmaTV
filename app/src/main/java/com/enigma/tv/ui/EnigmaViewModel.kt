@@ -216,15 +216,28 @@ class EnigmaViewModel(application: Application) : AndroidViewModel(application) 
 
     fun selectProfileAndContinue(profileId: String) {
         viewModelScope.launch {
+            _state.update {
+                it.copy(
+                    contentLoading = true,
+                    homeRows = emptyList(),
+                    error = null
+                )
+            }
             profileStore.setActive(profileId)
-            pullCloudSafe()
             _state.update { it.copy(showProfilePicker = false) }
-            if (_state.value.homeRows.isEmpty()) loadHome()
+            pullCloudSafe()
+            loadHome()
         }
     }
 
     fun dismissProfilePicker() {
-        _state.update { it.copy(showProfilePicker = false) }
+        _state.update {
+            it.copy(
+                showProfilePicker = false,
+                contentLoading = it.homeRows.isEmpty(),
+                homeRows = if (it.homeRows.isEmpty()) emptyList() else it.homeRows
+            )
+        }
         if (_state.value.homeRows.isEmpty()) loadHome()
     }
 

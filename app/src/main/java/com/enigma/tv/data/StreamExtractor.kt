@@ -1,14 +1,18 @@
 package com.enigma.tv.data
 
 import android.annotation.SuppressLint
+import android.app.Activity
 import android.content.Context
 import android.os.Handler
 import android.os.Looper
+import android.view.ViewGroup
 import android.webkit.JavascriptInterface
 import android.webkit.WebResourceRequest
 import android.webkit.WebResourceResponse
 import android.webkit.WebView
 import android.webkit.WebViewClient
+import android.widget.FrameLayout
+import com.enigma.tv.util.isTelevision
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
@@ -17,79 +21,123 @@ import java.util.concurrent.atomic.AtomicBoolean
 import kotlin.coroutines.resume
 
 /**
- * Hidden WebView extractor: loads embed pages and captures direct HLS/MP4 URLs
- * from network traffic and DOM — no visible embed player for the user.
+ * Hidden WebView extractor attached to the activity window (required to avoid native crashes).
+ * JS and network callbacks are marshalled to the main thread before completing.
  */
 class StreamExtractor(private val context: Context) {
 
     @SuppressLint("SetJavaScriptEnabled")
-    suspend fun extractStreamUrl(embedUrl: String, referer: String? = null): String? =
-        withTimeoutOrNull(22_000) {
+    suspend fun extractStreamUrl(
+        embedUrl: String,
+        referer: String? = null,
+        activity: Activity? = null
+    ): String? {
+        if (context.isTelevision()) return null
+        val hostActivity = activity ?: return null
+        return withTimeoutOrNull(15_000) {
             withContext(Dispatchers.Main) {
                 suspendCancellableCoroutine { cont ->
                     val finished = AtomicBoolean(false)
                     val refererHeader = referer ?: embedUrl
                     val handler = Handler(Looper.getMainLooper())
                     var webView: WebView? = null
+                    var hostContainer: FrameLayout? = null
 
                     fun complete(url: String?) {
-                        if (finished.compareAndSet(false, true)) {
+                        handler.post {
+                            if (!finished.compareAndSet(false, true)) return@post
                             handler.removeCallbacksAndMessages(null)
-                            webView?.destroy()
+                            safeDestroyWebView(webView, hostContainer)
                             webView = null
-                            cont.resume(url)
+                            hostContainer = null
+                            if (cont.isActive) cont.resume(url)
                         }
                     }
 
-                    webView = WebView(context.applicationContext).apply {
-                        settings.javaScriptEnabled = true
-                        settings.domStorageEnabled = true
-                        settings.databaseEnabled = true
-                        settings.mediaPlaybackRequiresUserGesture = false
-                        settings.loadWithOverviewMode = true
-                        settings.useWideViewPort = true
-                        settings.userAgentString = USER_AGENT
-
-                        addJavascriptInterface(
-                            JsBridge { url -> complete(url) },
-                            "EnigmaStream"
-                        )
-
-                        webViewClient = object : WebViewClient() {
-                            override fun shouldInterceptRequest(
-                                view: WebView,
-                                request: WebResourceRequest
-                            ): WebResourceResponse? {
-                                val url = request.url.toString()
-                                pickStreamUrl(url)?.let { complete(it) }
-                                return super.shouldInterceptRequest(view, request)
-                            }
-
-                            override fun onPageFinished(view: WebView?, url: String?) {
-                                view?.evaluateJavascript(EXTRACT_JS, null)
-                            }
+                    try {
+                        hostContainer = FrameLayout(hostActivity).apply {
+                            layoutParams = FrameLayout.LayoutParams(1, 1)
+                            alpha = 0f
+                            isClickable = false
                         }
-                        loadUrl(embedUrl, mapOf("Referer" to refererHeader))
-                    }
+                        val decor = hostActivity.window.decorView as ViewGroup
+                        decor.addView(hostContainer)
 
-                    handler.postDelayed({ complete(null) }, 21_000)
+                        webView = WebView(hostActivity).apply {
+                            settings.javaScriptEnabled = true
+                            settings.domStorageEnabled = true
+                            settings.mediaPlaybackRequiresUserGesture = false
+                            settings.loadWithOverviewMode = true
+                            settings.useWideViewPort = true
+                            settings.userAgentString = USER_AGENT
+
+                            addJavascriptInterface(
+                                JsBridge { url ->
+                                    handler.post { complete(url) }
+                                },
+                                "EnigmaStream"
+                            )
+
+                            webViewClient = object : WebViewClient() {
+                                override fun shouldInterceptRequest(
+                                    view: WebView,
+                                    request: WebResourceRequest
+                                ): WebResourceResponse? {
+                                    val url = request.url.toString()
+                                    pickStreamUrl(url)?.let { found ->
+                                        handler.post { complete(found) }
+                                    }
+                                    return super.shouldInterceptRequest(view, request)
+                                }
+
+                                override fun onPageFinished(view: WebView?, url: String?) {
+                                    view?.evaluateJavascript(EXTRACT_JS, null)
+                                }
+                            }
+                            hostContainer?.addView(
+                                this,
+                                FrameLayout.LayoutParams(1, 1)
+                            )
+                            loadUrl(embedUrl, mapOf("Referer" to refererHeader))
+                        }
+
+                        handler.postDelayed({ complete(null) }, 14_000)
+                    } catch (_: Exception) {
+                        complete(null)
+                    }
 
                     cont.invokeOnCancellation {
                         handler.post {
-                            webView?.destroy()
-                            webView = null
+                            if (finished.compareAndSet(false, true)) {
+                                safeDestroyWebView(webView, hostContainer)
+                            }
                         }
                     }
                 }
             }
         }
+    }
+
+    private fun safeDestroyWebView(webView: WebView?, container: FrameLayout?) {
+        try {
+            webView?.stopLoading()
+            webView?.loadUrl("about:blank")
+            (webView?.parent as? ViewGroup)?.removeView(webView)
+            container?.let { parent ->
+                (parent.parent as? ViewGroup)?.removeView(parent)
+            }
+            webView?.destroy()
+        } catch (_: Exception) {
+            // Ignore teardown races
+        }
+    }
 
     private fun pickStreamUrl(url: String): String? {
         val lower = url.lowercase()
+        if (!lower.startsWith("http")) return null
+        if (lower.contains("thumbnail") || lower.contains("preview") || lower.contains("sprite")) return null
         if (lower.contains(".m3u8")) return cleanUrl(url)
-        if (lower.contains(".mp4") && !lower.contains("thumbnail") && !lower.contains("preview")) {
-            return cleanUrl(url)
-        }
+        if (lower.contains(".mp4")) return cleanUrl(url)
         return null
     }
 

@@ -25,6 +25,8 @@ import com.enigma.tv.data.StreamResolver
 import com.enigma.tv.ui.theme.BgDark
 import com.enigma.tv.ui.theme.EnigmaPurple
 import com.enigma.tv.ui.theme.TextSecondary
+import com.enigma.tv.util.findActivity
+import com.enigma.tv.util.isTelevision
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
@@ -45,27 +47,42 @@ fun EnigmaLivePlayer(
 
     BackHandler { onClose() }
 
-    val appContext = LocalContext.current.applicationContext
+    val context = LocalContext.current
+    val activity = remember(context) { context.findActivity() }
+    val skipWebView = remember(context) { context.isTelevision() }
     var directUrl by remember(embedUrl, resolveToken) { mutableStateOf<String?>(null) }
     var resolving by remember(embedUrl, resolveToken) { mutableStateOf(true) }
 
-    LaunchedEffect(embedUrl, resolveToken) {
+    LaunchedEffect(embedUrl, resolveToken, activity, skipWebView) {
         resolving = true
         onLoadingChange(true)
-        val resolved = withContext(Dispatchers.IO) {
-            LiveEmbedResolver.resolvePlayableUrl(embedUrl)
+        directUrl = null
+        try {
+            val resolved = withContext(Dispatchers.IO) {
+                LiveEmbedResolver.resolvePlayableUrl(embedUrl)
+            }
+            directUrl = withContext(Dispatchers.IO) {
+                StreamResolver.resolveDirectUrl(resolved)
+            }
+            if (directUrl.isNullOrBlank() && !skipWebView && activity != null) {
+                directUrl = StreamExtractor(context).extractStreamUrl(
+                    embedUrl = resolved,
+                    referer = embedUrl,
+                    activity = activity
+                )
+            }
+            if (directUrl.isNullOrBlank() && !skipWebView && activity != null) {
+                directUrl = StreamExtractor(context).extractStreamUrl(
+                    embedUrl = embedUrl,
+                    activity = activity
+                )
+            }
+        } catch (_: Exception) {
+            directUrl = null
+        } finally {
+            resolving = false
+            onLoadingChange(false)
         }
-        directUrl = withContext(Dispatchers.IO) {
-            StreamResolver.resolveDirectUrl(resolved)
-        }
-        if (directUrl.isNullOrBlank()) {
-            directUrl = StreamExtractor(appContext).extractStreamUrl(resolved, referer = embedUrl)
-        }
-        if (directUrl.isNullOrBlank()) {
-            directUrl = StreamExtractor(appContext).extractStreamUrl(embedUrl)
-        }
-        resolving = false
-        onLoadingChange(false)
     }
 
     val useNative = !directUrl.isNullOrBlank()
@@ -121,7 +138,11 @@ fun EnigmaLivePlayer(
                 ) {
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
                         Text(
-                            "Couldn't load this live stream directly. Try another source.",
+                            if (skipWebView) {
+                                "No direct stream on TV for this source — try next source."
+                            } else {
+                                "Couldn't load this live stream directly. Try another source."
+                            },
                             color = TextSecondary,
                             fontSize = 15.sp,
                             modifier = Modifier.padding(horizontal = 24.dp)
