@@ -30,6 +30,23 @@ class IptvRepository {
             .sortedBy { it.name.lowercase() }
     }
 
+    fun channelGroups(channels: List<IptvChannel>): List<String> =
+        channels.map { it.group }.distinct().sorted()
+
+    fun groupChannels(channels: List<IptvChannel>): Map<String, List<IptvChannel>> =
+        channels.groupBy { it.group }.toSortedMap()
+
+    fun filterByGroup(channels: List<IptvChannel>, group: String?): List<IptvChannel> {
+        if (group.isNullOrBlank()) return channels
+        return channels.filter { it.group == group }
+    }
+
+    fun resolveByIds(channels: List<IptvChannel>, ids: Collection<String>): List<IptvChannel> {
+        if (ids.isEmpty()) return emptyList()
+        val map = channels.associateBy { it.id }
+        return ids.mapNotNull { map[it] }
+    }
+
     fun search(channels: List<IptvChannel>, query: String): List<IptvChannel> {
         if (query.isBlank()) return channels
         val tokens = tokenize(query)

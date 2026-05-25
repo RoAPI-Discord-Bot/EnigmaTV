@@ -10,6 +10,7 @@ import com.enigma.tv.data.FavoriteItem
 import com.enigma.tv.data.HomeRow
 import com.enigma.tv.data.IptvChannel
 import com.enigma.tv.data.IptvRepository
+import com.enigma.tv.data.LiveChannelFavoritesStore
 import com.enigma.tv.data.LiveSportMatch
 import com.enigma.tv.data.LiveStreamLink
 import com.enigma.tv.data.LiveTvBrowseState
@@ -71,6 +72,8 @@ data class EnigmaUiState(
     val playerLoading: Boolean = false,
     val playerTitle: String = "",
     val playerUrl: String = "",
+    val playerLogoUrl: String? = null,
+    val playerResolveToken: Int = 0,
     val playerAccentMovie: Boolean = true,
     val playerLiveTv: Boolean = false,
     val sourceIndex: Int = 0,
@@ -100,6 +103,7 @@ class EnigmaViewModel(application: Application) : AndroidViewModel(application) 
     private val syncService = FirebaseSyncService()
     private val iptvRepo = IptvRepository()
     private val streamedRepo = StreamedRepository()
+    private val liveChannelStore = LiveChannelFavoritesStore(application)
 
     private val _state = MutableStateFlow(EnigmaUiState())
     val state: StateFlow<EnigmaUiState> = _state.asStateFlow()
@@ -110,6 +114,23 @@ class EnigmaViewModel(application: Application) : AndroidViewModel(application) 
                 Triple(f, p, c)
             }.collect { (favs, lists, cw) ->
                 _state.update { it.copy(favorites = favs, playlists = lists, continueWatching = cw) }
+            }
+        }
+        viewModelScope.launch {
+            combine(liveChannelStore.favoriteIds, liveChannelStore.recentIds) { favs, recents ->
+                favs to recents
+            }.collect { (favs, recentIds) ->
+                _state.update { st ->
+                    val recent = iptvRepo.resolveByIds(st.liveTv.channels, recentIds)
+                    st.copy(
+                        liveTv = applyChannelFilters(
+                            st.liveTv.copy(
+                                favoriteChannelIds = favs,
+                                recentChannels = recent
+                            )
+                        )
+                    )
+                }
             }
         }
         viewModelScope.launch {
@@ -301,9 +322,19 @@ class EnigmaViewModel(application: Application) : AndroidViewModel(application) 
         val (name, url) = StreamSources.movieUrl(0, movie.id)
         _state.update {
             it.copy(
-                playerVisible = true, playerLoading = true, playerTitle = movie.title, playerUrl = url,
-                playerAccentMovie = true, playerLiveTv = false, playingType = ContentType.MOVIE, currentMovieId = movie.id,
-                currentShowId = null, sourceIndex = 0,
+                playerVisible = true,
+                playerLoading = true,
+                playerHls = false,
+                playerTitle = movie.title,
+                playerUrl = url,
+                playerLogoUrl = movie.posterUrl,
+                playerResolveToken = it.playerResolveToken + 1,
+                playerAccentMovie = true,
+                playerLiveTv = false,
+                playingType = ContentType.MOVIE,
+                currentMovieId = movie.id,
+                currentShowId = null,
+                sourceIndex = 0,
                 sourceLabel = "$name (1/${StreamSources.movieSources.size})"
             )
         }
@@ -321,14 +352,17 @@ class EnigmaViewModel(application: Application) : AndroidViewModel(application) 
                     val channels = async { iptvRepo.loadChannels() }
                     val ev = events.await()
                     val ch = channels.await()
-                    _state.update {
-                        it.copy(
-                            liveTv = it.liveTv.copy(
-                                loading = false,
-                                events = ev,
-                                channels = ch,
-                                filteredEvents = ev,
-                                filteredChannels = ch
+                    val groups = iptvRepo.channelGroups(ch)
+                    _state.update { st ->
+                        st.copy(
+                            liveTv = applyChannelFilters(
+                                st.liveTv.copy(
+                                    loading = false,
+                                    events = ev,
+                                    channels = ch,
+                                    channelGroups = groups,
+                                    filteredEvents = ev
+                                )
                             )
                         )
                     }
@@ -347,14 +381,40 @@ class EnigmaViewModel(application: Application) : AndroidViewModel(application) 
 
     fun searchLiveTv(query: String) {
         _state.update { st ->
-            val live = st.liveTv.copy(searchQuery = query)
-            val filteredEvents = if (query.isBlank()) live.events else streamedRepo.search(live.events, query)
-            val filteredChannels = if (query.isBlank()) live.channels else iptvRepo.search(live.channels, query)
-            st.copy(liveTv = live.copy(filteredEvents = filteredEvents, filteredChannels = filteredChannels))
+            val live = applyChannelFilters(st.liveTv.copy(searchQuery = query))
+            val events = if (query.isBlank()) live.events else streamedRepo.search(live.events, query)
+            st.copy(liveTv = live.copy(filteredEvents = events))
         }
     }
 
+    fun setLiveChannelGroupFilter(group: String?) {
+        _state.update { st ->
+            st.copy(liveTv = applyChannelFilters(st.liveTv.copy(channelGroupFilter = group)))
+        }
+    }
+
+    fun toggleLiveFavoritesOnly() {
+        _state.update { st ->
+            st.copy(liveTv = applyChannelFilters(st.liveTv.copy(favoritesOnly = !st.liveTv.favoritesOnly)))
+        }
+    }
+
+    fun toggleLiveChannelFavorite(channel: IptvChannel) {
+        viewModelScope.launch { liveChannelStore.toggleFavorite(channel.id) }
+    }
+
+    fun liveQuickPick(query: String) = searchLiveTv(query)
+
+    private fun applyChannelFilters(live: LiveTvBrowseState): LiveTvBrowseState {
+        var channels = live.channels
+        if (live.searchQuery.isNotBlank()) channels = iptvRepo.search(channels, live.searchQuery)
+        channels = iptvRepo.filterByGroup(channels, live.channelGroupFilter)
+        if (live.favoritesOnly) channels = channels.filter { live.favoriteChannelIds.contains(it.id) }
+        return live.copy(filteredChannels = channels)
+    }
+
     fun playIptvChannel(channel: IptvChannel) {
+        viewModelScope.launch { liveChannelStore.addRecent(channel.id) }
         _state.update {
             it.copy(
                 playerVisible = true,
@@ -363,6 +423,7 @@ class EnigmaViewModel(application: Application) : AndroidViewModel(application) 
                 playerLoading = true,
                 playerTitle = channel.name,
                 playerUrl = channel.streamUrl,
+                playerLogoUrl = channel.logoUrl,
                 playerAccentMovie = false,
                 playingType = null,
                 sourceLabel = "Live · ${channel.group}",
@@ -471,17 +532,28 @@ class EnigmaViewModel(application: Application) : AndroidViewModel(application) 
             val startEpisode = resumeEpisode ?: 1
             _state.update {
                 it.copy(
-                    playerVisible = true, playerLoading = true, playerTitle = name,
-                    playerAccentMovie = false, playerLiveTv = false, playingType = ContentType.TV,
-                    currentShowId = id, currentMovieId = null, sourceIndex = 0,
-                    selectedSeason = startSeason, selectedEpisode = startEpisode
+                    playerVisible = true,
+                    playerLoading = true,
+                    playerHls = false,
+                    playerTitle = name,
+                    playerResolveToken = it.playerResolveToken + 1,
+                    playerAccentMovie = false,
+                    playerLiveTv = false,
+                    playingType = ContentType.TV,
+                    currentShowId = id,
+                    currentMovieId = null,
+                    sourceIndex = 0,
+                    selectedSeason = startSeason,
+                    selectedEpisode = startEpisode
                 )
             }
             try {
                 val detail = repo.tvDetail(id)
                 val seasons = detail.seasons.filter { it.seasonNumber > 0 }.map { it.seasonNumber }
                 val poster = detail.posterPath?.let { "https://image.tmdb.org/t/p/w200$it" } ?: ""
+                val posterUrl = detail.posterPath?.let { "https://image.tmdb.org/t/p/w342$it" }
                 cwStore.addOrUpdate(ContinueWatchingEntry(id, name, poster, startSeason, startEpisode, ContentType.TV))
+                _state.update { it.copy(playerLogoUrl = posterUrl) }
                 if (seasons.isNotEmpty()) {
                     val season = if (startSeason in seasons) startSeason else seasons.first()
                     loadEpisodesInternal(id, season, startEpisode, play = true)
@@ -516,7 +588,13 @@ class EnigmaViewModel(application: Application) : AndroidViewModel(application) 
         val showId = s.currentShowId ?: return
         val (name, url) = StreamSources.tvUrl(s.sourceIndex, showId, s.selectedSeason, s.selectedEpisode)
         _state.update {
-            it.copy(playerLoading = true, playerUrl = url, sourceLabel = "$name (${(s.sourceIndex % StreamSources.tvSources.size) + 1}/${StreamSources.tvSources.size})")
+            it.copy(
+                playerLoading = true,
+                playerHls = false,
+                playerUrl = url,
+                playerResolveToken = it.playerResolveToken + 1,
+                sourceLabel = "$name (${(s.sourceIndex % StreamSources.tvSources.size) + 1}/${StreamSources.tvSources.size})"
+            )
         }
         viewModelScope.launch {
             cwStore.updateProgress(showId, ContentType.TV, s.selectedSeason, s.selectedEpisode)
@@ -530,10 +608,18 @@ class EnigmaViewModel(application: Application) : AndroidViewModel(application) 
                 val id = s.currentMovieId ?: return
                 val next = (s.sourceIndex + 1) % StreamSources.movieSources.size
                 val (name, url) = StreamSources.movieUrl(next, id)
-                _state.update { it.copy(playerLoading = true, sourceIndex = next, playerUrl = url, sourceLabel = "$name (${next + 1}/${StreamSources.movieSources.size})") }
+                _state.update {
+                    it.copy(
+                        playerLoading = true,
+                        sourceIndex = next,
+                        playerUrl = url,
+                        playerResolveToken = it.playerResolveToken + 1,
+                        sourceLabel = "$name (${next + 1}/${StreamSources.movieSources.size})"
+                    )
+                }
             }
             ContentType.TV -> {
-                _state.update { it.copy(sourceIndex = it.sourceIndex + 1) }
+                _state.update { it.copy(sourceIndex = it.sourceIndex + 1, playerResolveToken = it.playerResolveToken + 1) }
                 playCurrentEpisode()
             }
             null -> {
@@ -556,6 +642,8 @@ class EnigmaViewModel(application: Application) : AndroidViewModel(application) 
         it.copy(
             playerVisible = false,
             playerUrl = "",
+            playerLogoUrl = null,
+            playerResolveToken = 0,
             playerLoading = false,
             playingType = null,
             playerLiveTv = false,

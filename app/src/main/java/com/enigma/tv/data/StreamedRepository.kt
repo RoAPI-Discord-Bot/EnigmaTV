@@ -1,6 +1,7 @@
 package com.enigma.tv.data
 
 import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
 import okhttp3.OkHttpClient
 import okhttp3.logging.HttpLoggingInterceptor
@@ -24,13 +25,17 @@ class StreamedRepository {
     )
 
     suspend fun loadEvents(): List<LiveSportMatch> = coroutineScope {
-        val live = async { runCatching { api.liveMatches().map { it.toMatch() } }.getOrDefault(emptyList()) } }
-        val bySport = sportSlugs.map { sport ->
-            async {
-                runCatching { api.sportMatches(sport).map { it.toMatch() } }.getOrDefault(emptyList())
+        val jobs = buildList {
+            add(async {
+                runCatching { api.liveMatches().map { it.toMatch() } }.getOrDefault(emptyList())
+            })
+            sportSlugs.forEach { sport ->
+                add(async {
+                    runCatching { api.sportMatches(sport).map { it.toMatch() } }.getOrDefault(emptyList())
+                })
             }
         }
-        (listOf(live.await()) + bySport.map { it.await() })
+        jobs.awaitAll()
             .flatten()
             .distinctBy { it.id }
             .sortedByDescending { it.dateMs }

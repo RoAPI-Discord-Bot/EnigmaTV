@@ -40,12 +40,29 @@ data class LiveStreamLink(
 data class LiveTvBrowseState(
     val loading: Boolean = false,
     val error: String? = null,
-    val tab: LiveTvTab = LiveTvTab.EVENTS,
+    val tab: LiveTvTab = LiveTvTab.CHANNELS,
     val events: List<LiveSportMatch> = emptyList(),
     val channels: List<IptvChannel> = emptyList(),
     val filteredEvents: List<LiveSportMatch> = emptyList(),
     val filteredChannels: List<IptvChannel> = emptyList(),
+    val channelGroups: List<String> = emptyList(),
+    val channelGroupFilter: String? = null,
+    val favoritesOnly: Boolean = false,
+    val favoriteChannelIds: Set<String> = emptySet(),
+    val recentChannels: List<IptvChannel> = emptyList(),
     val searchQuery: String = ""
+)
+
+/** Quick-search shortcuts for the channel browser */
+val LIVE_CHANNEL_QUICK_PICKS = listOf(
+    "ESPN" to "ESPN",
+    "FOX Sports" to "FOX",
+    "MLB" to "MLB",
+    "NFL" to "NFL",
+    "NBA" to "NBA",
+    "CNN" to "CNN",
+    "BBC" to "BBC",
+    "beIN" to "beIN"
 )
 
 enum class LiveTvTab(val label: String) {

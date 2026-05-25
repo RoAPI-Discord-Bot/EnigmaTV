@@ -146,7 +146,11 @@ fun EnigmaShell(viewModel: EnigmaViewModel = viewModel()) {
                             onSearch = viewModel::searchLiveTv,
                             onReload = viewModel::loadLiveTv,
                             onPlayChannel = viewModel::playIptvChannel,
-                            onPlayMatch = viewModel::playLiveMatch
+                            onPlayMatch = viewModel::playLiveMatch,
+                            onToggleFavorite = viewModel::toggleLiveChannelFavorite,
+                            onGroupFilter = viewModel::setLiveChannelGroupFilter,
+                            onFavoritesOnly = viewModel::toggleLiveFavoritesOnly,
+                            onQuickPick = viewModel::liveQuickPick
                         )
                         NavSection.FAVORITES -> FavoritesContent(state, viewModel, layout)
                         NavSection.CONTINUE -> ContinueContent(state, viewModel, layout)
@@ -183,30 +187,52 @@ fun EnigmaShell(viewModel: EnigmaViewModel = viewModel()) {
                 )
             } else null
 
-            if (state.playerVisible && state.playerHls) {
-                ExoLivePlayer(
-                    visible = true,
-                    title = state.playerTitle,
-                    streamUrl = state.playerUrl,
-                    sourceLabel = state.sourceLabel,
-                    streamLoading = state.playerLoading,
-                    onClose = { viewModel.closePlayer() },
-                    onLoadingChange = { viewModel.onPlayerPageLoading(it) }
-                )
-            } else {
-                WebViewPlayer(
-                    visible = state.playerVisible,
-                    title = state.playerTitle,
-                    url = state.playerUrl,
-                    accent = accent,
-                    sourceLabel = state.sourceLabel,
-                    streamLoading = state.playerLoading,
-                    onClose = { viewModel.closePlayer() },
-                    onNextSource = { viewModel.nextSource() },
-                    onLoadingChange = { viewModel.onPlayerPageLoading(it) },
-                    tvControls = tvControls,
-                    liveTv = state.playerLiveTv
-                )
+            when {
+                state.playerVisible && state.playerHls -> {
+                    ExoLivePlayer(
+                        visible = true,
+                        title = state.playerTitle,
+                        streamUrl = state.playerUrl,
+                        sourceLabel = state.sourceLabel,
+                        logoUrl = state.playerLogoUrl,
+                        streamLoading = state.playerLoading,
+                        onClose = { viewModel.closePlayer() },
+                        onLoadingChange = { viewModel.onPlayerPageLoading(it) }
+                    )
+                }
+                state.playerVisible &&
+                    (state.playingType == ContentType.MOVIE || state.playingType == ContentType.TV) -> {
+                    EnigmaMediaPlayer(
+                        visible = true,
+                        title = state.playerTitle,
+                        embedUrl = state.playerUrl,
+                        posterUrl = state.playerLogoUrl,
+                        accent = accent,
+                        sourceLabel = state.sourceLabel,
+                        streamLoading = state.playerLoading,
+                        onClose = { viewModel.closePlayer() },
+                        onNextSource = { viewModel.nextSource() },
+                        onLoadingChange = { viewModel.onPlayerPageLoading(it) },
+                        tvControls = tvControls,
+                        resolveToken = state.playerResolveToken
+                    )
+                }
+                state.playerVisible -> {
+                    WebViewPlayer(
+                        visible = true,
+                        title = state.playerTitle,
+                        url = state.playerUrl,
+                        accent = accent,
+                        sourceLabel = state.sourceLabel,
+                        posterUrl = state.playerLogoUrl,
+                        streamLoading = state.playerLoading,
+                        onClose = { viewModel.closePlayer() },
+                        onNextSource = { viewModel.nextSource() },
+                        onLoadingChange = { viewModel.onPlayerPageLoading(it) },
+                        tvControls = tvControls,
+                        liveTv = state.playerLiveTv
+                    )
+                }
             }
 
             if (state.showLiveStreamPicker) {
