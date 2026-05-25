@@ -115,7 +115,8 @@ data class EnigmaUiState(
     val showProfilePicker: Boolean = false,
     val searchSuggestions: List<SearchSuggestion> = emptyList(),
     val playerLiveHint: String? = null,
-    val playerLiveEventStartMs: Long = 0L
+    val playerLiveEventStartMs: Long = 0L,
+    val playerStreamPlaying: Boolean = false
 )
 
 class EnigmaViewModel(application: Application) : AndroidViewModel(application) {
@@ -846,7 +847,8 @@ class EnigmaViewModel(application: Application) : AndroidViewModel(application) 
                                 liveStreamPicker = streams,
                                 playerTitle = match.title,
                                 playerLiveEventStartMs = match.dateMs,
-                                playerLiveHint = formatLiveEventHint(match.dateMs)
+                                playerLiveHint = null,
+                                playerStreamPlaying = false
                             )
                         }
                         if (streams.size == 1) {
@@ -887,16 +889,16 @@ class EnigmaViewModel(application: Application) : AndroidViewModel(application) 
     private fun playLiveEmbed(title: String, embedUrl: String, label: String, pickerIndex: Int? = null) {
         val idx = pickerIndex ?: _state.value.sourceIndex
         val immediateUrl = StreamedRepository.normalizeStreamEmbed(embedUrl)
-        val hint = _state.value.playerLiveHint ?: formatLiveEventHint(_state.value.playerLiveEventStartMs)
         val preLive = isPreLiveEvent()
         _state.update {
             it.copy(
                 playerVisible = true,
                 playerHls = false,
                 playerLiveTv = true,
-                playerLoading = !preLive,
+                playerLoading = true,
                 playerStreamFailed = false,
-                playerLiveHint = hint,
+                playerLiveHint = null,
+                playerStreamPlaying = false,
                 playerTitle = title,
                 playerUrl = immediateUrl,
                 playerAccentMovie = false,
@@ -1285,18 +1287,23 @@ class EnigmaViewModel(application: Application) : AndroidViewModel(application) 
     }
 
     fun onPlayerPlaybackReady() {
-        val preLive = isPreLiveEvent()
         _state.update {
             it.copy(
                 playerLoading = false,
                 playerStreamFailed = false,
-                playerLiveHint = if (preLive) it.playerLiveHint else null
+                playerLiveHint = null,
+                playerStreamPlaying = true
             )
         }
     }
 
     fun onPlayerLiveWaiting() {
-        val hint = formatLiveEventHint(_state.value.playerLiveEventStartMs)
+        if (_state.value.playerStreamPlaying) return
+        val hint = if (isPreLiveEvent()) {
+            formatLiveEventHint(_state.value.playerLiveEventStartMs)
+        } else {
+            "Stream not available on this source. Try another server."
+        }
         _state.update { it.copy(playerLoading = false, playerLiveHint = hint) }
     }
 
@@ -1336,7 +1343,8 @@ class EnigmaViewModel(application: Application) : AndroidViewModel(application) 
                 playerLiveTv = false,
                 playerHls = false,
                 playerLiveHint = null,
-                playerLiveEventStartMs = 0L
+                playerLiveEventStartMs = 0L,
+                playerStreamPlaying = false
             )
         }
     }

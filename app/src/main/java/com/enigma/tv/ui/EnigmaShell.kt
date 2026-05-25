@@ -354,7 +354,7 @@ private fun EnigmaPlayerOverlay(
             showNextSource = showNext,
             streamFailed = state.playerStreamFailed,
             streamLoading = state.playerLoading && !state.playerStreamFailed,
-            liveWaitingMessage = state.playerLiveHint,
+            liveWaitingMessage = if (state.playerStreamPlaying) null else state.playerLiveHint,
             tvControls = tvControls,
             onPrevEpisode = { viewModel.playAdjacentEpisode(forward = false) },
             onNextEpisode = { viewModel.playAdjacentEpisode(forward = true) },

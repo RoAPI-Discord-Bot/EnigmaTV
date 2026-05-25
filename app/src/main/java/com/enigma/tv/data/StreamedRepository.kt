@@ -39,6 +39,21 @@ class StreamedRepository {
             val next = (num % 6) + 1
             return embedUrl.replace(Regex("""/\d+/?$"""), "/$next")
         }
+
+        fun formatEventSchedule(dateMs: Long): String {
+            if (dateMs <= 0L) return ""
+            val delta = dateMs - System.currentTimeMillis()
+            val totalMin = kotlin.math.abs(delta / 60_000L).toInt()
+            val hours = totalMin / 60
+            val mins = totalMin % 60
+            return when {
+                delta in -4 * 3_600_000L..30 * 60_000L -> "LIVE NOW"
+                delta > 0L && hours > 0 -> "Starts in ${hours}h ${mins}m"
+                delta > 0L -> "Starts in ${mins}m"
+                hours > 0 -> "Started ${hours}h ago"
+                else -> "Started ${mins}m ago"
+            }
+        }
     }
 
     private val api: StreamedApi = Retrofit.Builder()
@@ -70,7 +85,25 @@ class StreamedRepository {
         jobs.awaitAll()
             .flatten()
             .distinctBy { it.id }
+            .let { dedupeByTitleSlot(it) }
             .sortedByDescending { it.dateMs }
+    }
+
+    /** Same matchup can appear twice (live + tomorrow) — keep the best slot for right now. */
+    private fun dedupeByTitleSlot(events: List<LiveSportMatch>): List<LiveSportMatch> {
+        val now = System.currentTimeMillis()
+        return events
+            .groupBy { "${it.title.lowercase().trim()}|${it.category.lowercase()}" }
+            .map { (_, group) ->
+                group.minByOrNull { m ->
+                    val delta = m.dateMs - now
+                    when {
+                        delta in -4 * 3_600_000L..30 * 60_000L -> 0L
+                        delta > 0L -> delta
+                        else -> -delta + 10_000_000_000L
+                    }
+                } ?: group.first()
+            }
     }
 
     suspend fun fetchStreams(source: String, id: String): List<LiveStreamLink> {

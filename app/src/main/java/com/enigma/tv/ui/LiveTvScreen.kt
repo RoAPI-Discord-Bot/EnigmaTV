@@ -431,6 +431,15 @@ private fun LiveEventCard(match: LiveSportMatch, layout: ScreenLayout, onPlay: (
                 fontSize = 12.sp,
                 modifier = Modifier.padding(top = 4.dp)
             )
+            val schedule = com.enigma.tv.data.StreamedRepository.formatEventSchedule(match.dateMs)
+            if (schedule.isNotBlank()) {
+                Text(
+                    schedule,
+                    color = TextSecondary,
+                    fontSize = 11.sp,
+                    modifier = Modifier.padding(top = 2.dp)
+                )
+            }
         }
         Text(
             if (match.sources.isNotEmpty()) "WATCH" else "N/A",

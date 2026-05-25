@@ -407,7 +407,26 @@ private fun ProfilePickerTile(
             .onFocusChanged { state ->
                 if (state.isFocused) onFocus()
             }
-            .then(profilePickerFocusModifier(isTv = isTv, interactionSource = interaction, onActivate = onActivate))
+            .then(
+                if (isTv) {
+                    Modifier
+                        .focusable(interactionSource = interaction)
+                        .onKeyEvent { event ->
+                            if (event.type == KeyEventType.KeyUp &&
+                                (event.key == Key.DirectionCenter || event.key == Key.Enter || event.key == Key.NumPadEnter)
+                            ) {
+                                onActivate()
+                                true
+                            } else {
+                                false
+                            }
+                        }
+                } else {
+                    Modifier
+                        .focusable(interactionSource = interaction)
+                        .clickable(interactionSource = interaction, indication = null, onClick = onActivate)
+                }
+            )
             .padding(horizontal = if (isTv) 14.dp else 8.dp, vertical = if (isTv) 10.dp else 6.dp)
     ) {
         Box(
@@ -433,29 +452,4 @@ private fun ProfilePickerTile(
             )
         }
     }
-}
-
-/** TV remotes fire both key and click — use keys only on TV to avoid double-activate crashes. */
-private fun Modifier.profilePickerFocusModifier(
-    isTv: Boolean,
-    interactionSource: MutableInteractionSource,
-    onActivate: () -> Unit
-): Modifier {
-    if (isTv) {
-        return this
-            .focusable(interactionSource = interactionSource)
-            .onKeyEvent { event ->
-                if (event.type == KeyEventType.KeyUp &&
-                    (event.key == Key.DirectionCenter || event.key == Key.Enter || event.key == Key.NumPadEnter)
-                ) {
-                    onActivate()
-                    true
-                } else {
-                    false
-                }
-            }
-    }
-    return this
-        .focusable(interactionSource = interactionSource)
-        .clickable(interactionSource = interactionSource, indication = null, onClick = onActivate)
 }

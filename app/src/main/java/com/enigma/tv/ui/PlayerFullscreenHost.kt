@@ -17,8 +17,10 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.SkipNext
 import androidx.compose.material3.Button
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
@@ -71,6 +73,7 @@ fun PlayerFullscreenHost(
     var chromeVisible by remember { mutableStateOf(true) }
     var episodePanelOpen by remember { mutableStateOf(false) }
     val hasTv = tvControls != null
+    val isLivePlayer = subtitle.contains("Live", ignoreCase = true)
 
     val syncChrome: (Boolean) -> Unit = { visible ->
         chromeVisible = visible
@@ -85,7 +88,8 @@ fun PlayerFullscreenHost(
         if (!chromeVisible) episodePanelOpen = false
     }
 
-    ImmersiveSystemBars(enabled = !chromeVisible && !episodePanelOpen)
+    // Live WebView: keep fullscreen layout stable when toggling chrome (avoids resize/black screen on tap)
+    ImmersiveSystemBars(enabled = !isLivePlayer && !chromeVisible && !episodePanelOpen)
 
     BackHandler {
         when {
@@ -105,7 +109,22 @@ fun PlayerFullscreenHost(
                 content()
             }
 
-            val showLiveMessage = !liveWaitingMessage.isNullOrBlank() && !streamFailed
+            if (!chromeVisible && !streamLoading && !streamFailed) {
+                IconButton(
+                    onClick = { chromeVisible = true },
+                    modifier = Modifier
+                        .align(Alignment.TopEnd)
+                        .padding(12.dp)
+                ) {
+                    Icon(
+                        Icons.Default.MoreVert,
+                        contentDescription = "Show controls",
+                        tint = TextPrimary.copy(alpha = 0.85f)
+                    )
+                }
+            }
+
+            val showLiveMessage = !liveWaitingMessage.isNullOrBlank() && !streamFailed && !streamLoading
 
             if (streamLoading && !showLiveMessage) {
                 EnigmaLoadingRing(

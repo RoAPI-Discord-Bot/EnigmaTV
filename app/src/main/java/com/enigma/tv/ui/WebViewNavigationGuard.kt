@@ -20,6 +20,7 @@ class WebViewNavigationGuard(initialUrl: String) {
     private val sessionHosts = mutableSetOf<String>()
     private var liveTvMode = false
     private var suppressLoadingPulses = false
+    private var streamPlaying = false
     private var resumeTargetMs: Long = 0L
     private var didSeekResume = false
 
@@ -35,9 +36,12 @@ class WebViewNavigationGuard(initialUrl: String) {
         resetForUrl(initialUrl)
     }
 
+    fun isStreamPlaying(): Boolean = streamPlaying
+
     fun resetForUrl(url: String, liveTv: Boolean = false, resumePositionMs: Long = 0L) {
         liveTvMode = liveTv
         suppressLoadingPulses = false
+        streamPlaying = false
         resumeTargetMs = resumePositionMs.coerceAtLeast(0L)
         didSeekResume = false
         sessionHosts.clear()
@@ -129,6 +133,12 @@ class WebViewNavigationGuard(initialUrl: String) {
                 url?.let { extractHost(it)?.let { registerHost(it) } }
                 if (!(liveTvMode && suppressLoadingPulses)) {
                     onPageLoading?.invoke(true)
+                }
+            }
+
+            override fun onPageCommitVisible(view: WebView?, url: String?) {
+                if (liveTvMode) view?.let { web ->
+                    web.postDelayed({ probePlayback(web) }, 1200)
                 }
             }
 
@@ -310,11 +320,12 @@ class WebViewNavigationGuard(initialUrl: String) {
             android.os.Handler(android.os.Looper.getMainLooper()).post {
                 if (ok) {
                     suppressLoadingPulses = true
+                    streamPlaying = true
                     if (liveTvMode) webView.post { hideRawTextOverlay(webView) }
                 }
                 onPlaybackProbe?.invoke(ok)
                 onPageLoading?.invoke(!ok)
-                if (liveTvMode && !ok) onLiveWaiting?.invoke()
+                if (liveTvMode && !ok && !streamPlaying) onLiveWaiting?.invoke()
             }
         }
     }
