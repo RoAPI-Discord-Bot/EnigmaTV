@@ -1,15 +1,14 @@
 package com.enigma.tv.ui
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
@@ -49,22 +48,27 @@ fun PlayerChrome(
     showNextSource: Boolean = false,
     onNextSource: (() -> Unit)? = null,
     tvControls: TvPlayerControls? = null,
+    isTvLayout: Boolean = false,
     extraContent: @Composable (() -> Unit)? = null
 ) {
+    val posterSize = if (isTvLayout) 52.dp else 44.dp
+    val titleSize = if (isTvLayout) 18.sp else 15.sp
+    val controlPadding = if (isTvLayout) 12.dp else 8.dp
+
     Column(
         modifier = Modifier
             .fillMaxWidth()
             .background(Color.Black.copy(alpha = 0.94f))
             .statusBarsPadding()
-            .padding(horizontal = 8.dp, vertical = 8.dp)
+            .padding(horizontal = controlPadding, vertical = controlPadding)
     ) {
         Row(
             modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically
         ) {
             if (showBack && onBack != null) {
-                IconButton(onClick = onBack) {
-                    Icon(Icons.Default.ArrowBack, contentDescription = "Back", tint = TextPrimary)
+                IconButton(onClick = onBack, modifier = Modifier.size(if (isTvLayout) 52.dp else 48.dp)) {
+                    Icon(Icons.Default.ArrowBack, contentDescription = "Back", tint = TextPrimary, modifier = Modifier.size(28.dp))
                 }
             }
             if (!posterUrl.isNullOrBlank()) {
@@ -72,63 +76,70 @@ fun PlayerChrome(
                     model = posterUrl,
                     contentDescription = null,
                     modifier = Modifier
-                        .size(44.dp)
+                        .size(posterSize)
                         .clip(RoundedCornerShape(6.dp))
                         .background(Color.White.copy(alpha = 0.08f)),
                     contentScale = ContentScale.Crop
                 )
             }
-            Column(Modifier.weight(1f).padding(horizontal = 10.dp)) {
+            Column(
+                Modifier
+                    .weight(1f)
+                    .padding(horizontal = 10.dp)
+                    .heightIn(min = if (isTvLayout) 48.dp else 40.dp)
+            ) {
                 Text(
                     title,
                     color = TextPrimary,
-                    fontSize = 15.sp,
+                    fontSize = titleSize,
                     fontWeight = FontWeight.SemiBold,
                     maxLines = 2,
                     overflow = TextOverflow.Ellipsis
                 )
-                Text(subtitle, color = EnigmaPink, fontSize = 11.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(
+                    subtitle,
+                    color = EnigmaPink,
+                    fontSize = if (isTvLayout) 13.sp else 11.sp,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.padding(top = 2.dp)
+                )
             }
             if (onRetry != null) {
-                IconButton(onClick = onRetry) {
+                IconButton(onClick = onRetry, modifier = Modifier.size(if (isTvLayout) 52.dp else 48.dp)) {
                     Icon(Icons.Default.Refresh, contentDescription = "Retry", tint = TextSecondary)
                 }
             }
-            IconButton(onClick = onClose) {
+            IconButton(onClick = onClose, modifier = Modifier.size(if (isTvLayout) 52.dp else 48.dp)) {
                 Icon(Icons.Default.Close, contentDescription = "Close", tint = TextPrimary)
             }
         }
 
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .horizontalScroll(rememberScrollState())
-                .padding(top = 8.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            tvControls?.let { SeasonEpisodeDropdowns(controls = it, accent = accent) }
-            Text(
-                subtitle,
-                color = TextSecondary,
-                fontSize = 11.sp,
+        if (tvControls != null || showNextSource) {
+            Row(
                 modifier = Modifier
-                    .background(Color.White.copy(alpha = 0.1f), RoundedCornerShape(6.dp))
-                    .padding(horizontal = 10.dp, vertical = 6.dp)
-            )
-            if (showNextSource && onNextSource != null) {
-                Button(
-                    onClick = onNextSource,
-                    colors = ButtonDefaults.buttonColors(containerColor = accent),
-                    shape = RoundedCornerShape(8.dp),
-                    contentPadding = ButtonDefaults.ContentPadding
-                ) {
-                    Text("Next Server", fontSize = 12.sp)
-                    Icon(
-                        Icons.Default.FastForward,
-                        contentDescription = null,
-                        modifier = Modifier.padding(start = 4.dp).size(16.dp)
-                    )
+                    .fillMaxWidth()
+                    .padding(top = if (isTvLayout) 12.dp else 8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(if (isTvLayout) 12.dp else 8.dp)
+            ) {
+                tvControls?.let {
+                    SeasonEpisodeDropdowns(controls = it, accent = accent, large = isTvLayout)
+                }
+                if (showNextSource && onNextSource != null) {
+                    Button(
+                        onClick = onNextSource,
+                        colors = ButtonDefaults.buttonColors(containerColor = accent),
+                        shape = RoundedCornerShape(8.dp),
+                        modifier = Modifier.heightIn(min = if (isTvLayout) 48.dp else 40.dp)
+                    ) {
+                        Text("Next Server", fontSize = if (isTvLayout) 14.sp else 12.sp)
+                        Icon(
+                            Icons.Default.FastForward,
+                            contentDescription = null,
+                            modifier = Modifier.padding(start = 6.dp).size(18.dp)
+                        )
+                    }
                 }
             }
         }

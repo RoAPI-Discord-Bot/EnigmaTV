@@ -25,6 +25,7 @@ import androidx.compose.material.icons.filled.Movie
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.Tv
+import com.enigma.tv.data.ViewerProfile
 import androidx.compose.material.icons.outlined.FavoriteBorder
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
@@ -62,7 +63,10 @@ fun EnigmaHeader(
     query: String,
     onQueryChange: (String) -> Unit,
     onSearch: () -> Unit,
-    onMenuClick: (() -> Unit)? = null
+    onMenuClick: (() -> Unit)? = null,
+    activeProfile: ViewerProfile? = null,
+    onProfileClick: (() -> Unit)? = null,
+    showSearch: Boolean = true
 ) {
     Column(
         modifier = Modifier
@@ -103,14 +107,24 @@ fun EnigmaHeader(
                     )
                 }
             }
+            if (onProfileClick != null) {
+                androidx.compose.foundation.layout.Box(
+                    modifier = Modifier
+                        .clickable(onClick = onProfileClick)
+                        .padding(start = 8.dp)
+                ) {
+                    ProfileNavIcon(activeProfile)
+                }
+            }
         }
-        Spacer(Modifier.height(10.dp))
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            OutlinedTextField(
+        if (showSearch) {
+            Spacer(Modifier.height(10.dp))
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                OutlinedTextField(
                 value = query,
                 onValueChange = onQueryChange,
                 modifier = Modifier.weight(1f),
@@ -141,6 +155,7 @@ fun EnigmaHeader(
                     .size(48.dp)
             ) {
                 Icon(Icons.Default.Search, contentDescription = "Search", tint = TextPrimary)
+            }
             }
         }
     }

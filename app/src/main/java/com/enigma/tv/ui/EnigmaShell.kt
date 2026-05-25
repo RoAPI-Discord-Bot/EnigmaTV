@@ -28,6 +28,7 @@ import androidx.compose.material.icons.filled.PlayCircle
 import androidx.compose.material.icons.filled.PlaylistAdd
 import androidx.compose.material.icons.filled.PlaylistPlay
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.DrawerValue
@@ -68,6 +69,7 @@ import com.enigma.tv.data.HomeRow
 import com.enigma.tv.data.LiveStreamLink
 import com.enigma.tv.data.MovieItem
 import com.enigma.tv.data.TvItem
+import com.enigma.tv.data.ViewerProfile
 import com.enigma.tv.data.canStream
 import com.enigma.tv.data.comingSoonLabel
 import com.enigma.tv.ui.theme.BgDark
@@ -101,6 +103,19 @@ fun EnigmaShell(viewModel: EnigmaViewModel = viewModel()) {
         return
     }
 
+    if (state.showProfilePicker) {
+        ProfilePickerGate(
+            profiles = state.profiles,
+            layout = layout,
+            onSelectProfile = viewModel::selectProfileAndContinue,
+            onAddProfile = viewModel::addProfile
+        )
+        return
+    }
+
+    val activeProfile = state.profiles.find { it.id == state.activeProfileId }
+    val useBottomNav = !layout.usePermanentDrawer()
+
     val drawerContent: @Composable () -> Unit = {
         EnigmaDrawerContent(
             current = state.section,
@@ -108,13 +123,15 @@ fun EnigmaShell(viewModel: EnigmaViewModel = viewModel()) {
             onSelect = { section ->
                 viewModel.setSection(section)
                 if (!layout.usePermanentDrawer()) scope.launch { drawerState.close() }
-            }
+            },
+            onSwitchProfile = { viewModel.showProfilePickerScreen() }
         )
     }
 
-    val mainContent: @Composable () -> Unit = {
+    val bodyContent: @Composable () -> Unit = {
         Box(Modifier.fillMaxSize()) {
-            if (state.contentLoading && state.homeRows.isEmpty() && state.section == NavSection.HOME) {
+            val initialLoading = state.contentLoading && state.homeRows.isEmpty() && state.section == NavSection.HOME
+            if (initialLoading) {
                 EnigmaLoadingRing(
                     modifier = Modifier.fillMaxSize(),
                     message = "LOADING",
@@ -123,21 +140,22 @@ fun EnigmaShell(viewModel: EnigmaViewModel = viewModel()) {
             }
             Column(Modifier.fillMaxSize()) {
                 EnigmaHeader(
-                    sectionLabel = state.section.title,
-                    placeholder = "Search movies & TV…",
+                    sectionLabel = if (state.section == NavSection.HOME) null else state.section.title,
+                    placeholder = if (state.section == NavSection.LIVE) "Search games or channels…" else "Search movies & TV…",
                     query = query,
                     onQueryChange = { query = it },
                     onSearch = {
                         if (state.section == NavSection.LIVE) viewModel.searchLiveTv(query)
                         else viewModel.search(query)
                     },
-                    onMenuClick = if (!layout.usePermanentDrawer()) {
-                        { scope.launch { drawerState.open() } }
-                    } else null
+                    onMenuClick = if (!useBottomNav) null else null,
+                    activeProfile = activeProfile,
+                    onProfileClick = { viewModel.showProfilePickerScreen() },
+                    showSearch = state.section == NavSection.HOME || state.section == NavSection.LIVE
                 )
 
                 when {
-                    state.contentLoading -> EnigmaLoadingRing(
+                    state.contentLoading && !initialLoading -> EnigmaLoadingRing(
                         modifier = Modifier.fillMaxWidth().height(320.dp),
                         message = "LOADING"
                     )
@@ -175,10 +193,11 @@ fun EnigmaShell(viewModel: EnigmaViewModel = viewModel()) {
                             onSignUp = viewModel::signUp,
                             onGuest = viewModel::signInGuest,
                             onSignOut = viewModel::signOut,
-                            onSync = viewModel::syncToCloud,
+                            onSync = {},
                             onSwitchProfile = viewModel::switchProfile,
                             onAddProfile = viewModel::addProfile,
-                            onRemoveProfile = viewModel::removeProfile
+                            onRemoveProfile = viewModel::removeProfile,
+                            onOpenProfilePicker = viewModel::showProfilePickerScreen
                         )
                     }
                 }
@@ -277,7 +296,20 @@ fun EnigmaShell(viewModel: EnigmaViewModel = viewModel()) {
                     modifier = Modifier.width(layout.drawerWidthDp().dp)
                 ) { drawerContent() }
             },
-            content = { mainContent() }
+            content = { bodyContent() }
+        )
+    } else if (useBottomNav) {
+        Scaffold(
+            containerColor = BgDark,
+            bottomBar = {
+                NetflixBottomBar(
+                    current = state.section,
+                    onSelect = { viewModel.setSection(it) }
+                )
+            },
+            content = { padding ->
+                Box(Modifier.padding(padding)) { bodyContent() }
+            }
         )
     } else {
         ModalNavigationDrawer(
@@ -288,7 +320,7 @@ fun EnigmaShell(viewModel: EnigmaViewModel = viewModel()) {
                     modifier = Modifier.width(layout.drawerWidthDp().dp)
                 ) { drawerContent() }
             },
-            content = { mainContent() }
+            content = { bodyContent() }
         )
     }
 }
@@ -297,7 +329,8 @@ fun EnigmaShell(viewModel: EnigmaViewModel = viewModel()) {
 private fun EnigmaDrawerContent(
     current: NavSection,
     layout: ScreenLayout,
-    onSelect: (NavSection) -> Unit
+    onSelect: (NavSection) -> Unit,
+    onSwitchProfile: () -> Unit
 ) {
     Column(
         modifier = Modifier
@@ -329,6 +362,14 @@ private fun EnigmaDrawerContent(
         DrawerEntry(Icons.Default.PlayCircle, NavSection.CONTINUE, current, onSelect)
         DrawerEntry(Icons.Default.PlaylistPlay, NavSection.LISTS, current, onSelect)
         DrawerEntry(Icons.Default.Person, NavSection.PROFILE, current, onSelect)
+        Spacer(Modifier.weight(1f))
+        NavigationDrawerItem(
+            icon = { Icon(Icons.Default.Person, contentDescription = "Switch profile") },
+            label = { Text("Switch Profile") },
+            selected = false,
+            onClick = onSwitchProfile,
+            modifier = Modifier.padding(NavigationDrawerItemDefaults.ItemPadding)
+        )
     }
 }
 

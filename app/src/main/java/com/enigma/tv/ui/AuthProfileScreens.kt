@@ -1,7 +1,6 @@
 package com.enigma.tv.ui
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -10,19 +9,14 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.FilterChip
-import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.OutlinedButton
@@ -34,6 +28,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
@@ -64,14 +59,15 @@ fun ProfileScreen(
     onSync: () -> Unit,
     onSwitchProfile: (String) -> Unit,
     onAddProfile: (String) -> Unit,
-    onRemoveProfile: (String) -> Unit
+    onRemoveProfile: (String) -> Unit,
+    onOpenProfilePicker: () -> Unit
 ) {
     var mode by rememberSaveable { mutableStateOf("signin") }
     var name by rememberSaveable { mutableStateOf(displayName) }
     var mail by rememberSaveable { mutableStateOf(email) }
     var pass by rememberSaveable { mutableStateOf("") }
     var showPassword by rememberSaveable { mutableStateOf(false) }
-    var newProfileName by rememberSaveable { mutableStateOf("") }
+    val activeProfile = profiles.find { it.id == activeProfileId }
 
     Column(
         Modifier
@@ -81,84 +77,39 @@ fun ProfileScreen(
             .padding(20.dp)
     ) {
         Text("Account", color = TextPrimary, fontSize = 24.sp, fontWeight = FontWeight.Bold)
-        Text(
-            "Each profile keeps its own favorites, lists, and continue watching.",
-            color = TextSecondary,
-            fontSize = 13.sp
-        )
 
-        Spacer(Modifier.height(16.dp))
-        Text("Who's watching?", color = TextPrimary, fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
+        Spacer(Modifier.height(20.dp))
         Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .horizontalScroll(rememberScrollState())
-                .padding(top = 8.dp),
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            profiles.forEach { profile ->
-                val selected = profile.id == activeProfileId
-                FilterChip(
-                    selected = selected,
-                    onClick = { onSwitchProfile(profile.id) },
-                    label = { Text(profile.name) },
-                    trailingIcon = if (profiles.size > 1 && !selected) {
-                        {
-                            IconButton(
-                                onClick = { onRemoveProfile(profile.id) },
-                                modifier = Modifier.size(18.dp)
-                            ) {
-                                Icon(Icons.Default.Close, contentDescription = "Remove profile", tint = TextSecondary)
-                            }
-                        }
-                    } else null,
-                    colors = FilterChipDefaults.filterChipColors(
-                        selectedContainerColor = EnigmaPurple,
-                        selectedLabelColor = TextPrimary
-                    )
-                )
+            val profile = activeProfile ?: ViewerProfile("default", "Main", 0)
+            ProfileAvatarCircle(
+                profile = profile,
+                selected = false,
+                sizeDp = 64,
+                onClick = onOpenProfilePicker
+            )
+            Column(Modifier.weight(1f)) {
+                Text("Watching as", color = TextSecondary, fontSize = 12.sp)
+                Text(profile.name, color = TextPrimary, fontSize = 20.sp, fontWeight = FontWeight.SemiBold)
             }
         }
-        Row(Modifier.padding(top = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            OutlinedTextField(
-                value = newProfileName,
-                onValueChange = { newProfileName = it },
-                modifier = Modifier.weight(1f),
-                placeholder = { Text("New profile name") },
-                singleLine = true,
-                colors = OutlinedTextFieldDefaults.colors(
-                    focusedTextColor = TextPrimary,
-                    unfocusedTextColor = TextPrimary
-                )
-            )
-            Button(
-                onClick = {
-                    if (newProfileName.isNotBlank()) {
-                        onAddProfile(newProfileName)
-                        newProfileName = ""
-                    }
-                },
-                colors = ButtonDefaults.buttonColors(containerColor = EnigmaPurple),
-                shape = RoundedCornerShape(8.dp)
-            ) {
-                Icon(Icons.Default.Add, contentDescription = null)
-                Text("Add", modifier = Modifier.padding(start = 4.dp))
-            }
+        Spacer(Modifier.height(12.dp))
+        OutlinedButton(
+            onClick = onOpenProfilePicker,
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(8.dp)
+        ) {
+            Text("Switch Profile", color = TextPrimary)
         }
 
         if (isLoggedIn) {
-            Spacer(Modifier.height(20.dp))
+            Spacer(Modifier.height(24.dp))
             Text("Signed in as", color = TextSecondary, fontSize = 12.sp)
             Text(displayName.ifBlank { "EnigmaTV User" }, color = TextPrimary, fontSize = 18.sp, fontWeight = FontWeight.SemiBold)
             Text(email, color = EnigmaPink, fontSize = 13.sp)
             Spacer(Modifier.height(16.dp))
-            Button(
-                onClick = onSync,
-                modifier = Modifier.fillMaxWidth(),
-                colors = ButtonDefaults.buttonColors(containerColor = EnigmaPurple),
-                shape = RoundedCornerShape(8.dp)
-            ) { Text("Sync library") }
-            Spacer(Modifier.height(8.dp))
             OutlinedButton(onClick = onSignOut, modifier = Modifier.fillMaxWidth()) { Text("Sign out") }
         } else {
             Spacer(Modifier.height(16.dp))

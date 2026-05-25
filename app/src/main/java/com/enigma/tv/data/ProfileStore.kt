@@ -15,7 +15,8 @@ private val Context.profileDataStore by preferencesDataStore("enigma_profiles")
 
 data class ViewerProfile(
     val id: String,
-    val name: String
+    val name: String,
+    val avatarIndex: Int = 0
 )
 
 class ProfileStore(private val context: Context) {
@@ -54,9 +55,13 @@ class ProfileStore(private val context: Context) {
 
     suspend fun addProfile(name: String): ViewerProfile {
         val trimmed = name.trim().ifBlank { "Profile" }
-        val profile = ViewerProfile(id = UUID.randomUUID().toString(), name = trimmed)
         context.profileDataStore.edit { prefs ->
             val current = readProfiles(prefs[profilesKey]).toMutableList()
+            val profile = ViewerProfile(
+                id = UUID.randomUUID().toString(),
+                name = trimmed,
+                avatarIndex = current.size % 8
+            )
             current.add(profile)
             prefs[profilesKey] = gson.toJson(current.take(6))
             prefs[activeKey] = profile.id

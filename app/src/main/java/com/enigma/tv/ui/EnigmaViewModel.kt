@@ -41,6 +41,8 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 enum class NavSection(val title: String) {
@@ -95,7 +97,8 @@ data class EnigmaUiState(
     val seasons: List<Int> = emptyList(),
     val episodes: List<Pair<Int, String>> = emptyList(),
     val profiles: List<ViewerProfile> = emptyList(),
-    val activeProfileId: String = "default"
+    val activeProfileId: String = "default",
+    val showProfilePicker: Boolean = false
 )
 
 class EnigmaViewModel(application: Application) : AndroidViewModel(application) {
@@ -113,8 +116,18 @@ class EnigmaViewModel(application: Application) : AndroidViewModel(application) 
 
     private val _state = MutableStateFlow(EnigmaUiState())
     val state: StateFlow<EnigmaUiState> = _state.asStateFlow()
+    private var syncJob: Job? = null
 
     private fun activeProfileId(): String = _state.value.activeProfileId.ifBlank { "default" }
+
+    private fun scheduleCloudSync() {
+        if (!_state.value.isLoggedIn) return
+        syncJob?.cancel()
+        syncJob = viewModelScope.launch {
+            delay(1200)
+            syncIfLoggedIn()
+        }
+    }
 
     init {
         viewModelScope.launch { profileStore.ensureDefaultProfile() }
@@ -134,6 +147,7 @@ class EnigmaViewModel(application: Application) : AndroidViewModel(application) 
                 ) { f, p, c -> Triple(f, p, c) }
             }.collect { (favs, lists, cw) ->
                 _state.update { it.copy(favorites = favs, playlists = lists, continueWatching = cw) }
+                scheduleCloudSync()
             }
         }
         viewModelScope.launch {
@@ -169,14 +183,15 @@ class EnigmaViewModel(application: Application) : AndroidViewModel(application) 
         }
         viewModelScope.launch {
             val done = sessionStore.isOnboardingComplete()
-            if (done) loadHome()
             _state.update {
                 it.copy(
                     showAuthGate = !done,
                     showSplash = false,
-                    contentLoading = done && it.homeRows.isEmpty()
+                    showProfilePicker = done,
+                    contentLoading = false
                 )
             }
+            if (done) loadHome()
         }
     }
 
@@ -189,17 +204,41 @@ class EnigmaViewModel(application: Application) : AndroidViewModel(application) 
         }
     }
 
+    fun selectProfileAndContinue(profileId: String) {
+        viewModelScope.launch {
+            profileStore.setActive(profileId)
+            pullCloudSafe()
+            _state.update { it.copy(showProfilePicker = false) }
+            if (_state.value.homeRows.isEmpty()) loadHome()
+        }
+    }
+
+    fun dismissProfilePicker() {
+        _state.update { it.copy(showProfilePicker = false) }
+        if (_state.value.homeRows.isEmpty()) loadHome()
+    }
+
+    fun showProfilePickerScreen() {
+        _state.update {
+            it.copy(
+                showProfilePicker = true,
+                playerVisible = false,
+                showDetail = false
+            )
+        }
+    }
+
     fun addProfile(name: String) {
         viewModelScope.launch {
             profileStore.addProfile(name)
-            syncIfLoggedIn()
+            scheduleCloudSync()
         }
     }
 
     fun removeProfile(profileId: String) {
         viewModelScope.launch {
             profileStore.removeProfile(profileId)
-            syncIfLoggedIn()
+            scheduleCloudSync()
         }
     }
 
@@ -222,10 +261,10 @@ class EnigmaViewModel(application: Application) : AndroidViewModel(application) 
                 showAuthGate = false,
                 authLoading = false,
                 profileError = null,
-                contentLoading = it.homeRows.isEmpty()
+                showProfilePicker = true,
+                contentLoading = false
             )
         }
-        if (_state.value.homeRows.isEmpty()) loadHome()
     }
 
     fun setSection(section: NavSection) {

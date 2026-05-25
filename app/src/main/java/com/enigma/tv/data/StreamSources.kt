@@ -8,22 +8,22 @@ data class StreamSource(
 
 object StreamSources {
     val movieSources: List<StreamSource> = listOf(
-        StreamSource("SuperEmbed", movieUrl = { id -> "https://multiembed.mov/?video_id=$id&tmdb=1" }),
         StreamSource("VidLink", movieUrl = { id -> "https://vidlink.pro/movie/$id" }),
         StreamSource("Vidsrc.to", movieUrl = { id -> "https://vidsrc.to/embed/movie/$id" }),
         StreamSource("2Embed", movieUrl = { id -> "https://www.2embed.skin/embed/movie/$id" }),
         StreamSource("Vidsrc.cc", movieUrl = { id -> "https://vidsrc.cc/v2/embed/movie/$id" }),
+        StreamSource("SuperEmbed", movieUrl = { id -> "https://multiembed.mov/?video_id=$id&tmdb=1" }),
         StreamSource("Embed.su", movieUrl = { id -> "https://embed.su/embed/movie/$id" })
     )
 
     val tvSources: List<StreamSource> = listOf(
+        StreamSource("VidLink TV", tvUrl = { id, s, e -> "https://vidlink.pro/tv/$id/$s/$e" }),
+        StreamSource("Vidsrc.to TV", tvUrl = { id, s, e -> "https://vidsrc.to/embed/tv/$id/$s/$e" }),
+        StreamSource("2Embed TV", tvUrl = { id, s, e -> "https://www.2embed.skin/embed/tv/$id/$s/$e" }),
+        StreamSource("Vidsrc.cc TV", tvUrl = { id, s, e -> "https://vidsrc.cc/v2/embed/tv/$id/$s/$e" }),
         StreamSource("SuperEmbed TV", tvUrl = { id, s, e ->
             "https://multiembed.mov/?video_id=$id&tmdb=1&s=$s&e=$e"
         }),
-        StreamSource("VidLink TV", tvUrl = { id, s, e -> "https://vidlink.pro/tv/$id/$s/$e" }),
-        StreamSource("2Embed TV", tvUrl = { id, s, e -> "https://www.2embed.skin/embed/tv/$id/$s/$e" }),
-        StreamSource("Vidsrc.to TV", tvUrl = { id, s, e -> "https://vidsrc.to/embed/tv/$id/$s/$e" }),
-        StreamSource("Vidsrc.cc TV", tvUrl = { id, s, e -> "https://vidsrc.cc/v2/embed/tv/$id/$s/$e" }),
         StreamSource("Embed.su TV", tvUrl = { id, s, e -> "https://embed.su/embed/tv/$id/$s/$e" })
     )
 

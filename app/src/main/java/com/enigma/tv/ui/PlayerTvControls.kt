@@ -1,5 +1,6 @@
 package com.enigma.tv.ui
 
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.DropdownMenuItem
@@ -30,9 +31,11 @@ data class TvPlayerControls(
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun SeasonEpisodeDropdowns(controls: TvPlayerControls, accent: Color) {
+fun SeasonEpisodeDropdowns(controls: TvPlayerControls, accent: Color, large: Boolean = false) {
     var seasonExpanded by remember { mutableStateOf(false) }
     var episodeExpanded by remember { mutableStateOf(false) }
+    val btnMinHeight = if (large) 48.dp else 40.dp
+    val fontSize = if (large) 14.sp else 12.sp
 
     ExposedDropdownMenuBox(
         expanded = seasonExpanded,
@@ -40,19 +43,22 @@ fun SeasonEpisodeDropdowns(controls: TvPlayerControls, accent: Color) {
     ) {
         OutlinedButton(
             onClick = { seasonExpanded = true },
-            modifier = Modifier.menuAnchor(),
+            modifier = Modifier
+                .menuAnchor()
+                .heightIn(min = btnMinHeight),
             shape = RoundedCornerShape(8.dp)
         ) {
-            Text("S${controls.selectedSeason}", fontSize = 12.sp, color = TextPrimary)
+            Text("Season ${controls.selectedSeason}", fontSize = fontSize, color = TextPrimary)
         }
         ExposedDropdownMenu(expanded = seasonExpanded, onDismissRequest = { seasonExpanded = false }) {
             controls.seasons.forEach { s ->
                 DropdownMenuItem(
-                    text = { Text("Season $s") },
+                    text = { Text("Season $s", fontSize = if (large) 16.sp else 14.sp) },
                     onClick = {
                         controls.onSeasonChange(s)
                         seasonExpanded = false
-                    }
+                    },
+                    modifier = Modifier.heightIn(min = if (large) 52.dp else 44.dp)
                 )
             }
         }
@@ -64,19 +70,22 @@ fun SeasonEpisodeDropdowns(controls: TvPlayerControls, accent: Color) {
     ) {
         OutlinedButton(
             onClick = { episodeExpanded = true },
-            modifier = Modifier.menuAnchor(),
+            modifier = Modifier
+                .menuAnchor()
+                .heightIn(min = btnMinHeight),
             shape = RoundedCornerShape(8.dp)
         ) {
-            Text("E${controls.selectedEpisode}", fontSize = 12.sp, color = TextPrimary)
+            Text("Episode ${controls.selectedEpisode}", fontSize = fontSize, color = TextPrimary)
         }
         ExposedDropdownMenu(expanded = episodeExpanded, onDismissRequest = { episodeExpanded = false }) {
             controls.episodes.forEach { (num, name) ->
                 DropdownMenuItem(
-                    text = { Text("Ep $num — $name", maxLines = 1, overflow = TextOverflow.Ellipsis) },
+                    text = { Text("Ep $num — $name", maxLines = 2, overflow = TextOverflow.Ellipsis, fontSize = if (large) 16.sp else 14.sp) },
                     onClick = {
                         controls.onEpisodeChange(num)
                         episodeExpanded = false
-                    }
+                    },
+                    modifier = Modifier.heightIn(min = if (large) 52.dp else 44.dp)
                 )
             }
         }

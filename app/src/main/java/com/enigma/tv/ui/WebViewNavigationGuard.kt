@@ -91,10 +91,6 @@ class WebViewNavigationGuard(initialUrl: String) {
 
             override fun onPageFinished(view: WebView?, url: String?) {
                 onPageLoading?.invoke(false)
-                if (liveTv && view != null) {
-                    view.evaluateJavascript(LIVE_SANDBOX_FIX_JS, null)
-                    view.evaluateJavascript(LIVE_EMBED_CLEANUP_JS, null)
-                }
             }
 
             override fun shouldOverrideUrlLoading(
@@ -188,28 +184,6 @@ class WebViewNavigationGuard(initialUrl: String) {
             "multiembed.mov",
             "multiembed.xyz"
         )
-
-        private const val LIVE_SANDBOX_FIX_JS = """
-(function() {
-  try {
-    document.querySelectorAll('iframe').forEach(function(f) {
-      f.removeAttribute('sandbox');
-      f.setAttribute('allowfullscreen', 'true');
-      f.setAttribute('allow', 'autoplay; fullscreen; encrypted-media; picture-in-picture');
-    });
-  } catch(e) {}
-})();
-"""
-
-        private const val LIVE_EMBED_CLEANUP_JS = """
-(function() {
-  try {
-    var s = document.createElement('style');
-    s.innerHTML = 'body{margin:0!important;background:#000!important;overflow:hidden}header,nav,.ad,.ads,.popup,.banner{display:none!important}video,iframe{max-width:100vw!important;max-height:100vh!important}';
-    document.head.appendChild(s);
-  } catch(e) {}
-})();
-"""
 
         private val LIVE_TV_ROOTS = setOf(
             "youtube.com",
