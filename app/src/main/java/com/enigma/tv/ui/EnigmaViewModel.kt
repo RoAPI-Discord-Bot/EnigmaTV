@@ -422,7 +422,7 @@ class EnigmaViewModel(application: Application) : AndroidViewModel(application) 
             _state.update { it.copy(profileError = null) }
             authService.signIn(email, password)
                 .onSuccess { _state.update { it.copy(profileMessage = "Signed in") }; syncIfLoggedIn() }
-                .onFailure { _state.update { it.copy(profileError = it.message) } }
+                .onFailure { e -> _state.update { it.copy(profileError = e.message ?: "Sign in failed") } }
         }
     }
 
@@ -430,7 +430,7 @@ class EnigmaViewModel(application: Application) : AndroidViewModel(application) 
         viewModelScope.launch {
             authService.signUp(email, password, name)
                 .onSuccess { _state.update { it.copy(profileMessage = "Account created") }; syncIfLoggedIn() }
-                .onFailure { _state.update { it.copy(profileError = it.message) } }
+                .onFailure { e -> _state.update { it.copy(profileError = e.message ?: "Sign up failed") } }
         }
     }
 
@@ -438,7 +438,7 @@ class EnigmaViewModel(application: Application) : AndroidViewModel(application) 
         viewModelScope.launch {
             authService.signInGuest()
                 .onSuccess { _state.update { it.copy(profileMessage = "Guest session") } }
-                .onFailure { _state.update { it.copy(profileError = it.message) } }
+                .onFailure { e -> _state.update { it.copy(profileError = e.message ?: "Guest sign in failed") } }
         }
     }
 
