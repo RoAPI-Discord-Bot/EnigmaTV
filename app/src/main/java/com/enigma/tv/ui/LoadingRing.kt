@@ -75,7 +75,7 @@ fun EnigmaLoadingRing(
                     contentScale = ContentScale.Fit,
                     modifier = Modifier
                         .size(logoSize)
-                        .padding(10.dp)
+                        .padding(12.dp)
                 )
             }
             message?.let {
