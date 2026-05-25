@@ -1,7 +1,14 @@
 package com.enigma.tv.ui
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
@@ -10,9 +17,6 @@ import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.LiveTv
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material3.Icon
-import androidx.compose.material3.NavigationBar
-import androidx.compose.material3.NavigationBarItem
-import androidx.compose.material3.NavigationBarItemDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -20,10 +24,11 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.enigma.tv.data.ViewerProfile
 import com.enigma.tv.ui.theme.EnigmaPink
-import com.enigma.tv.ui.theme.EnigmaPurple
 import com.enigma.tv.ui.theme.TextPrimary
 import com.enigma.tv.ui.theme.TextSecondary
 
@@ -32,38 +37,51 @@ fun NetflixBottomBar(
     current: NavSection,
     onSelect: (NavSection) -> Unit
 ) {
-    NavigationBar(
-        containerColor = Color(0xFF141414),
-        contentColor = TextPrimary
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(Color(0xFF141414))
+            .navigationBarsPadding()
+            .padding(vertical = 10.dp),
+        horizontalArrangement = Arrangement.SpaceEvenly,
+        verticalAlignment = Alignment.CenterVertically
     ) {
-        NetflixNavItem(Icons.Default.Home, "Home", NavSection.HOME, current, onSelect)
-        NetflixNavItem(Icons.Default.LiveTv, "Live TV", NavSection.LIVE, current, onSelect)
-        NetflixNavItem(Icons.Default.Favorite, "My List", NavSection.FAVORITES, current, onSelect)
-        NetflixNavItem(Icons.Default.Person, "Account", NavSection.PROFILE, current, onSelect)
+        BottomNavEntry(Icons.Default.Home, "Home", NavSection.HOME, current, onSelect)
+        BottomNavEntry(Icons.Default.LiveTv, "Live TV", NavSection.LIVE, current, onSelect)
+        BottomNavEntry(Icons.Default.Favorite, "My List", NavSection.FAVORITES, current, onSelect)
+        BottomNavEntry(Icons.Default.Person, "Account", NavSection.PROFILE, current, onSelect)
     }
 }
 
 @Composable
-private fun NetflixNavItem(
+private fun BottomNavEntry(
     icon: ImageVector,
     label: String,
     section: NavSection,
     current: NavSection,
     onSelect: (NavSection) -> Unit
 ) {
-    NavigationBarItem(
-        selected = current == section,
-        onClick = { onSelect(section) },
-        icon = { Icon(icon, contentDescription = label) },
-        label = { Text(label, fontSize = 11.sp) },
-        colors = NavigationBarItemDefaults.colors(
-            selectedIconColor = EnigmaPink,
-            selectedTextColor = TextPrimary,
-            unselectedIconColor = TextSecondary,
-            unselectedTextColor = TextSecondary,
-            indicatorColor = EnigmaPurple.copy(alpha = 0.35f)
+    val selected = current == section
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        modifier = Modifier
+            .clickable { onSelect(section) }
+            .padding(horizontal = 12.dp, vertical = 4.dp)
+    ) {
+        Icon(
+            icon,
+            contentDescription = label,
+            tint = if (selected) EnigmaPink else TextSecondary,
+            modifier = Modifier.size(24.dp)
         )
-    )
+        Text(
+            label,
+            color = if (selected) TextPrimary else TextSecondary,
+            fontSize = 11.sp,
+            fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
+            modifier = Modifier.padding(top = 4.dp)
+        )
+    }
 }
 
 @Composable

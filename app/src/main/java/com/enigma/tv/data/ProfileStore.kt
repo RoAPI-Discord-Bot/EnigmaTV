@@ -55,18 +55,19 @@ class ProfileStore(private val context: Context) {
 
     suspend fun addProfile(name: String): ViewerProfile {
         val trimmed = name.trim().ifBlank { "Profile" }
+        var created = ViewerProfile(id = "", name = trimmed, avatarIndex = 0)
         context.profileDataStore.edit { prefs ->
             val current = readProfiles(prefs[profilesKey]).toMutableList()
-            val profile = ViewerProfile(
+            created = ViewerProfile(
                 id = UUID.randomUUID().toString(),
                 name = trimmed,
                 avatarIndex = current.size % 8
             )
-            current.add(profile)
+            current.add(created)
             prefs[profilesKey] = gson.toJson(current.take(6))
-            prefs[activeKey] = profile.id
+            prefs[activeKey] = created.id
         }
-        return profile
+        return created
     }
 
     suspend fun renameProfile(id: String, name: String) {
