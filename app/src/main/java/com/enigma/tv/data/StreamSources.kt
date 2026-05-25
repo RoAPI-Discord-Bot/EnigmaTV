@@ -1,5 +1,9 @@
 package com.enigma.tv.data
 
+/**
+ * Embed providers — URL patterns aligned with Flux, vidsrc.cc, and common TMDB apps.
+ * WebView embed is the reliable tier; native extraction is attempted in parallel.
+ */
 data class StreamSource(
     val name: String,
     val movieUrl: (Int) -> String = { "" },
@@ -9,34 +13,42 @@ data class StreamSource(
 object StreamSources {
     val movieSources: List<StreamSource> = listOf(
         StreamSource("VidLink", movieUrl = { id -> "https://vidlink.pro/movie/$id" }),
-        StreamSource("Vidsrc.to", movieUrl = { id -> "https://vidsrc.to/embed/movie/$id" }),
+        StreamSource("Vidsrc.cc", movieUrl = { id -> "https://vidsrc.cc/embed/movie/$id" }),
+        StreamSource("Vidsrc.net", movieUrl = { id -> "https://vidsrc.net/embed/movie?tmdb=$id" }),
+        StreamSource("Vidsrc.me", movieUrl = { id -> "https://vidsrc.me/embed/movie?tmdb=$id" }),
         StreamSource("2Embed", movieUrl = { id -> "https://www.2embed.skin/embed/movie/$id" }),
-        StreamSource("Vidsrc.cc", movieUrl = { id -> "https://vidsrc.cc/v2/embed/movie/$id" }),
         StreamSource("SuperEmbed", movieUrl = { id -> "https://multiembed.mov/?video_id=$id&tmdb=1" }),
-        StreamSource("Embed.su", movieUrl = { id -> "https://embed.su/embed/movie/$id" })
+        StreamSource("Embed.su", movieUrl = { id -> "https://embed.su/embed/movie/$id" }),
+        StreamSource("Vidsrc.to", movieUrl = { id -> "https://vidsrc.to/embed/movie/$id" })
     )
 
     val tvSources: List<StreamSource> = listOf(
         StreamSource("VidLink TV", tvUrl = { id, s, e -> "https://vidlink.pro/tv/$id/$s/$e" }),
-        StreamSource("Vidsrc.to TV", tvUrl = { id, s, e -> "https://vidsrc.to/embed/tv/$id/$s/$e" }),
+        StreamSource("Vidsrc.cc TV", tvUrl = { id, s, e -> "https://vidsrc.cc/embed/tv/$id/$s/$e" }),
+        StreamSource("Vidsrc.net TV", tvUrl = { id, s, e ->
+            "https://vidsrc.net/embed/tv?tmdb=$id&season=$s&episode=$e"
+        }),
+        StreamSource("Vidsrc.me TV", tvUrl = { id, s, e ->
+            "https://vidsrc.me/embed/tv?tmdb=$id&season=$s&episode=$e"
+        }),
         StreamSource("2Embed TV", tvUrl = { id, s, e -> "https://www.2embed.skin/embed/tv/$id/$s/$e" }),
-        StreamSource("Vidsrc.cc TV", tvUrl = { id, s, e -> "https://vidsrc.cc/v2/embed/tv/$id/$s/$e" }),
         StreamSource("SuperEmbed TV", tvUrl = { id, s, e ->
             "https://multiembed.mov/?video_id=$id&tmdb=1&s=$s&e=$e"
         }),
-        StreamSource("Embed.su TV", tvUrl = { id, s, e -> "https://embed.su/embed/tv/$id/$s/$e" })
+        StreamSource("Embed.su TV", tvUrl = { id, s, e -> "https://embed.su/embed/tv/$id/$s/$e" }),
+        StreamSource("Vidsrc.to TV", tvUrl = { id, s, e -> "https://vidsrc.to/embed/tv/$id/$s/$e" })
     )
 
     fun movieUrl(sourceIndex: Int, tmdbId: Int): Pair<String, String> {
         val sources = movieSources
-        val index = sourceIndex % sources.size
+        val index = sourceIndex.mod(sources.size)
         val source = sources[index]
         return source.name to source.movieUrl(tmdbId)
     }
 
     fun tvUrl(sourceIndex: Int, tmdbId: Int, season: Int, episode: Int): Pair<String, String> {
         val sources = tvSources
-        val index = sourceIndex % sources.size
+        val index = sourceIndex.mod(sources.size)
         val source = sources[index]
         return source.name to source.tvUrl(tmdbId, season, episode)
     }

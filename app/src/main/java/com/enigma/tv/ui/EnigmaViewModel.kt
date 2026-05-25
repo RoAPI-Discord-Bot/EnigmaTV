@@ -516,7 +516,7 @@ class EnigmaViewModel(application: Application) : AndroidViewModel(application) 
         _state.update {
             it.copy(
                 playerVisible = true,
-                playerLoading = true,
+                playerLoading = false,
                 playerHls = false,
                 playerTitle = movie.title,
                 playerUrl = url,
@@ -666,7 +666,7 @@ class EnigmaViewModel(application: Application) : AndroidViewModel(application) 
                 playerVisible = true,
                 playerHls = false,
                 playerLiveTv = true,
-                playerLoading = true,
+                playerLoading = false,
                 playerTitle = title,
                 playerUrl = embedUrl,
                 playerResolveToken = it.playerResolveToken + 1,
@@ -731,7 +731,7 @@ class EnigmaViewModel(application: Application) : AndroidViewModel(application) 
             _state.update {
                 it.copy(
                     playerVisible = true,
-                    playerLoading = true,
+                    playerLoading = false,
                     playerHls = false,
                     playerTitle = name,
                     playerResolveToken = it.playerResolveToken + 1,
@@ -789,7 +789,7 @@ class EnigmaViewModel(application: Application) : AndroidViewModel(application) 
         val (name, url) = StreamSources.tvUrl(s.sourceIndex, showId, s.selectedSeason, s.selectedEpisode)
         _state.update {
             it.copy(
-                playerLoading = true,
+                playerLoading = false,
                 playerHls = false,
                 playerUrl = url,
                 playerResolveToken = it.playerResolveToken + 1,
@@ -810,7 +810,7 @@ class EnigmaViewModel(application: Application) : AndroidViewModel(application) 
                 val (name, url) = StreamSources.movieUrl(next, id)
                 _state.update {
                     it.copy(
-                        playerLoading = true,
+                        playerLoading = false,
                         sourceIndex = next,
                         playerUrl = url,
                         playerResolveToken = it.playerResolveToken + 1,

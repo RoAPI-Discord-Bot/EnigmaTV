@@ -80,15 +80,19 @@ fun ExoLivePlayer(
 
     val context = LocalContext.current
     var playToken by remember { mutableIntStateOf(0) }
+    var stripHeaders by remember { mutableStateOf(false) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
 
     val player = remember(playUrl, playToken) {
         ExoPlayer.Builder(context).build().apply {
             playWhenReady = true
+            volume = 1f
         }
     }
 
-    DisposableEffect(playUrl, playToken, playbackHeaders) {
+    val effectiveHeaders = if (stripHeaders) emptyMap() else playbackHeaders
+
+    DisposableEffect(playUrl, playToken, effectiveHeaders) {
         errorMessage = null
         onLoadingChange(true)
         var prepared = false
@@ -98,8 +102,8 @@ fun ExoLivePlayer(
             .setConnectTimeoutMs(18_000)
             .setReadTimeoutMs(25_000)
             .apply {
-                if (playbackHeaders.isNotEmpty()) {
-                    setDefaultRequestProperties(playbackHeaders)
+                if (effectiveHeaders.isNotEmpty()) {
+                    setDefaultRequestProperties(effectiveHeaders)
                 }
             }
         try {
@@ -136,7 +140,12 @@ fun ExoLivePlayer(
 
             override fun onPlayerError(error: PlaybackException) {
                 onLoadingChange(false)
-                errorMessage = "Stream blocked — try next server"
+                if (!stripHeaders && playbackHeaders.isNotEmpty()) {
+                    stripHeaders = true
+                    playToken++
+                } else {
+                    errorMessage = "Stream blocked — try next server"
+                }
             }
         }
         player.addListener(listener)

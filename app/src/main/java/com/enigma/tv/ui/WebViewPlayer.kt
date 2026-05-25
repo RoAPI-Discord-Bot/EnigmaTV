@@ -7,30 +7,20 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.padding
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Shield
-import androidx.compose.material3.Icon
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import com.enigma.tv.ui.theme.BgDark
-import com.enigma.tv.ui.theme.MovieAccent
-import com.enigma.tv.ui.theme.TextPrimary
-import kotlinx.coroutines.delay
 
 private const val TAG_STREAM_URL = 0xE71A001
 
@@ -55,29 +45,27 @@ fun WebViewPlayer(
 ) {
     if (!visible) return
 
-    var blockedNotice by remember { mutableStateOf<String?>(null) }
+    var pageLoading by remember(url) { mutableStateOf(true) }
+
     val guard = remember(liveTv, onStreamCaptured) {
         WebViewNavigationGuard("").apply {
             onStreamUrl = onStreamCaptured
-            onBlocked = { blocked ->
-                blockedNotice = when {
-                    blocked == "popup_window" -> "Blocked popup"
-                    else -> "Blocked redirect"
-                }
+            onBlocked = { /* silent — shield handles click hijacks in-page */ }
+            onPageLoading = { loading ->
+                pageLoading = loading
+                onLoadingChange(loading)
             }
-            onPageLoading = onLoadingChange
         }
     }
 
     LaunchedEffect(url) {
+        pageLoading = true
         onLoadingChange(true)
     }
 
-    LaunchedEffect(blockedNotice) {
-        if (blockedNotice != null) {
-            delay(2500)
-            blockedNotice = null
-        }
+    LaunchedEffect(url) {
+        kotlinx.coroutines.delay(8_000)
+        pageLoading = false
     }
 
     val content: @Composable ColumnScope.() -> Unit = {
@@ -99,8 +87,7 @@ fun WebViewPlayer(
             url = url,
             liveTv = liveTv,
             guard = guard,
-            streamLoading = streamLoading,
-            blockedNotice = blockedNotice
+            pageLoading = pageLoading
         )
     }
 
@@ -118,20 +105,10 @@ private fun ColumnScope.WebViewStreamBody(
     url: String,
     liveTv: Boolean,
     guard: WebViewNavigationGuard,
-    streamLoading: Boolean,
-    blockedNotice: String?
+    pageLoading: Boolean
 ) {
-    blockedNotice?.let { notice ->
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .background(MovieAccent.copy(alpha = 0.2f))
-                .padding(horizontal = 12.dp, vertical = 6.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Icon(Icons.Default.Shield, contentDescription = null, tint = MovieAccent)
-            Text(notice, color = TextPrimary, fontSize = 12.sp, modifier = Modifier.padding(start = 6.dp))
-        }
+    DisposableEffect(url) {
+        onDispose { EmbedPlayerShield.stopPeriodic() }
     }
 
     Box(
@@ -147,10 +124,9 @@ private fun ColumnScope.WebViewStreamBody(
                         ViewGroup.LayoutParams.MATCH_PARENT
                     )
                         guard.configureWebView(this, liveTv = liveTv)
-                    if (liveTv) {
-                        settings.userAgentString =
-                            "Mozilla/5.0 (Linux; Android 10) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36"
-                    }
+                    settings.userAgentString =
+                        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36"
+                    settings.mediaPlaybackRequiresUserGesture = false
                     setTag(TAG_STREAM_URL, url)
                     guard.resetForUrl(url, liveTv = liveTv)
                     loadUrl(url)
@@ -159,6 +135,7 @@ private fun ColumnScope.WebViewStreamBody(
             update = { view ->
                 val last = view.getTag(TAG_STREAM_URL) as? String
                 if (last != url) {
+                    EmbedPlayerShield.stopPeriodic()
                     view.setTag(TAG_STREAM_URL, url)
                     guard.resetForUrl(url, liveTv = liveTv)
                     view.loadUrl(url)
@@ -167,7 +144,7 @@ private fun ColumnScope.WebViewStreamBody(
             modifier = Modifier.fillMaxSize()
         )
 
-        if (streamLoading) {
+        if (pageLoading) {
             EnigmaLoadingRing(
                 modifier = Modifier
                     .fillMaxSize()

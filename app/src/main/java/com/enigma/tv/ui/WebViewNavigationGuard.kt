@@ -2,6 +2,7 @@ package com.enigma.tv.ui
 
 import android.net.Uri
 import android.os.Build
+import android.webkit.CookieManager
 import android.webkit.WebChromeClient
 import android.webkit.WebResourceRequest
 import android.webkit.WebResourceResponse
@@ -10,18 +11,16 @@ import android.webkit.WebViewClient
 import java.io.ByteArrayInputStream
 
 /**
- * Blocks hijack redirects and popups in the player WebView.
- * Unlike iframe sandbox in the browser, we can intercept navigation here without
- * breaking embed hosts — we only block main-frame jumps to unrelated/ad domains.
+ * Embed player guard: **blocklist-only** for main navigations so play-button redirects
+ * to file hosts (megacloud, rabbitstream, etc.) are not cancelled.
+ * Popups are blocked; [EmbedPlayerShield] removes in-page click-hijack overlays on pause.
  */
 class WebViewNavigationGuard(initialUrl: String) {
 
-    private val allowedRoots = mutableSetOf<String>()
-    private var blockedCount = 0
+    private val sessionHosts = mutableSetOf<String>()
 
     var onBlocked: ((String) -> Unit)? = null
     var onPageLoading: ((Boolean) -> Unit)? = null
-    /** Called on main thread when a direct HLS/MP4 URL is seen in network traffic */
     var onStreamUrl: ((String) -> Unit)? = null
 
     init {
@@ -29,36 +28,61 @@ class WebViewNavigationGuard(initialUrl: String) {
     }
 
     fun resetForUrl(url: String, liveTv: Boolean = false) {
-        allowedRoots.clear()
-        extractHost(url)?.let { registerAllowedHost(it) }
-        STREAM_EMBED_ROOTS.forEach { allowedRoots.add(it) }
-        if (liveTv) LIVE_TV_ROOTS.forEach { allowedRoots.add(it) }
+        sessionHosts.clear()
+        extractHost(url)?.let { registerHost(it) }
+        STREAM_EMBED_ROOTS.forEach { registerHost(it) }
+        if (liveTv) LIVE_TV_ROOTS.forEach { registerHost(it) }
     }
 
-    fun shouldAllowNavigation(url: String, isMainFrame: Boolean): Boolean {
-        if (!isMainFrame) return true
+    /**
+     * @return true if this main-frame navigation should be **cancelled**
+     */
+    fun shouldBlockNavigation(url: String, isMainFrame: Boolean, userGesture: Boolean): Boolean {
+        if (!isMainFrame) return false
 
-        val uri = parseUri(url) ?: return false
-        val scheme = uri.scheme?.lowercase() ?: return false
+        val uri = parseUri(url) ?: return true
+        val scheme = uri.scheme?.lowercase() ?: return true
+        if (scheme !in ALLOWED_SCHEMES) return true
+        if (isBlockedScheme(scheme)) return true
 
-        if (scheme !in ALLOWED_SCHEMES) return false
-        if (isBlockedScheme(scheme)) return false
+        val host = uri.host?.lowercase() ?: return true
+        if (isBlockedHost(host)) {
+            onBlocked?.invoke(url)
+            return true
+        }
 
-        val host = uri.host?.lowercase() ?: return false
-        if (isBlockedHost(host)) return false
-        if (isAllowedHost(host)) return true
+        // User tapped play — allow redirect chains to player/file hosts
+        if (userGesture || looksLikePlayerNavigation(url)) {
+            registerHost(host)
+            return false
+        }
 
-        blockedCount++
-        onBlocked?.invoke(url)
-        return false
+        // Programmatic hops from embed → player: allow if streaming-related
+        if (looksLikePlayerNavigation(url) || isStreamingCdn(host)) {
+            registerHost(host)
+            return false
+        }
+
+        // Obvious ad / store hijacks without user intent
+        if (isObviousHijack(url, host)) {
+            onBlocked?.invoke(url)
+            return true
+        }
+
+        registerHost(host)
+        false
     }
 
     fun shouldBlockSubresource(url: String): Boolean {
         val host = parseUri(url)?.host?.lowercase() ?: return false
-        return isBlockedHost(host) || AD_RESOURCE_HOSTS.any { host == it || host.endsWith(".$it") }
+        return isBlockedHost(host)
     }
 
     fun configureWebView(webView: WebView, liveTv: Boolean = false) {
+        CookieManager.getInstance().setAcceptCookie(true)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+            CookieManager.getInstance().setAcceptThirdPartyCookies(webView, true)
+        }
         webView.settings.apply {
             javaScriptEnabled = true
             domStorageEnabled = true
@@ -66,8 +90,8 @@ class WebViewNavigationGuard(initialUrl: String) {
             mediaPlaybackRequiresUserGesture = false
             loadWithOverviewMode = true
             useWideViewPort = true
-            setSupportMultipleWindows(liveTv)
-            javaScriptCanOpenWindowsAutomatically = liveTv
+            setSupportMultipleWindows(false)
+            javaScriptCanOpenWindowsAutomatically = false
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
                 mixedContentMode = android.webkit.WebSettings.MIXED_CONTENT_ALWAYS_ALLOW
             }
@@ -78,20 +102,26 @@ class WebViewNavigationGuard(initialUrl: String) {
                 view: WebView?,
                 isDialog: Boolean,
                 isUserGesture: Boolean,
-                resultMsg: android.os.Message?
-            ): Boolean {
-                blockedCount++
-                onBlocked?.invoke("popup_window")
-                return false
+                resultMsg: Message?
+            ): Boolean = false
+
+            override fun onProgressChanged(view: WebView?, newProgress: Int) {
+                if (newProgress >= 85) view?.let { EmbedPlayerShield.apply(it) }
             }
         }
 
         webView.webViewClient = object : WebViewClient() {
             override fun onPageStarted(view: WebView?, url: String?, favicon: android.graphics.Bitmap?) {
+                url?.let { extractHost(it)?.let { registerHost(it) } }
                 onPageLoading?.invoke(true)
             }
 
             override fun onPageFinished(view: WebView?, url: String?) {
+                url?.let { extractHost(it)?.let { registerHost(it) } }
+                view?.let {
+                    EmbedPlayerShield.apply(it)
+                    EmbedPlayerShield.startPeriodic(it)
+                }
                 onPageLoading?.invoke(false)
             }
 
@@ -99,16 +129,17 @@ class WebViewNavigationGuard(initialUrl: String) {
                 view: WebView,
                 request: WebResourceRequest
             ): Boolean {
-                val allowed = shouldAllowNavigation(
+                val block = shouldBlockNavigation(
                     request.url.toString(),
-                    request.isForMainFrame
+                    request.isForMainFrame,
+                    userGesture = request.isRedirect || request.hasGesture()
                 )
-                return !allowed
+                return request.isForMainFrame && block
             }
 
             @Deprecated("Deprecated in Java")
             override fun shouldOverrideUrlLoading(view: WebView, url: String): Boolean {
-                return !shouldAllowNavigation(url, isMainFrame = true)
+                return shouldBlockNavigation(url, isMainFrame = true, userGesture = true)
             }
 
             override fun shouldInterceptRequest(
@@ -123,21 +154,30 @@ class WebViewNavigationGuard(initialUrl: String) {
         }
     }
 
-    private fun registerAllowedHost(host: String) {
-        allowedRoots.add(host)
-        registrableDomain(host)?.let { allowedRoots.add(it) }
+    private fun registerHost(host: String) {
+        sessionHosts.add(host)
+        registrableDomain(host)?.let { sessionHosts.add(it) }
     }
 
-    private fun isAllowedHost(host: String): Boolean {
-        if (allowedRoots.any { host == it || host.endsWith(".$it") }) return true
-        return STREAMING_CDN_SUFFIXES.any { suffix ->
+    private fun isStreamingCdn(host: String): Boolean =
+        STREAMING_CDN_SUFFIXES.any { suffix ->
             host == suffix.removePrefix(".") || host.endsWith(suffix)
         }
+
+    private fun looksLikePlayerNavigation(url: String): Boolean {
+        val lower = url.lowercase()
+        if (lower.contains(".m3u8") || lower.contains(".mp4")) return true
+        return PLAYER_PATH_HINTS.any { lower.contains(it) }
+    }
+
+    private fun isObviousHijack(url: String, host: String): Boolean {
+        if (isBlockedHost(host)) return true
+        val lower = url.lowercase()
+        return HIJACK_PATH_HINTS.any { lower.contains(it) }
     }
 
     private fun isBlockedHost(host: String): Boolean =
-        BLOCKED_NAVIGATION_HOSTS.any { host == it || host.endsWith(".$it") } ||
-            AD_RESOURCE_HOSTS.any { host == it || host.endsWith(".$it") }
+        BLOCKED_HOSTS.any { host == it || host.endsWith(".$it") }
 
     private fun extractHost(url: String): String? = parseUri(url)?.host?.lowercase()
 
@@ -156,8 +196,7 @@ class WebViewNavigationGuard(initialUrl: String) {
         null
     }
 
-    private fun isBlockedScheme(scheme: String): Boolean =
-        scheme in BLOCKED_SCHEMES
+    private fun isBlockedScheme(scheme: String): Boolean = scheme in BLOCKED_SCHEMES
 
     private fun captureStreamUrl(url: String) {
         val lower = url.lowercase()
@@ -177,99 +216,56 @@ class WebViewNavigationGuard(initialUrl: String) {
     )
 
     companion object {
-        private val ALLOWED_SCHEMES = setOf("http", "https", "about")
+        private val ALLOWED_SCHEMES = setOf("http", "https", "about", "blob")
 
         private val BLOCKED_SCHEMES = setOf(
             "intent", "market", "tel", "sms", "mailto", "geo", "javascript", "file"
         )
 
-        /** Root domains for embed providers used in StreamSources */
+        private val PLAYER_PATH_HINTS = listOf(
+            "/embed/", "/e/", "/play", "/player", "/watch", "/stream",
+            "/movie", "/tv/", "/video", "/file/", "/hls", "/source",
+            "tmdb=", "video_id=", "autoplay"
+        )
+
+        private val HIJACK_PATH_HINTS = listOf(
+            "/redirect?", "clickid=", "affiliate", "/out?", "/go?",
+            "doubleclick", "utm_campaign=ad"
+        )
+
         private val STREAM_EMBED_ROOTS = setOf(
             "vidlink.pro",
-            "vidsrc.to",
-            "vidsrc.cc",
-            "vidsrc.me",
-            "vsembed.ru",
-            "embed.su",
-            "multiembed.mov",
-            "2embed.skin",
-            "www.2embed.skin",
-            "superembed.stream",
-            "multiembed.mov",
-            "multiembed.xyz"
+            "vidsrc.to", "vidsrc.cc", "vidsrc.me", "vidsrc.net", "vidsrc.xyz", "vidsrc.fyi",
+            "cineby.gd", "vsembed.ru", "embed.su", "multiembed.mov", "2embed.skin",
+            "www.2embed.skin", "superembed.stream", "multiembed.xyz"
         )
 
         private val LIVE_TV_ROOTS = setOf(
-            "youtube.com",
-            "youtube-nocookie.com",
-            "youtu.be",
-            "googlevideo.com",
-            "ytimg.com",
-            "ggpht.com",
-            "googleusercontent.com",
-            "embedsports.top",
-            "streamed.pk",
-            "streamed.su",
-            "dlhd.dad",
-            "dlhd.click",
-            "daddylivehd",
-            "liveembed.net",
-            "sportsonline",
-            "topembed",
-            "casthill.net",
-            "sportcast",
-            "dlhd.sx",
-            "papaahd",
-            "givemereddit",
-            "ripplestream",
-            "sportshd"
+            "youtube.com", "youtube-nocookie.com", "youtu.be", "googlevideo.com",
+            "ytimg.com", "ggpht.com", "googleusercontent.com", "embedsports.top",
+            "streamed.pk", "streamed.su", "dlhd.dad", "dlhd.click", "liveembed.net",
+            "topembed", "casthill.net", "sportcast", "dlhd.sx", "givemereddit",
+            "ripplestream", "sportshd"
         )
 
-        /** Common video CDN / player infrastructure (subresource + navigations) */
         private val STREAMING_CDN_SUFFIXES = listOf(
-            ".cloudfront.net",
-            ".akamaized.net",
-            ".fastly.net",
-            ".bunnycdn.com",
-            ".jsdelivr.net",
-            ".vercel.app",
-            ".workers.dev",
-            ".bitmovin.com",
-            ".jwplayer.com",
-            ".radiantmediatechs.com"
+            ".cloudfront.net", ".akamaized.net", ".fastly.net", ".bunnycdn.net",
+            ".bunnycdn.com", ".workers.dev", ".vercel.app", ".bitmovin.com",
+            ".jwplayer.com", ".videodelivery.net", ".streamtape.com", ".mixdrop",
+            ".uqload", ".dood", ".voe.sx", ".filemoon", ".rabbitstream", ".megacloud",
+            ".warezcdn", ".neonnetwork", ".shadowlands", ".cdn77", ".gvideo",
+            ".mcloud", ".embedflix", ".moviesapi", ".suicide", ".proxy", ".netlify"
         )
 
-        private val BLOCKED_NAVIGATION_HOSTS = setOf(
-            "doubleclick.net",
-            "googlesyndication.com",
-            "googleadservices.com",
-            "google-analytics.com",
-            "googletagmanager.com",
-            "facebook.com",
-            "fb.com",
-            "popads.net",
-            "propellerads.com",
-            "adsterra.com",
-            "exoclick.com",
-            "clickadu.com",
-            "onclickads.net",
-            "syndication.exoclick.com",
-            "chaturbate.com",
-            "stripchat.com",
-            "aliexpress.com",
-            "amazon.com",
-            "ebay.com"
+        private val BLOCKED_HOSTS = setOf(
+            "doubleclick.net", "googlesyndication.com", "googleadservices.com",
+            "google-analytics.com", "googletagmanager.com", "facebook.com", "fb.com",
+            "popads.net", "propellerads.com", "adsterra.com", "exoclick.com",
+            "clickadu.com", "onclickads.net", "chaturbate.com", "stripchat.com",
+            "aliexpress.com", "amazon.com", "ebay.com", "adservice.google.com",
+            "pagead2.googlesyndication.com", "outbrain.com", "taboola.com", "mgid.com",
+            "revcontent.com", "ads.yahoo.com", "static.ads-twitter.com"
         )
 
-        private val AD_RESOURCE_HOSTS = BLOCKED_NAVIGATION_HOSTS + setOf(
-            "adservice.google.com",
-            "pagead2.googlesyndication.com",
-            "static.ads-twitter.com",
-            "ads.yahoo.com",
-            "outbrain.com",
-            "taboola.com",
-            "mgid.com",
-            "revcontent.com"
-        )
     }
 }

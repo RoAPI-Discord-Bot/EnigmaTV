@@ -2,6 +2,7 @@ package com.enigma.tv.data
 
 import android.app.Activity
 import android.content.Context
+import kotlinx.coroutines.withTimeoutOrNull
 
 /**
  * Full playback resolution chain used by movie/TV apps:
@@ -17,6 +18,18 @@ object StreamPlaybackResolver {
         type: ContentType?,
         season: Int = 1,
         episode: Int = 1
+    ): ResolvedStream? = withTimeoutOrNull(22_000) {
+        resolveInternal(context, embedUrl, activity, tmdbId, type, season, episode)
+    }
+
+    private suspend fun resolveInternal(
+        context: Context,
+        embedUrl: String,
+        activity: Activity?,
+        tmdbId: Int?,
+        type: ContentType?,
+        season: Int,
+        episode: Int
     ): ResolvedStream? {
         if (isDirectStream(embedUrl)) {
             return ResolvedStream.fromEmbed(embedUrl, embedUrl, "direct")

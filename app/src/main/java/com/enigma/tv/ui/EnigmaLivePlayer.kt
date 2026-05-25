@@ -5,6 +5,8 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -12,7 +14,10 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.unit.dp
+import androidx.compose.material3.LinearProgressIndicator
 import com.enigma.tv.data.LiveEmbedResolver
 import com.enigma.tv.data.ResolvedStream
 import com.enigma.tv.data.StreamPlaybackResolver
@@ -22,7 +27,7 @@ import com.enigma.tv.util.findActivity
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
-private enum class LivePlayMode { Resolving, Native, Embed }
+private enum class LivePlayMode { Embed, Native }
 
 @Composable
 fun EnigmaLivePlayer(
@@ -45,12 +50,14 @@ fun EnigmaLivePlayer(
     val activity = remember(context) { context.findActivity() }
     var resolvedStream by remember(embedUrl, resolveToken) { mutableStateOf<ResolvedStream?>(null) }
     var playUrl by remember(embedUrl, resolveToken) { mutableStateOf(embedUrl) }
-    var mode by remember(embedUrl, resolveToken) { mutableStateOf(LivePlayMode.Resolving) }
+    var mode by remember(embedUrl, resolveToken) { mutableStateOf(LivePlayMode.Embed) }
+    var resolvingNative by remember(embedUrl, resolveToken) { mutableStateOf(true) }
 
     LaunchedEffect(embedUrl, resolveToken, activity) {
-        mode = LivePlayMode.Resolving
-        onLoadingChange(true)
+        resolvingNative = true
+        onLoadingChange(false)
         resolvedStream = null
+        mode = LivePlayMode.Embed
         try {
             val resolved = withContext(Dispatchers.IO) {
                 LiveEmbedResolver.resolvePlayableUrl(embedUrl)
@@ -71,16 +78,17 @@ fun EnigmaLivePlayer(
                     type = null
                 )
             }
-            mode = if (resolvedStream != null) LivePlayMode.Native else LivePlayMode.Embed
+            if (resolvedStream != null) {
+                mode = LivePlayMode.Native
+            }
         } catch (_: Exception) {
             resolvedStream = null
-            mode = LivePlayMode.Embed
         } finally {
-            onLoadingChange(false)
+            resolvingNative = false
         }
     }
 
-    val loading = streamLoading || mode == LivePlayMode.Resolving
+    val loading = streamLoading && mode == LivePlayMode.Native
 
     Box(Modifier.fillMaxSize().background(BgDark)) {
         when (mode) {
@@ -97,40 +105,48 @@ fun EnigmaLivePlayer(
                 showNextSource = true,
                 onNextSource = onNextSource
             )
-            LivePlayMode.Resolving -> Column(Modifier.fillMaxSize()) {
+            LivePlayMode.Embed -> Column(Modifier.fillMaxSize()) {
                 PlayerChrome(
                     title = title,
-                    subtitle = "Finding stream…",
+                    subtitle = if (resolvingNative) "$sourceLabel · loading…" else sourceLabel,
                     posterUrl = posterUrl,
                     accent = EnigmaPurple,
                     onClose = onClose,
                     showBack = true,
-                    onBack = onClose
+                    onBack = onClose,
+                    showNextSource = true,
+                    onNextSource = onNextSource
                 )
-                EnigmaLoadingRing(
-                    modifier = Modifier.weight(1f).fillMaxSize(),
-                    message = "LOADING STREAM"
-                )
-            }
-            LivePlayMode.Embed -> Column(Modifier.fillMaxSize()) {
+                if (resolvingNative) {
+                    LinearProgressIndicator(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(3.dp),
+                        color = EnigmaPurple,
+                        trackColor = Color.White.copy(alpha = 0.12f)
+                    )
+                }
                 WebViewPlayer(
                     visible = true,
                     title = title,
                     url = playUrl,
                     accent = EnigmaPurple,
-                    sourceLabel = "$sourceLabel · Player",
+                    sourceLabel = sourceLabel,
                     posterUrl = posterUrl,
-                    streamLoading = loading,
+                    streamLoading = false,
                     onClose = onClose,
                     onNextSource = onNextSource,
-                    onLoadingChange = onLoadingChange,
+                    onLoadingChange = { },
                     liveTv = true,
                     useExternalChrome = true,
                     onStreamCaptured = { captured ->
                         resolvedStream = ResolvedStream.fromEmbed(playUrl, captured, "live-capture")
                         mode = LivePlayMode.Native
+                        resolvingNative = false
                     },
-                    modifier = Modifier.weight(1f).fillMaxSize()
+                    modifier = Modifier
+                        .weight(1f)
+                        .fillMaxSize()
                 )
             }
         }

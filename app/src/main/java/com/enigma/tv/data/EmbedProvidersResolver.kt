@@ -27,7 +27,7 @@ object EmbedProvidersResolver {
             }
         }
         if (activity != null) {
-            for ((name, embedUrl) in urls) {
+            urls.take(3).forEach { (_, embedUrl) ->
                 extractor.extractStreamUrl(embedUrl, activity = activity)?.let { return@withContext it }
             }
         }
