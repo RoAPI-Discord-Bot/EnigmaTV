@@ -215,7 +215,9 @@ fun EnigmaShell(viewModel: EnigmaViewModel = viewModel()) {
                     state.error != null -> ErrorPanel(
                         message = state.error!!,
                         onDismiss = viewModel::clearError,
-                        onRetry = if (state.section == NavSection.HOME) viewModel::loadHome else null
+                        onRetry = if (state.section == NavSection.HOME) {
+                            { viewModel.loadHome() }
+                        } else null
                     )
                     else -> AnimatedContent(
                         targetState = state.section,
