@@ -213,7 +213,7 @@ private fun DetailContent(
                 }
             } else {
                 Text(
-                    detail.releaseLabel ?: "Not available yet",
+                    detail.releaseLabel ?: "Coming soon — not playable yet",
                     color = EnigmaPink,
                     modifier = Modifier.fillMaxWidth(),
                     fontSize = 14.sp

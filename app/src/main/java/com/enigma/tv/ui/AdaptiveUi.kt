@@ -30,9 +30,9 @@ fun ScreenLayout.drawerWidthDp(): Int = when (this) {
 fun ScreenLayout.usePermanentDrawer(): Boolean = this == ScreenLayout.TV
 
 fun ScreenLayout.posterWidthDp(): Int = when (this) {
-    ScreenLayout.PHONE -> 150
-    ScreenLayout.TABLET -> 165
-    ScreenLayout.TV -> 140
+    ScreenLayout.PHONE -> 148
+    ScreenLayout.TABLET -> 168
+    ScreenLayout.TV -> 172
 }
 
 fun ScreenLayout.contentPaddingDp(): Int = when (this) {

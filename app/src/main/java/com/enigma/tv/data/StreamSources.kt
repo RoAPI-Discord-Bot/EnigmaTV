@@ -19,6 +19,7 @@ object StreamSources {
 
     val tvSources: List<StreamSource> = listOf(
         StreamSource("VidLink TV", tvUrl = { id, s, e -> "https://vidlink.pro/tv/$id/$s/$e" }),
+        StreamSource("2Embed TV", tvUrl = { id, s, e -> "https://www.2embed.skin/embed/tv/$id/$s/$e" }),
         StreamSource("Vidsrc.to TV", tvUrl = { id, s, e -> "https://vidsrc.to/embed/tv/$id/$s/$e" }),
         StreamSource("Vidsrc.cc TV", tvUrl = { id, s, e -> "https://vidsrc.cc/v2/embed/tv/$id/$s/$e" }),
         StreamSource("Vidsrc.me TV", tvUrl = { id, s, e ->

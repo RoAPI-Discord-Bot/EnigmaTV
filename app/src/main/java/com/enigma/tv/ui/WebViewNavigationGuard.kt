@@ -25,10 +25,11 @@ class WebViewNavigationGuard(initialUrl: String) {
         resetForUrl(initialUrl)
     }
 
-    fun resetForUrl(url: String) {
+    fun resetForUrl(url: String, liveTv: Boolean = false) {
         allowedRoots.clear()
         extractHost(url)?.let { registerAllowedHost(it) }
         STREAM_EMBED_ROOTS.forEach { allowedRoots.add(it) }
+        if (liveTv) LIVE_TV_ROOTS.forEach { allowedRoots.add(it) }
     }
 
     fun shouldAllowNavigation(url: String, isMainFrame: Boolean): Boolean {
@@ -171,7 +172,29 @@ class WebViewNavigationGuard(initialUrl: String) {
             "vidsrc.me",
             "vsembed.ru",
             "embed.su",
-            "multiembed.mov"
+            "multiembed.mov",
+            "2embed.skin",
+            "www.2embed.skin",
+            "superembed.stream"
+        )
+
+        private val LIVE_TV_ROOTS = setOf(
+            "youtube.com",
+            "youtube-nocookie.com",
+            "youtu.be",
+            "googlevideo.com",
+            "ytimg.com",
+            "ggpht.com",
+            "googleusercontent.com",
+            "embedsports.top",
+            "streamed.pk",
+            "streamed.su",
+            "dlhd.dad",
+            "dlhd.click",
+            "daddylivehd",
+            "liveembed.net",
+            "sportsonline",
+            "topembed"
         )
 
         /** Common video CDN / player infrastructure (subresource + navigations) */

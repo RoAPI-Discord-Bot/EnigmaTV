@@ -37,6 +37,11 @@ fun TvItem.comingSoonLabel(): String? {
     return "Coming soon · $formatted"
 }
 
+/** True when the title can be streamed (not a future release). */
+fun MovieItem.canStream(): Boolean = comingSoonLabel() == null
+
+fun TvItem.canStream(): Boolean = comingSoonLabel() == null
+
 fun formatRuntime(minutes: Int?): String? {
     if (minutes == null || minutes <= 0) return null
     val h = minutes / 60

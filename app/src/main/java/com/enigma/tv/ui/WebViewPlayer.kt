@@ -62,12 +62,13 @@ fun WebViewPlayer(
     onClose: () -> Unit,
     onNextSource: () -> Unit,
     onLoadingChange: (Boolean) -> Unit,
-    tvControls: TvPlayerControls? = null
+    tvControls: TvPlayerControls? = null,
+    liveTv: Boolean = false
 ) {
     if (!visible) return
 
     var blockedNotice by remember { mutableStateOf<String?>(null) }
-    val guard = remember {
+    val guard = remember(liveTv) {
         WebViewNavigationGuard("").apply {
             onBlocked = { blocked ->
                 blockedNotice = when {
@@ -188,8 +189,12 @@ fun WebViewPlayer(
                                 ViewGroup.LayoutParams.MATCH_PARENT
                             )
                             guard.configureWebView(this)
+                            if (liveTv) {
+                                settings.userAgentString =
+                                    "Mozilla/5.0 (Linux; Android 10) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36"
+                            }
                             setTag(TAG_STREAM_URL, url)
-                            guard.resetForUrl(url)
+                            guard.resetForUrl(url, liveTv = liveTv)
                             loadUrl(url)
                         }
                     },
@@ -197,7 +202,7 @@ fun WebViewPlayer(
                         val last = view.getTag(TAG_STREAM_URL) as? String
                         if (last != url) {
                             view.setTag(TAG_STREAM_URL, url)
-                            guard.resetForUrl(url)
+                            guard.resetForUrl(url, liveTv = liveTv)
                             view.loadUrl(url)
                         }
                     },

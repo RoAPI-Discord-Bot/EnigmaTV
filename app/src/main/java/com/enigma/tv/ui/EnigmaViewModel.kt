@@ -8,8 +8,13 @@ import com.enigma.tv.data.ContinueWatchingStore
 import com.enigma.tv.data.ContentType
 import com.enigma.tv.data.FavoriteItem
 import com.enigma.tv.data.HomeRow
-import com.enigma.tv.data.LiveChannel
-import com.enigma.tv.data.LiveChannels
+import com.enigma.tv.data.IptvChannel
+import com.enigma.tv.data.IptvRepository
+import com.enigma.tv.data.LiveSportMatch
+import com.enigma.tv.data.LiveStreamLink
+import com.enigma.tv.data.LiveTvBrowseState
+import com.enigma.tv.data.LiveTvTab
+import com.enigma.tv.data.StreamedRepository
 import com.enigma.tv.data.MediaDetailUi
 import com.enigma.tv.data.MovieItem
 import com.enigma.tv.data.Playlist
@@ -18,15 +23,15 @@ import com.enigma.tv.data.SearchResults
 import com.enigma.tv.data.StreamSources
 import com.enigma.tv.data.TmdbRepository
 import com.enigma.tv.data.TvItem
+import com.enigma.tv.data.UserSessionStore
+import com.enigma.tv.data.canStream
 import com.enigma.tv.data.comingSoonLabel
 import com.enigma.tv.data.firebase.FirebaseAuthService
 import com.enigma.tv.data.firebase.FirebaseSyncService
 import com.enigma.tv.data.formatRuntime
-import com.enigma.tv.data.isReleased
 import com.enigma.tv.data.FavoritesStore
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -44,14 +49,19 @@ enum class NavSection(val title: String) {
 }
 
 data class EnigmaUiState(
-    val showSplash: Boolean = true,
-    val contentLoading: Boolean = true,
+    val showAuthGate: Boolean = true,
+    val authLoading: Boolean = false,
+    val showSplash: Boolean = false,
+    val contentLoading: Boolean = false,
     val section: NavSection = NavSection.HOME,
     val homeRows: List<HomeRow> = emptyList(),
     val continueWatching: List<ContinueWatchingEntry> = emptyList(),
     val favorites: List<FavoriteItem> = emptyList(),
     val playlists: List<Playlist> = emptyList(),
-    val liveChannels: List<LiveChannel> = LiveChannels.channels,
+    val liveTv: LiveTvBrowseState = LiveTvBrowseState(),
+    val playerHls: Boolean = false,
+    val showLiveStreamPicker: Boolean = false,
+    val liveStreamPicker: List<LiveStreamLink> = emptyList(),
     val searchResults: SearchResults? = null,
     val error: String? = null,
     val showDetail: Boolean = false,
@@ -62,6 +72,7 @@ data class EnigmaUiState(
     val playerTitle: String = "",
     val playerUrl: String = "",
     val playerAccentMovie: Boolean = true,
+    val playerLiveTv: Boolean = false,
     val sourceIndex: Int = 0,
     val sourceLabel: String = "",
     val playingType: ContentType? = null,
@@ -84,8 +95,11 @@ class EnigmaViewModel(application: Application) : AndroidViewModel(application) 
     private val cwStore = ContinueWatchingStore(application)
     private val favoritesStore = FavoritesStore(application)
     private val playlistStore = PlaylistStore(application)
+    private val sessionStore = UserSessionStore(application)
     private val authService = FirebaseAuthService()
     private val syncService = FirebaseSyncService()
+    private val iptvRepo = IptvRepository()
+    private val streamedRepo = StreamedRepository()
 
     private val _state = MutableStateFlow(EnigmaUiState())
     val state: StateFlow<EnigmaUiState> = _state.asStateFlow()
@@ -110,27 +124,43 @@ class EnigmaViewModel(application: Application) : AndroidViewModel(application) 
                 if (user != null) pullCloud()
             }
         }
-        loadHome()
+        viewModelScope.launch {
+            val done = sessionStore.isOnboardingComplete()
+            _state.update {
+                it.copy(
+                    showAuthGate = !done,
+                    showSplash = false,
+                    contentLoading = done && it.homeRows.isEmpty()
+                )
+            }
+            if (done) loadHome()
+        }
     }
 
     fun loadHome() {
         viewModelScope.launch {
-            val splashStart = System.currentTimeMillis()
-            _state.update { it.copy(contentLoading = true, error = null, searchResults = null) }
+            _state.update { it.copy(contentLoading = it.homeRows.isEmpty(), error = null, searchResults = null) }
             try {
                 val rows = repo.buildHomeRows()
-                _state.update { it.copy(homeRows = rows) }
+                _state.update { it.copy(homeRows = rows, contentLoading = false) }
             } catch (_: Exception) {
-                _state.update { it.copy(error = "Could not load EnigmaTV content") }
+                _state.update { it.copy(contentLoading = false, error = "Could not load EnigmaTV content") }
             }
-            val elapsed = System.currentTimeMillis() - splashStart
-            if (elapsed < 1200) delay(1200 - elapsed)
-            _state.update { it.copy(contentLoading = false, showSplash = false) }
         }
+    }
+
+    private suspend fun finishOnboarding() {
+        sessionStore.setOnboardingComplete()
+        _state.update { it.copy(showAuthGate = false, authLoading = false, profileError = null) }
+        if (_state.value.homeRows.isEmpty()) loadHome()
     }
 
     fun setSection(section: NavSection) {
         _state.update { it.copy(section = section, searchResults = null, error = null) }
+        if (section == NavSection.LIVE) {
+            val live = _state.value.liveTv
+            if (live.channels.isEmpty() && live.events.isEmpty() && !live.loading) loadLiveTv()
+        }
     }
 
     fun selectPlaylist(id: String?) {
@@ -189,7 +219,7 @@ class EnigmaViewModel(application: Application) : AndroidViewModel(application) 
             ratingText = "${d.voteAverage}",
             genresText = d.genres.joinToString(" · ") { it.name },
             cast = d.credits?.cast?.take(15) ?: emptyList(),
-            isPlayable = movie.isReleased(),
+            isPlayable = movie.canStream(),
             isFavorite = isFavorite
         )
     }
@@ -197,9 +227,9 @@ class EnigmaViewModel(application: Application) : AndroidViewModel(application) 
     private suspend fun buildTvDetail(id: Int, isFavorite: Boolean): MediaDetailUi {
         val d = repo.tvDetail(id)
         val show = TvItem(id, d.name, posterPath = d.posterPath, backdropPath = d.backdropPath, firstAirDate = d.firstAirDate, voteAverage = d.voteAverage, overview = d.overview)
-        val seasons = d.seasons.filter { it.seasonNumber > 0 }.map { it.seasonNumber }
-        val season = seasons.firstOrNull() ?: 1
-        val eps = if (seasons.isNotEmpty()) repo.tvSeason(id, season) else emptyList()
+        val seasons = d.seasons.filter { it.seasonNumber > 0 }.map { it.seasonNumber }.ifEmpty { listOf(1) }
+        val season = seasons.first()
+        val eps = runCatching { repo.tvSeason(id, season) }.getOrDefault(emptyList())
         return MediaDetailUi(
             type = ContentType.TV,
             id = id,
@@ -212,7 +242,7 @@ class EnigmaViewModel(application: Application) : AndroidViewModel(application) 
             ratingText = "${d.voteAverage}",
             genresText = d.genres.joinToString(" · ") { it.name },
             cast = d.credits?.cast?.take(15) ?: emptyList(),
-            isPlayable = show.isReleased(),
+            isPlayable = show.canStream(),
             seasons = seasons,
             episodes = eps,
             selectedSeason = season,
@@ -272,7 +302,7 @@ class EnigmaViewModel(application: Application) : AndroidViewModel(application) 
         _state.update {
             it.copy(
                 playerVisible = true, playerLoading = true, playerTitle = movie.title, playerUrl = url,
-                playerAccentMovie = true, playingType = ContentType.MOVIE, currentMovieId = movie.id,
+                playerAccentMovie = true, playerLiveTv = false, playingType = ContentType.MOVIE, currentMovieId = movie.id,
                 currentShowId = null, sourceIndex = 0,
                 sourceLabel = "$name (1/${StreamSources.movieSources.size})"
             )
@@ -282,12 +312,111 @@ class EnigmaViewModel(application: Application) : AndroidViewModel(application) 
         }
     }
 
-    fun playLiveChannel(channel: LiveChannel) {
+    fun loadLiveTv() {
+        viewModelScope.launch {
+            _state.update { it.copy(liveTv = it.liveTv.copy(loading = true, error = null)) }
+            try {
+                coroutineScope {
+                    val events = async { streamedRepo.loadEvents() }
+                    val channels = async { iptvRepo.loadChannels() }
+                    val ev = events.await()
+                    val ch = channels.await()
+                    _state.update {
+                        it.copy(
+                            liveTv = it.liveTv.copy(
+                                loading = false,
+                                events = ev,
+                                channels = ch,
+                                filteredEvents = ev,
+                                filteredChannels = ch
+                            )
+                        )
+                    }
+                }
+            } catch (e: Exception) {
+                _state.update {
+                    it.copy(liveTv = it.liveTv.copy(loading = false, error = "Could not load live TV: ${e.message}"))
+                }
+            }
+        }
+    }
+
+    fun setLiveTvTab(tab: LiveTvTab) {
+        _state.update { it.copy(liveTv = it.liveTv.copy(tab = tab)) }
+    }
+
+    fun searchLiveTv(query: String) {
+        _state.update { st ->
+            val live = st.liveTv.copy(searchQuery = query)
+            val filteredEvents = if (query.isBlank()) live.events else streamedRepo.search(live.events, query)
+            val filteredChannels = if (query.isBlank()) live.channels else iptvRepo.search(live.channels, query)
+            st.copy(liveTv = live.copy(filteredEvents = filteredEvents, filteredChannels = filteredChannels))
+        }
+    }
+
+    fun playIptvChannel(channel: IptvChannel) {
         _state.update {
             it.copy(
-                playerVisible = true, playerLoading = true, playerTitle = channel.name,
-                playerUrl = channel.streamUrl, playerAccentMovie = false,
-                playingType = null, sourceLabel = "Live · ${channel.category}"
+                playerVisible = true,
+                playerHls = true,
+                playerLiveTv = false,
+                playerLoading = true,
+                playerTitle = channel.name,
+                playerUrl = channel.streamUrl,
+                playerAccentMovie = false,
+                playingType = null,
+                sourceLabel = "Live · ${channel.group}",
+                showLiveStreamPicker = false
+            )
+        }
+    }
+
+    fun playLiveMatch(match: LiveSportMatch) {
+        val source = match.sources.firstOrNull() ?: return
+        viewModelScope.launch {
+            _state.update { it.copy(contentLoading = true) }
+            try {
+                val streams = streamedRepo.fetchStreams(source.source, source.id)
+                _state.update { it.copy(contentLoading = false) }
+                when {
+                    streams.isEmpty() -> _state.update { it.copy(error = "No streams available for this event") }
+                    streams.size == 1 -> playLiveEmbed(match.title, streams.first().embedUrl, streams.first().label)
+                    else -> _state.update {
+                        it.copy(showLiveStreamPicker = true, liveStreamPicker = streams, playerTitle = match.title)
+                    }
+                }
+            } catch (_: Exception) {
+                _state.update { it.copy(contentLoading = false, error = "Could not load streams") }
+            }
+        }
+    }
+
+    fun pickLiveStream(link: LiveStreamLink) {
+        val st = _state.value
+        val title = st.playerTitle.ifBlank { "Live Event" }
+        val index = st.liveStreamPicker.indexOfFirst { it.embedUrl == link.embedUrl }.coerceAtLeast(0)
+        _state.update { it.copy(showLiveStreamPicker = false, sourceIndex = index) }
+        playLiveEmbed(title, link.embedUrl, link.label)
+    }
+
+    fun dismissLiveStreamPicker() {
+        _state.update { it.copy(showLiveStreamPicker = false, liveStreamPicker = emptyList()) }
+    }
+
+    private fun playLiveEmbed(title: String, embedUrl: String, label: String) {
+        _state.update {
+            it.copy(
+                playerVisible = true,
+                playerHls = false,
+                playerLiveTv = true,
+                playerLoading = true,
+                playerTitle = title,
+                playerUrl = embedUrl,
+                playerAccentMovie = false,
+                playingType = null,
+                sourceLabel = "Live · $label",
+                sourceIndex = 0,
+                showLiveStreamPicker = false
             )
         }
     }
@@ -343,7 +472,7 @@ class EnigmaViewModel(application: Application) : AndroidViewModel(application) 
             _state.update {
                 it.copy(
                     playerVisible = true, playerLoading = true, playerTitle = name,
-                    playerAccentMovie = false, playingType = ContentType.TV,
+                    playerAccentMovie = false, playerLiveTv = false, playingType = ContentType.TV,
                     currentShowId = id, currentMovieId = null, sourceIndex = 0,
                     selectedSeason = startSeason, selectedEpisode = startEpisode
                 )
@@ -408,37 +537,84 @@ class EnigmaViewModel(application: Application) : AndroidViewModel(application) 
                 playCurrentEpisode()
             }
             null -> {
-                _state.update { it.copy(sourceIndex = it.sourceIndex + 1) }
+                val st = _state.value
+                if (st.playerLiveTv && st.liveStreamPicker.size > 1) {
+                    val next = (st.sourceIndex + 1) % st.liveStreamPicker.size
+                    val link = st.liveStreamPicker[next]
+                    playLiveEmbed(st.playerTitle, link.embedUrl, link.label)
+                    _state.update { it.copy(sourceIndex = next) }
+                } else {
+                    _state.update { it.copy(sourceIndex = it.sourceIndex + 1) }
+                }
             }
         }
     }
 
     fun onPlayerPageLoading(loading: Boolean) = _state.update { it.copy(playerLoading = loading) }
 
-    fun closePlayer() = _state.update { it.copy(playerVisible = false, playerUrl = "", playerLoading = false, playingType = null) }
+    fun closePlayer() = _state.update {
+        it.copy(
+            playerVisible = false,
+            playerUrl = "",
+            playerLoading = false,
+            playingType = null,
+            playerLiveTv = false,
+            playerHls = false
+        )
+    }
 
     fun signIn(email: String, password: String) {
         viewModelScope.launch {
-            _state.update { it.copy(profileError = null) }
+            _state.update { it.copy(profileError = null, authLoading = true) }
             authService.signIn(email, password)
-                .onSuccess { _state.update { it.copy(profileMessage = "Signed in") }; syncIfLoggedIn() }
-                .onFailure { e -> _state.update { it.copy(profileError = e.message ?: "Sign in failed") } }
+                .onSuccess {
+                    _state.update { it.copy(profileMessage = "Signed in") }
+                    syncIfLoggedIn()
+                    finishOnboarding()
+                }
+                .onFailure { e ->
+                    _state.update { it.copy(profileError = authErrorMessage(e), authLoading = false) }
+                }
         }
     }
 
     fun signUp(email: String, password: String, name: String) {
         viewModelScope.launch {
+            _state.update { it.copy(profileError = null, authLoading = true) }
             authService.signUp(email, password, name)
-                .onSuccess { _state.update { it.copy(profileMessage = "Account created") }; syncIfLoggedIn() }
-                .onFailure { e -> _state.update { it.copy(profileError = e.message ?: "Sign up failed") } }
+                .onSuccess {
+                    _state.update { it.copy(profileMessage = "Account created") }
+                    syncIfLoggedIn()
+                    finishOnboarding()
+                }
+                .onFailure { e ->
+                    _state.update { it.copy(profileError = authErrorMessage(e), authLoading = false) }
+                }
         }
     }
 
     fun signInGuest() {
         viewModelScope.launch {
+            _state.update { it.copy(profileError = null, authLoading = true) }
             authService.signInGuest()
-                .onSuccess { _state.update { it.copy(profileMessage = "Guest session") } }
-                .onFailure { e -> _state.update { it.copy(profileError = e.message ?: "Guest sign in failed") } }
+                .onSuccess {
+                    _state.update { it.copy(profileMessage = "Guest session") }
+                    finishOnboarding()
+                }
+                .onFailure { e ->
+                    _state.update { it.copy(profileError = authErrorMessage(e), authLoading = false) }
+                }
+        }
+    }
+
+    private fun authErrorMessage(e: Throwable): String {
+        val msg = e.message.orEmpty()
+        return when {
+            msg.contains("CONFIGURATION_NOT_FOUND", ignoreCase = true) ->
+                "Firebase not configured. Ensure app/google-services.json is in the project and Email + Anonymous auth are enabled in Firebase Console."
+            msg.contains("API key", ignoreCase = true) -> "Firebase API key issue — check google-services.json package name is com.enigmatv"
+            msg.isNotBlank() -> msg
+            else -> "Authentication failed"
         }
     }
 

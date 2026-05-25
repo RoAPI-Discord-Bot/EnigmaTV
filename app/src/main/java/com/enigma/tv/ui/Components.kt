@@ -152,13 +152,14 @@ fun ContentSection(
     modifier: Modifier = Modifier,
     content: @Composable () -> Unit
 ) {
-    Column(modifier = modifier.padding(bottom = 24.dp)) {
+    Column(modifier = modifier.padding(bottom = 20.dp)) {
         Text(
             text = title,
             color = TextPrimary,
-            fontSize = 18.sp,
-            fontWeight = FontWeight.SemiBold,
-            modifier = Modifier.padding(bottom = 12.dp, start = 4.dp)
+            fontSize = 17.sp,
+            fontWeight = FontWeight.Bold,
+            letterSpacing = 0.3.sp,
+            modifier = Modifier.padding(bottom = 10.dp, start = 2.dp)
         )
         content()
     }
@@ -186,7 +187,7 @@ fun PosterCard(
         Box(
             modifier = Modifier
                 .size(width = cardW, height = cardH)
-                .clip(RoundedCornerShape(6.dp))
+                .clip(RoundedCornerShape(8.dp))
                 .background(CardBg)
         ) {
             if (posterUrl != null) {

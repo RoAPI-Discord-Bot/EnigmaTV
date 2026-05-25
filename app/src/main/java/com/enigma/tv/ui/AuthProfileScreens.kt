@@ -3,6 +3,7 @@ package com.enigma.tv.ui
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -11,10 +12,16 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Visibility
+import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -22,8 +29,10 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.enigma.tv.ui.theme.BgDark
@@ -49,6 +58,7 @@ fun ProfileScreen(
     var name by rememberSaveable { mutableStateOf(displayName) }
     var mail by rememberSaveable { mutableStateOf(email) }
     var pass by rememberSaveable { mutableStateOf("") }
+    var showPassword by rememberSaveable { mutableStateOf(false) }
 
     Column(
         Modifier
@@ -76,7 +86,10 @@ fun ProfileScreen(
             OutlinedButton(onClick = onSignOut, modifier = Modifier.fillMaxWidth()) { Text("Sign out") }
         } else {
             Spacer(Modifier.height(16.dp))
-            RowModeTabs(mode) { mode = it }
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                ProfileTab("Sign in", mode == "signin") { mode = "signin" }
+                ProfileTab("Sign up", mode == "signup") { mode = "signup" }
+            }
             Spacer(Modifier.height(12.dp))
             if (mode == "signup") {
                 OutlinedTextField(value = name, onValueChange = { name = it }, label = { Text("Display name") }, modifier = Modifier.fillMaxWidth(), singleLine = true)
@@ -90,7 +103,16 @@ fun ProfileScreen(
                 label = { Text("Password") },
                 modifier = Modifier.fillMaxWidth(),
                 singleLine = true,
-                visualTransformation = PasswordVisualTransformation()
+                visualTransformation = if (showPassword) VisualTransformation.None else PasswordVisualTransformation(),
+                trailingIcon = {
+                    IconButton(onClick = { showPassword = !showPassword }) {
+                        Icon(
+                            if (showPassword) Icons.Default.VisibilityOff else Icons.Default.Visibility,
+                            contentDescription = "Toggle password",
+                            tint = TextSecondary
+                        )
+                    }
+                }
             )
             Spacer(Modifier.height(16.dp))
             Button(
@@ -111,24 +133,16 @@ fun ProfileScreen(
         }
 
         statusMessage?.let { Text(it, color = EnigmaPink, modifier = Modifier.padding(top = 12.dp)) }
-        error?.let { Text(it, color = androidx.compose.ui.graphics.Color(0xFFCC4444), modifier = Modifier.padding(top = 8.dp)) }
+        error?.let { Text(it, color = Color(0xFFCC4444), modifier = Modifier.padding(top = 8.dp), fontSize = 13.sp) }
     }
 }
 
 @Composable
-private fun RowModeTabs(mode: String, onMode: (String) -> Unit) {
-    androidx.compose.foundation.layout.Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        FilterTab("Sign in", mode == "signin") { onMode("signin") }
-        FilterTab("Sign up", mode == "signup") { onMode("signup") }
-    }
-}
-
-@Composable
-private fun FilterTab(label: String, selected: Boolean, onClick: () -> Unit) {
+private fun ProfileTab(label: String, selected: Boolean, onClick: () -> Unit) {
     Button(
         onClick = onClick,
         colors = ButtonDefaults.buttonColors(
-            containerColor = if (selected) EnigmaPurple else androidx.compose.ui.graphics.Color(0xFF222222)
+            containerColor = if (selected) EnigmaPurple else Color(0xFF222222)
         ),
         shape = RoundedCornerShape(8.dp)
     ) { Text(label) }

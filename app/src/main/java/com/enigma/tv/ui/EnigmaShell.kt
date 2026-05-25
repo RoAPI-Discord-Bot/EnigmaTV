@@ -14,9 +14,6 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.lazy.grid.GridCells
-import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
-import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
@@ -66,9 +63,10 @@ import com.enigma.tv.data.ContentType
 import com.enigma.tv.data.ContinueWatchingEntry
 import com.enigma.tv.data.FavoriteItem
 import com.enigma.tv.data.HomeRow
-import com.enigma.tv.data.LiveChannel
+import com.enigma.tv.data.LiveStreamLink
 import com.enigma.tv.data.MovieItem
 import com.enigma.tv.data.TvItem
+import com.enigma.tv.data.canStream
 import com.enigma.tv.data.comingSoonLabel
 import com.enigma.tv.ui.theme.BgDark
 import com.enigma.tv.ui.theme.BgSidebar
@@ -83,13 +81,21 @@ import kotlinx.coroutines.launch
 @Composable
 fun EnigmaShell(viewModel: EnigmaViewModel = viewModel()) {
     val state by viewModel.state.collectAsState()
-    val layout = rememberScreenLayout()
     val drawerState = rememberDrawerState(DrawerValue.Closed)
     val scope = rememberCoroutineScope()
     var query by rememberSaveable { mutableStateOf("") }
 
-    if (state.showSplash) {
-        EnigmaLoadingRing(fullscreen = true, message = "LOADING ENIGMATV")
+    val layout = rememberScreenLayout()
+
+    if (state.showAuthGate) {
+        AuthGateScreen(
+            layout = layout,
+            loading = state.authLoading,
+            error = state.profileError,
+            onSignIn = viewModel::signIn,
+            onSignUp = viewModel::signUp,
+            onGuest = viewModel::signInGuest
+        )
         return
     }
 
@@ -112,7 +118,10 @@ fun EnigmaShell(viewModel: EnigmaViewModel = viewModel()) {
                     placeholder = "Search movies & TV…",
                     query = query,
                     onQueryChange = { query = it },
-                    onSearch = { viewModel.search(query) },
+                    onSearch = {
+                        if (state.section == NavSection.LIVE) viewModel.searchLiveTv(query)
+                        else viewModel.search(query)
+                    },
                     onMenuClick = if (!layout.usePermanentDrawer()) {
                         { scope.launch { drawerState.open() } }
                     } else null
@@ -130,7 +139,15 @@ fun EnigmaShell(viewModel: EnigmaViewModel = viewModel()) {
                     )
                     else -> when (state.section) {
                         NavSection.HOME -> UnifiedHomeContent(state, viewModel, layout)
-                        NavSection.LIVE -> LiveTvContent(state, viewModel, layout)
+                        NavSection.LIVE -> LiveTvScreen(
+                            live = state.liveTv,
+                            layout = layout,
+                            onTab = viewModel::setLiveTvTab,
+                            onSearch = viewModel::searchLiveTv,
+                            onReload = viewModel::loadLiveTv,
+                            onPlayChannel = viewModel::playIptvChannel,
+                            onPlayMatch = viewModel::playLiveMatch
+                        )
                         NavSection.FAVORITES -> FavoritesContent(state, viewModel, layout)
                         NavSection.CONTINUE -> ContinueContent(state, viewModel, layout)
                         NavSection.LISTS -> ListsContent(state, viewModel, layout)
@@ -166,18 +183,40 @@ fun EnigmaShell(viewModel: EnigmaViewModel = viewModel()) {
                 )
             } else null
 
-            WebViewPlayer(
-                visible = state.playerVisible,
-                title = state.playerTitle,
-                url = state.playerUrl,
-                accent = accent,
-                sourceLabel = state.sourceLabel,
-                streamLoading = state.playerLoading,
-                onClose = { viewModel.closePlayer() },
-                onNextSource = { viewModel.nextSource() },
-                onLoadingChange = { viewModel.onPlayerPageLoading(it) },
-                tvControls = tvControls
-            )
+            if (state.playerVisible && state.playerHls) {
+                ExoLivePlayer(
+                    visible = true,
+                    title = state.playerTitle,
+                    streamUrl = state.playerUrl,
+                    sourceLabel = state.sourceLabel,
+                    streamLoading = state.playerLoading,
+                    onClose = { viewModel.closePlayer() },
+                    onLoadingChange = { viewModel.onPlayerPageLoading(it) }
+                )
+            } else {
+                WebViewPlayer(
+                    visible = state.playerVisible,
+                    title = state.playerTitle,
+                    url = state.playerUrl,
+                    accent = accent,
+                    sourceLabel = state.sourceLabel,
+                    streamLoading = state.playerLoading,
+                    onClose = { viewModel.closePlayer() },
+                    onNextSource = { viewModel.nextSource() },
+                    onLoadingChange = { viewModel.onPlayerPageLoading(it) },
+                    tvControls = tvControls,
+                    liveTv = state.playerLiveTv
+                )
+            }
+
+            if (state.showLiveStreamPicker) {
+                LiveStreamPickerDialog(
+                    title = state.playerTitle,
+                    streams = state.liveStreamPicker,
+                    onPick = viewModel::pickLiveStream,
+                    onDismiss = viewModel::dismissLiveStreamPicker
+                )
+            }
 
             if (state.showDetail) {
                 MediaDetailOverlay(
@@ -322,18 +361,7 @@ private fun HomeMoviesSection(
     cardW: Int
 ) {
     ContentSection(title) {
-        if (layout == ScreenLayout.TV) {
-            LazyVerticalGrid(
-                columns = GridCells.Fixed(layout.posterColumns()),
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp),
-                modifier = Modifier.height(((movies.size / layout.posterColumns() + 1) * 220).coerceAtMost(660).dp)
-            ) {
-                items(movies) { MediaMovieCard(it, vm, cardW) }
-            }
-        } else {
-            PosterRow { movies.forEach { MediaMovieCard(it, vm, cardW) } }
-        }
+        PosterRow { movies.forEach { MediaMovieCard(it, vm, layout.posterWidthDp()) } }
     }
 }
 
@@ -346,56 +374,34 @@ private fun HomeTvSection(
     cardW: Int
 ) {
     ContentSection(title) {
-        if (layout == ScreenLayout.TV) {
-            LazyVerticalGrid(
-                columns = GridCells.Fixed(layout.posterColumns()),
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp),
-                modifier = Modifier.height(((shows.size / layout.posterColumns() + 1) * 220).coerceAtMost(660).dp)
-            ) {
-                items(shows) { MediaTvCard(it, vm, cardW) }
+        PosterRow { shows.forEach { MediaTvCard(it, vm, layout.posterWidthDp()) } }
+    }
+}
+
+@Composable
+private fun LiveStreamPickerDialog(
+    title: String,
+    streams: List<LiveStreamLink>,
+    onPick: (LiveStreamLink) -> Unit,
+    onDismiss: () -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Pick stream · $title") },
+        text = {
+            Column {
+                streams.forEach { link ->
+                    TextButton(
+                        onClick = { onPick(link) },
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text("${link.label} (${link.source})", modifier = Modifier.fillMaxWidth())
+                    }
+                }
             }
-        } else {
-            PosterRow { shows.forEach { MediaTvCard(it, vm, cardW) } }
-        }
-    }
-}
-
-@Composable
-private fun LiveTvContent(state: EnigmaUiState, vm: EnigmaViewModel, layout: ScreenLayout) {
-    val pad = layout.contentPaddingDp().dp
-    ScrollableContent(padding = androidx.compose.foundation.layout.PaddingValues(pad)) {
-        Text(
-            "Live channels open in the player. Availability varies by region and source.",
-            color = TextSecondary,
-            fontSize = 13.sp,
-            modifier = Modifier.padding(bottom = 16.dp)
-        )
-        state.liveChannels.forEach { channel -> LiveChannelCard(channel, vm) }
-    }
-}
-
-@Composable
-private fun LiveChannelCard(channel: LiveChannel, vm: EnigmaViewModel) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(10.dp))
-            .background(Color.White.copy(alpha = 0.06f))
-            .clickable { vm.playLiveChannel(channel) }
-            .padding(16.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(16.dp)
-    ) {
-        Text(channel.logoEmoji, fontSize = 32.sp)
-        Column(Modifier.weight(1f)) {
-            Text(channel.name, color = TextPrimary, fontWeight = FontWeight.SemiBold, fontSize = 16.sp)
-            Text(channel.category, color = EnigmaPink, fontSize = 12.sp)
-        }
-        Text("LIVE", color = Color.White, fontSize = 10.sp, fontWeight = FontWeight.Bold,
-            modifier = Modifier.background(EnigmaPurple, RoundedCornerShape(4.dp)).padding(horizontal = 8.dp, vertical = 4.dp))
-    }
-    Spacer(Modifier.height(10.dp))
+        },
+        confirmButton = { TextButton(onClick = onDismiss) { Text("Cancel") } }
+    )
 }
 
 @Composable
@@ -534,13 +540,13 @@ private fun ListsContent(state: EnigmaUiState, vm: EnigmaViewModel, layout: Scre
 private fun MediaMovieCard(movie: MovieItem, vm: EnigmaViewModel, cardW: Int) {
     val state by vm.state.collectAsState()
     val fav = state.favorites.any { it.id == movie.id && it.type == ContentType.MOVIE }
-    val soon = movie.comingSoonLabel()
+    val subtitle = movie.comingSoonLabel() ?: if (!movie.canStream()) "Unavailable" else null
     PosterCard(
         title = "${movie.title} (${movie.year})",
         posterUrl = movie.posterUrl,
         accent = MovieAccent,
         badge = "MOVIE",
-        subtitle = soon,
+        subtitle = subtitle,
         cardWidthDp = cardW,
         isFavorite = fav,
         onFavoriteClick = { vm.toggleFavorite(movie.toFavorite()) },
@@ -557,7 +563,7 @@ private fun MediaTvCard(show: TvItem, vm: EnigmaViewModel, cardW: Int) {
         posterUrl = show.posterUrl,
         accent = TvAccent,
         badge = "TV",
-        subtitle = show.comingSoonLabel(),
+        subtitle = show.comingSoonLabel() ?: if (!show.canStream()) "Unavailable" else null,
         cardWidthDp = cardW,
         isFavorite = fav,
         onFavoriteClick = { vm.toggleFavorite(show.toFavorite()) },
