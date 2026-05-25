@@ -51,7 +51,9 @@ fun WebViewPlayer(
 
     var pageLoading by remember(url) { mutableStateOf(true) }
 
-    val guard = remember(liveTv, onStreamCaptured, onStreamFailed, onPlaybackReady, onPlaybackEnded, onPlaybackProgress) {
+    val endedCallback = onPlaybackEnded
+    val progressCallback = onPlaybackProgress
+    val guard = remember(liveTv, onStreamCaptured, onStreamFailed, onPlaybackReady, endedCallback, progressCallback) {
         WebViewNavigationGuard("").apply {
             onStreamUrl = onStreamCaptured
             onBlocked = { /* silent */ }
@@ -67,8 +69,8 @@ fun WebViewPlayer(
                     onStreamFailed?.invoke()
                 }
             }
-            onPlaybackEnded = onPlaybackEnded
-            onPlaybackProgress = onPlaybackProgress
+            onPlaybackEnded = endedCallback
+            onPlaybackProgress = progressCallback
         }
     }
 
@@ -89,7 +91,7 @@ fun WebViewPlayer(
                 onBack = onClose,
                 showNextSource = true,
                 onNextSource = onNextSource,
-                tvControls = tvControls
+                showEpisodesButton = tvControls != null
             )
         }
         WebViewStreamBody(
