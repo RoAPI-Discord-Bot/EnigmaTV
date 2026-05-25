@@ -13,22 +13,24 @@ private val Context.favoritesDataStore by preferencesDataStore("enigma_favorites
 
 class FavoritesStore(private val context: Context) {
     private val gson = Gson()
-    private val key = stringPreferencesKey("favorites")
+    private val legacyKey = stringPreferencesKey("favorites")
 
-    val favorites: Flow<List<FavoriteItem>> = context.favoritesDataStore.data.map { prefs ->
-        readList(prefs[key])
+    private fun key(profileId: String) = stringPreferencesKey("favorites_$profileId")
+
+    fun watch(profileId: String): Flow<List<FavoriteItem>> = context.favoritesDataStore.data.map { prefs ->
+        readList(prefs[key(profileId)] ?: prefs[legacyKey])
     }
 
-    suspend fun replaceAll(items: List<FavoriteItem>) {
+    suspend fun replaceAll(profileId: String, items: List<FavoriteItem>) {
         context.favoritesDataStore.edit { prefs ->
-            prefs[key] = gson.toJson(items.take(50))
+            prefs[key(profileId)] = gson.toJson(items.take(50))
         }
     }
 
-    suspend fun toggle(item: FavoriteItem): Boolean {
+    suspend fun toggle(profileId: String, item: FavoriteItem): Boolean {
         var added = false
         context.favoritesDataStore.edit { prefs ->
-            val current = readList(prefs[key]).toMutableList()
+            val current = readList(prefs[key(profileId)] ?: prefs[legacyKey]).toMutableList()
             val idx = current.indexOfFirst { it.id == item.id && it.type == item.type }
             if (idx >= 0) {
                 current.removeAt(idx)
@@ -37,7 +39,7 @@ class FavoritesStore(private val context: Context) {
                 current.add(0, item)
                 added = true
             }
-            prefs[key] = gson.toJson(current.take(50))
+            prefs[key(profileId)] = gson.toJson(current.take(50))
         }
         return added
     }

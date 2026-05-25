@@ -8,7 +8,7 @@ import java.util.concurrent.TimeUnit
 
 /**
  * Attempts to find a direct HLS/MP4 URL inside embed pages so movies/TV can use ExoPlayer
- * (Apollo-style native playback) when possible.
+ * native ExoPlayer playback when possible.
  */
 object StreamResolver {
     private val client = OkHttpClient.Builder()

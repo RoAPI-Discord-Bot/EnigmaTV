@@ -13,41 +13,39 @@ private val Context.dataStore by preferencesDataStore("enigma_tv_prefs")
 
 class ContinueWatchingStore(private val context: Context) {
     private val gson = Gson()
-    private val key = stringPreferencesKey("enigma_continue_watching")
-    private val legacyKey = stringPreferencesKey("cinetv_cw")
+    private val legacyKey = stringPreferencesKey("enigma_continue_watching")
+    private val legacyCinetvKey = stringPreferencesKey("cinetv_cw")
 
-    val entries: Flow<List<ContinueWatchingEntry>> = context.dataStore.data.map { prefs ->
-        val json = prefs[key] ?: prefs[legacyKey] ?: "[]"
-        val type = object : TypeToken<List<ContinueWatchingEntry>>() {}.type
-        gson.fromJson<List<ContinueWatchingEntry>>(json, type) ?: emptyList()
+    private fun key(profileId: String) = stringPreferencesKey("continue_$profileId")
+
+    fun watch(profileId: String): Flow<List<ContinueWatchingEntry>> = context.dataStore.data.map { prefs ->
+        val json = prefs[key(profileId)] ?: prefs[legacyKey] ?: prefs[legacyCinetvKey] ?: "[]"
+        readList(json)
     }
 
-    suspend fun replaceAll(items: List<ContinueWatchingEntry>) {
+    suspend fun replaceAll(profileId: String, items: List<ContinueWatchingEntry>) {
         context.dataStore.edit { prefs ->
-            prefs[key] = gson.toJson(items.take(12))
-            prefs.remove(legacyKey)
+            prefs[key(profileId)] = gson.toJson(items.take(12))
         }
     }
 
-    suspend fun addOrUpdate(entry: ContinueWatchingEntry) {
+    suspend fun addOrUpdate(profileId: String, entry: ContinueWatchingEntry) {
         context.dataStore.edit { prefs ->
-            val current = readList(prefs[key] ?: prefs[legacyKey])
+            val current = readList(prefs[key(profileId)] ?: prefs[legacyKey] ?: prefs[legacyCinetvKey])
             val updated = (listOf(entry) + current.filter {
                 it.id != entry.id || it.type != entry.type
             }).take(12)
-            prefs[key] = gson.toJson(updated)
-            prefs.remove(legacyKey)
+            prefs[key(profileId)] = gson.toJson(updated)
         }
     }
 
-    suspend fun updateProgress(id: Int, type: ContentType, season: Int, episode: Int) {
+    suspend fun updateProgress(profileId: String, id: Int, type: ContentType, season: Int, episode: Int) {
         context.dataStore.edit { prefs ->
-            val current = readList(prefs[key] ?: prefs[legacyKey]).toMutableList()
+            val current = readList(prefs[key(profileId)] ?: prefs[legacyKey]).toMutableList()
             val idx = current.indexOfFirst { it.id == id && it.type == type }
             if (idx >= 0) {
                 current[idx] = current[idx].copy(season = season, episode = episode)
-                prefs[key] = gson.toJson(current)
-                prefs.remove(legacyKey)
+                prefs[key(profileId)] = gson.toJson(current)
             }
         }
     }

@@ -13,49 +13,50 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import com.enigma.tv.data.LiveEmbedResolver
 import com.enigma.tv.data.StreamResolver
 import com.enigma.tv.ui.theme.BgDark
+import com.enigma.tv.ui.theme.EnigmaPurple
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
-/**
- * Unified movie/TV player: tries native ExoPlayer first (direct stream), then embed WebView
- * with the same Enigma chrome as Live TV.
- */
 @Composable
-fun EnigmaMediaPlayer(
+fun EnigmaLivePlayer(
     visible: Boolean,
     title: String,
     embedUrl: String,
     posterUrl: String?,
-    accent: Color,
     sourceLabel: String,
     streamLoading: Boolean,
     onClose: () -> Unit,
     onNextSource: () -> Unit,
     onLoadingChange: (Boolean) -> Unit,
-    tvControls: TvPlayerControls? = null,
     resolveToken: Int = 0
 ) {
     if (!visible) return
 
     BackHandler { onClose() }
 
+    var playUrl by remember(embedUrl, resolveToken) { mutableStateOf(embedUrl) }
     var directUrl by remember(embedUrl, resolveToken) { mutableStateOf<String?>(null) }
     var resolving by remember(embedUrl, resolveToken) { mutableStateOf(true) }
 
     LaunchedEffect(embedUrl, resolveToken) {
         resolving = true
         onLoadingChange(true)
+        val resolved = withContext(Dispatchers.IO) {
+            LiveEmbedResolver.resolvePlayableUrl(embedUrl)
+        }
+        playUrl = resolved
         directUrl = withContext(Dispatchers.IO) {
-            StreamResolver.resolveDirectUrl(embedUrl)
+            StreamResolver.resolveDirectUrl(resolved)
         }
         resolving = false
         if (directUrl == null) onLoadingChange(true)
     }
 
-    val useNative = !directUrl.isNullOrBlank()
     val loading = streamLoading || resolving
+    val useNative = !directUrl.isNullOrBlank()
 
     Box(Modifier.fillMaxSize().background(BgDark)) {
         if (useNative) {
@@ -65,15 +66,12 @@ fun EnigmaMediaPlayer(
                 streamUrl = directUrl!!,
                 sourceLabel = "$sourceLabel · Native",
                 logoUrl = posterUrl,
-                accent = accent,
+                accent = EnigmaPurple,
                 streamLoading = loading,
                 onClose = onClose,
                 onLoadingChange = onLoadingChange,
-                showBack = true,
-                onBack = onClose,
                 showNextSource = true,
-                onNextSource = onNextSource,
-                tvControls = tvControls
+                onNextSource = onNextSource
             )
         } else {
             Column(Modifier.fillMaxSize()) {
@@ -81,27 +79,25 @@ fun EnigmaMediaPlayer(
                     title = title,
                     subtitle = sourceLabel,
                     posterUrl = posterUrl,
-                    accent = accent,
+                    accent = EnigmaPurple,
                     onClose = onClose,
                     showBack = true,
                     onBack = onClose,
                     showNextSource = true,
-                    onNextSource = onNextSource,
-                    tvControls = tvControls
+                    onNextSource = onNextSource
                 )
                 WebViewPlayer(
                     visible = true,
                     title = title,
-                    url = embedUrl,
-                    accent = accent,
+                    url = playUrl,
+                    accent = EnigmaPurple,
                     sourceLabel = sourceLabel,
                     posterUrl = posterUrl,
                     streamLoading = loading,
                     onClose = onClose,
                     onNextSource = onNextSource,
                     onLoadingChange = onLoadingChange,
-                    tvControls = tvControls,
-                    liveTv = false,
+                    liveTv = true,
                     useExternalChrome = true,
                     modifier = Modifier.weight(1f)
                 )

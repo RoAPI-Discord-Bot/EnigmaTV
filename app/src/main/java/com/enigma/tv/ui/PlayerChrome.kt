@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.FastForward
 import androidx.compose.material.icons.filled.Refresh
@@ -42,6 +43,8 @@ fun PlayerChrome(
     posterUrl: String? = null,
     accent: Color,
     onClose: () -> Unit,
+    showBack: Boolean = false,
+    onBack: (() -> Unit)? = null,
     onRetry: (() -> Unit)? = null,
     showNextSource: Boolean = false,
     onNextSource: (() -> Unit)? = null,
@@ -59,6 +62,11 @@ fun PlayerChrome(
             modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically
         ) {
+            if (showBack && onBack != null) {
+                IconButton(onClick = onBack) {
+                    Icon(Icons.Default.ArrowBack, contentDescription = "Back", tint = TextPrimary)
+                }
+            }
             if (!posterUrl.isNullOrBlank()) {
                 AsyncImage(
                     model = posterUrl,

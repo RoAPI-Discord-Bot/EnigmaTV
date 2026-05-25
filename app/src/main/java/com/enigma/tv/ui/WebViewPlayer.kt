@@ -86,6 +86,8 @@ fun WebViewPlayer(
                 posterUrl = posterUrl,
                 accent = accent,
                 onClose = onClose,
+                showBack = liveTv,
+                onBack = onClose,
                 showNextSource = true,
                 onNextSource = onNextSource,
                 tvControls = tvControls
@@ -142,7 +144,7 @@ private fun ColumnScope.WebViewStreamBody(
                         ViewGroup.LayoutParams.MATCH_PARENT,
                         ViewGroup.LayoutParams.MATCH_PARENT
                     )
-                    guard.configureWebView(this)
+                        guard.configureWebView(this, liveTv = liveTv)
                     if (liveTv) {
                         settings.userAgentString =
                             "Mozilla/5.0 (Linux; Android 10) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36"

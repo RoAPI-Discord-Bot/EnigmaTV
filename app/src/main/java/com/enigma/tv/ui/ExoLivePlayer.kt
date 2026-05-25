@@ -1,6 +1,7 @@
 package com.enigma.tv.ui
 
 import android.view.ViewGroup
+import androidx.activity.compose.BackHandler
 import androidx.annotation.OptIn
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
@@ -54,6 +55,9 @@ fun ExoLivePlayer(
     tvControls: TvPlayerControls? = null
 ) {
     if (!visible) return
+
+    BackHandler { onClose() }
+
     val context = LocalContext.current
     var playToken by remember { mutableIntStateOf(0) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
@@ -111,6 +115,8 @@ fun ExoLivePlayer(
                 posterUrl = logoUrl,
                 accent = accent,
                 onClose = onClose,
+                showBack = true,
+                onBack = onClose,
                 onRetry = { playToken++ },
                 showNextSource = showNextSource,
                 onNextSource = onNextSource,

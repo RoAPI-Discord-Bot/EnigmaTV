@@ -85,7 +85,7 @@ fun LiveTvScreen(
     ) {
         Text("Live TV", color = TextPrimary, fontSize = 22.sp, fontWeight = FontWeight.Bold)
         Text(
-            "Apollo-style channels in our player — search games or networks.",
+            "Watch live channels or pick a game — search teams or networks.",
             color = TextSecondary,
             fontSize = 12.sp,
             modifier = Modifier.padding(top = 4.dp, bottom = 12.dp)

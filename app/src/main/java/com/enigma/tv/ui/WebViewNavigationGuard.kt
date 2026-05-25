@@ -1,6 +1,7 @@
 package com.enigma.tv.ui
 
 import android.net.Uri
+import android.os.Build
 import android.webkit.WebChromeClient
 import android.webkit.WebResourceRequest
 import android.webkit.WebResourceResponse
@@ -55,15 +56,19 @@ class WebViewNavigationGuard(initialUrl: String) {
         return isBlockedHost(host) || AD_RESOURCE_HOSTS.any { host == it || host.endsWith(".$it") }
     }
 
-    fun configureWebView(webView: WebView) {
+    fun configureWebView(webView: WebView, liveTv: Boolean = false) {
         webView.settings.apply {
             javaScriptEnabled = true
             domStorageEnabled = true
+            databaseEnabled = true
             mediaPlaybackRequiresUserGesture = false
             loadWithOverviewMode = true
             useWideViewPort = true
-            setSupportMultipleWindows(false)
-            javaScriptCanOpenWindowsAutomatically = false
+            setSupportMultipleWindows(liveTv)
+            javaScriptCanOpenWindowsAutomatically = liveTv
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+                mixedContentMode = android.webkit.WebSettings.MIXED_CONTENT_ALWAYS_ALLOW
+            }
         }
 
         webView.webChromeClient = object : WebChromeClient() {
@@ -86,6 +91,10 @@ class WebViewNavigationGuard(initialUrl: String) {
 
             override fun onPageFinished(view: WebView?, url: String?) {
                 onPageLoading?.invoke(false)
+                if (liveTv && view != null) {
+                    view.evaluateJavascript(LIVE_SANDBOX_FIX_JS, null)
+                    view.evaluateJavascript(LIVE_EMBED_CLEANUP_JS, null)
+                }
             }
 
             override fun shouldOverrideUrlLoading(
@@ -175,8 +184,32 @@ class WebViewNavigationGuard(initialUrl: String) {
             "multiembed.mov",
             "2embed.skin",
             "www.2embed.skin",
-            "superembed.stream"
+            "superembed.stream",
+            "multiembed.mov",
+            "multiembed.xyz"
         )
+
+        private const val LIVE_SANDBOX_FIX_JS = """
+(function() {
+  try {
+    document.querySelectorAll('iframe').forEach(function(f) {
+      f.removeAttribute('sandbox');
+      f.setAttribute('allowfullscreen', 'true');
+      f.setAttribute('allow', 'autoplay; fullscreen; encrypted-media; picture-in-picture');
+    });
+  } catch(e) {}
+})();
+"""
+
+        private const val LIVE_EMBED_CLEANUP_JS = """
+(function() {
+  try {
+    var s = document.createElement('style');
+    s.innerHTML = 'body{margin:0!important;background:#000!important;overflow:hidden}header,nav,.ad,.ads,.popup,.banner{display:none!important}video,iframe{max-width:100vw!important;max-height:100vh!important}';
+    document.head.appendChild(s);
+  } catch(e) {}
+})();
+"""
 
         private val LIVE_TV_ROOTS = setOf(
             "youtube.com",
@@ -194,7 +227,14 @@ class WebViewNavigationGuard(initialUrl: String) {
             "daddylivehd",
             "liveembed.net",
             "sportsonline",
-            "topembed"
+            "topembed",
+            "casthill.net",
+            "sportcast",
+            "dlhd.sx",
+            "papaahd",
+            "givemereddit",
+            "ripplestream",
+            "sportshd"
         )
 
         /** Common video CDN / player infrastructure (subresource + navigations) */

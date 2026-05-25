@@ -188,7 +188,7 @@ fun AuthGateScreen(
         if (loading) {
             EnigmaLoadingRing(
                 fullscreen = true,
-                message = "CONNECTING",
+                message = "SIGNING IN",
                 logoSize = 72.dp,
                 ringSize = 100.dp
             )

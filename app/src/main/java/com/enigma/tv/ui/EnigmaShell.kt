@@ -28,6 +28,8 @@ import androidx.compose.material.icons.filled.PlayCircle
 import androidx.compose.material.icons.filled.PlaylistAdd
 import androidx.compose.material.icons.filled.PlaylistPlay
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.DrawerValue
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -112,6 +114,13 @@ fun EnigmaShell(viewModel: EnigmaViewModel = viewModel()) {
 
     val mainContent: @Composable () -> Unit = {
         Box(Modifier.fillMaxSize()) {
+            if (state.contentLoading && state.homeRows.isEmpty() && state.section == NavSection.HOME) {
+                EnigmaLoadingRing(
+                    modifier = Modifier.fillMaxSize(),
+                    message = "LOADING",
+                    fullscreen = true
+                )
+            }
             Column(Modifier.fillMaxSize()) {
                 EnigmaHeader(
                     sectionLabel = state.section.title,
@@ -132,10 +141,9 @@ fun EnigmaShell(viewModel: EnigmaViewModel = viewModel()) {
                         modifier = Modifier.fillMaxWidth().height(320.dp),
                         message = "LOADING"
                     )
-                    state.error != null -> Text(
-                        text = state.error!!,
-                        color = Color(0xFFCC4444),
-                        modifier = Modifier.padding(40.dp)
+                    state.error != null -> ErrorPanel(
+                        message = state.error!!,
+                        onDismiss = viewModel::clearError
                     )
                     else -> when (state.section) {
                         NavSection.HOME -> UnifiedHomeContent(state, viewModel, layout)
@@ -159,13 +167,18 @@ fun EnigmaShell(viewModel: EnigmaViewModel = viewModel()) {
                             isLoggedIn = state.isLoggedIn,
                             email = state.userEmail,
                             displayName = state.userDisplayName,
+                            profiles = state.profiles,
+                            activeProfileId = state.activeProfileId,
                             statusMessage = state.profileMessage,
                             error = state.profileError,
                             onSignIn = viewModel::signIn,
                             onSignUp = viewModel::signUp,
                             onGuest = viewModel::signInGuest,
                             onSignOut = viewModel::signOut,
-                            onSync = viewModel::syncToCloud
+                            onSync = viewModel::syncToCloud,
+                            onSwitchProfile = viewModel::switchProfile,
+                            onAddProfile = viewModel::addProfile,
+                            onRemoveProfile = viewModel::removeProfile
                         )
                     }
                 }
@@ -217,20 +230,18 @@ fun EnigmaShell(viewModel: EnigmaViewModel = viewModel()) {
                         resolveToken = state.playerResolveToken
                     )
                 }
-                state.playerVisible -> {
-                    WebViewPlayer(
+                state.playerVisible && state.playerLiveTv -> {
+                    EnigmaLivePlayer(
                         visible = true,
                         title = state.playerTitle,
-                        url = state.playerUrl,
-                        accent = accent,
-                        sourceLabel = state.sourceLabel,
+                        embedUrl = state.playerUrl,
                         posterUrl = state.playerLogoUrl,
+                        sourceLabel = state.sourceLabel,
                         streamLoading = state.playerLoading,
                         onClose = { viewModel.closePlayer() },
                         onNextSource = { viewModel.nextSource() },
                         onLoadingChange = { viewModel.onPlayerPageLoading(it) },
-                        tvControls = tvControls,
-                        liveTv = state.playerLiveTv
+                        resolveToken = state.playerResolveToken
                     )
                 }
             }
@@ -627,7 +638,7 @@ private fun FavoritePosterCard(item: FavoriteItem, vm: EnigmaViewModel, cardW: I
     if (showPlaylistPicker) {
         AlertDialog(
             onDismissRequest = { showPlaylistPicker = false },
-            title = { Text("Add to playlist") },
+            title = { Text("Add to list") },
             text = {
                 Column {
                     state.playlists.forEach { pl ->
@@ -643,5 +654,34 @@ private fun FavoritePosterCard(item: FavoriteItem, vm: EnigmaViewModel, cardW: I
             },
             confirmButton = { TextButton(onClick = { showPlaylistPicker = false }) { Text("Close") } }
         )
+    }
+}
+
+@Composable
+private fun ErrorPanel(message: String, onDismiss: () -> Unit) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(24.dp)
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            IconButton(onClick = onDismiss) {
+                Icon(Icons.Default.ArrowBack, contentDescription = "Back", tint = TextPrimary)
+            }
+            Text("Back", color = TextPrimary, fontSize = 16.sp, fontWeight = FontWeight.Medium)
+        }
+        Text(
+            message,
+            color = Color(0xFFCC4444),
+            fontSize = 15.sp,
+            modifier = Modifier.padding(top = 12.dp, bottom = 16.dp)
+        )
+        Button(
+            onClick = onDismiss,
+            colors = androidx.compose.material3.ButtonDefaults.buttonColors(containerColor = EnigmaPurple),
+            shape = RoundedCornerShape(8.dp)
+        ) {
+            Text("Dismiss")
+        }
     }
 }

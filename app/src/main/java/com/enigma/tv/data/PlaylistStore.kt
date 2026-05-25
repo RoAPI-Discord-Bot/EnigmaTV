@@ -14,55 +14,57 @@ private val Context.playlistDataStore by preferencesDataStore("enigma_playlists"
 
 class PlaylistStore(private val context: Context) {
     private val gson = Gson()
-    private val key = stringPreferencesKey("playlists")
+    private val legacyKey = stringPreferencesKey("playlists")
 
-    val playlists: Flow<List<Playlist>> = context.playlistDataStore.data.map { prefs ->
-        readList(prefs[key])
+    private fun key(profileId: String) = stringPreferencesKey("playlists_$profileId")
+
+    fun watch(profileId: String): Flow<List<Playlist>> = context.playlistDataStore.data.map { prefs ->
+        readList(prefs[key(profileId)] ?: prefs[legacyKey])
     }
 
-    suspend fun replaceAll(items: List<Playlist>) {
+    suspend fun replaceAll(profileId: String, items: List<Playlist>) {
         context.playlistDataStore.edit { prefs ->
-            prefs[key] = gson.toJson(items)
+            prefs[key(profileId)] = gson.toJson(items)
         }
     }
 
-    suspend fun createPlaylist(name: String): Playlist {
+    suspend fun createPlaylist(profileId: String, name: String): Playlist {
         val playlist = Playlist(id = UUID.randomUUID().toString(), name = name.trim())
         context.playlistDataStore.edit { prefs ->
-            val current = readList(prefs[key]).toMutableList()
+            val current = readList(prefs[key(profileId)] ?: prefs[legacyKey]).toMutableList()
             current.add(0, playlist)
-            prefs[key] = gson.toJson(current)
+            prefs[key(profileId)] = gson.toJson(current)
         }
         return playlist
     }
 
-    suspend fun deletePlaylist(playlistId: String) {
+    suspend fun deletePlaylist(profileId: String, playlistId: String) {
         context.playlistDataStore.edit { prefs ->
-            val current = readList(prefs[key]).filter { it.id != playlistId }
-            prefs[key] = gson.toJson(current)
+            val current = readList(prefs[key(profileId)]).filter { it.id != playlistId }
+            prefs[key(profileId)] = gson.toJson(current)
         }
     }
 
-    suspend fun addItem(playlistId: String, item: FavoriteItem) {
+    suspend fun addItem(profileId: String, playlistId: String, item: FavoriteItem) {
         context.playlistDataStore.edit { prefs ->
-            val current = readList(prefs[key]).map { pl ->
+            val current = readList(prefs[key(profileId)]).map { pl ->
                 if (pl.id != playlistId) pl
                 else {
                     val items = pl.items.filter { it.id != item.id || it.type != item.type }
                     pl.copy(items = listOf(item) + items)
                 }
             }
-            prefs[key] = gson.toJson(current)
+            prefs[key(profileId)] = gson.toJson(current)
         }
     }
 
-    suspend fun removeItem(playlistId: String, item: FavoriteItem) {
+    suspend fun removeItem(profileId: String, playlistId: String, item: FavoriteItem) {
         context.playlistDataStore.edit { prefs ->
-            val current = readList(prefs[key]).map { pl ->
+            val current = readList(prefs[key(profileId)]).map { pl ->
                 if (pl.id != playlistId) pl
                 else pl.copy(items = pl.items.filter { it.id != item.id || it.type != item.type })
             }
-            prefs[key] = gson.toJson(current)
+            prefs[key(profileId)] = gson.toJson(current)
         }
     }
 
