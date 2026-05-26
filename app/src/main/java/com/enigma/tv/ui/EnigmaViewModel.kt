@@ -303,8 +303,9 @@ class EnigmaViewModel(application: Application) : AndroidViewModel(application) 
                         activeProfileId = resolvedId,
                         openingProfileId = resolvedId,
                         showProfilePicker = true,
-                        contentLoading = true,
-                        homeRows = emptyList(),
+                        // Keep existing homeRows: old content stays visible behind the picker
+                        // overlay while new content loads. This prevents bootstrapLoading
+                        // from firing and eliminates the TV focus-tree destruction crash.
                         error = null,
                         profileError = null
                     )
@@ -465,23 +466,27 @@ class EnigmaViewModel(application: Application) : AndroidViewModel(application) 
             _state.update { it.copy(contentLoading = it.homeRows.isEmpty(), error = null, searchResults = null) }
             try {
                 val rows = repo.buildHomeRows()
-                if (rows.isNotEmpty()) {
-                    if (getApplication<android.app.Application>().packageManager.hasSystemFeature(
-                            android.content.pm.PackageManager.FEATURE_LEANBACK
-                        )
-                    ) {
-                        delay(400)
-                    }
-                }
+                val isTV = getApplication<android.app.Application>().packageManager
+                    .hasSystemFeature(android.content.pm.PackageManager.FEATURE_LEANBACK)
+                val shouldCloseGate = closeProfileGate || _state.value.openingProfileId != null
+
+                // Step 1: deliver new rows and clear the "OPENING" spinner.
+                // The picker overlay itself stays up a moment longer so it remains in the
+                // Compose tree and TV focus nodes stay valid.
                 _state.update {
-                    val closeGate = closeProfileGate || it.openingProfileId != null
                     it.copy(
                         homeRows = rows,
                         contentLoading = false,
-                        showProfilePicker = if (closeGate) false else it.showProfilePicker,
-                        openingProfileId = if (closeGate) null else it.openingProfileId,
+                        openingProfileId = null,
                         error = if (rows.isEmpty()) "Could not load EnigmaTV content. Check connection and retry." else null
                     )
+                }
+
+                if (shouldCloseGate) {
+                    // Step 2: On TV wait ~2 frames so main-content focus nodes are
+                    // established before the picker overlay is removed from composition.
+                    if (isTV) delay(120)
+                    _state.update { it.copy(showProfilePicker = false) }
                 }
                 if (rows.isNotEmpty()) {
                     prefetchHomePosters(rows)

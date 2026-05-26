@@ -124,51 +124,17 @@ fun EnigmaShell(viewModel: EnigmaViewModel = viewModel()) {
         return
     }
 
-    if (state.showProfilePicker) {
-        androidx.compose.runtime.LaunchedEffect(state.isLoggedIn, state.showProfilePicker) {
-            if (!state.isLoggedIn || !state.showProfilePicker) return@LaunchedEffect
-            kotlinx.coroutines.delay(8000)
-            if (state.openingProfileId != null) return@LaunchedEffect
-            viewModel.refreshProfilesFromCloud()
-        }
-        Box(Modifier.fillMaxSize()) {
-            ProfilePickerGate(
-                profiles = state.profiles,
-                activeProfileId = state.activeProfileId,
-                openingProfileId = state.openingProfileId,
-                layout = layout,
-                isLoggedIn = state.isLoggedIn,
-                userEmail = state.userEmail,
-                onSelectProfile = viewModel::selectProfileAndContinue,
-                onAddProfile = viewModel::addProfile,
-                onRenameProfile = viewModel::renameProfile,
-                onRemoveProfile = viewModel::removeProfile,
-                onSetAvatarIndex = viewModel::setProfileAvatarIndex,
-                onSetAvatarUri = viewModel::setProfileAvatarUri,
-                onSignIn = { viewModel.showAuthGateFromProfile() }
-            )
-            when {
-                state.openingProfileId != null -> {
-                    val name = state.profiles.find { it.id == state.openingProfileId }?.name ?: "profile"
-                    EnigmaLoadingRing(
-                        modifier = Modifier.fillMaxSize(),
-                        message = "OPENING $name",
-                        fullscreen = true
-                    )
-                }
-                state.profiles.isEmpty() -> {
-                    EnigmaLoadingRing(
-                        modifier = Modifier.fillMaxSize(),
-                        message = "LOADING PROFILES",
-                        fullscreen = true
-                    )
-                }
-            }
-        }
-        return
+    // Cloud-refresh effect: fires when picker is shown; internal guard makes it safe outside picker too.
+    LaunchedEffect(state.isLoggedIn, state.showProfilePicker) {
+        if (!state.isLoggedIn || !state.showProfilePicker) return@LaunchedEffect
+        kotlinx.coroutines.delay(8000)
+        if (state.openingProfileId != null) return@LaunchedEffect
+        viewModel.refreshProfilesFromCloud()
     }
 
-    val bootstrapLoading = state.contentLoading && state.homeRows.isEmpty()
+
+    // Only show bootstrap loading when the picker is NOT on screen to avoid double overlays.
+    val bootstrapLoading = state.contentLoading && state.homeRows.isEmpty() && !state.showProfilePicker
     val activeProfile = state.profiles.find { it.id == state.activeProfileId }
     val useBottomNav = !layout.usePermanentDrawer()
 
@@ -301,6 +267,10 @@ fun EnigmaShell(viewModel: EnigmaViewModel = viewModel()) {
     }
 
     Box(Modifier.fillMaxSize()) {
+        // ── LAYER 1: Main app content – ALWAYS composed, even while picker is visible ──
+        // By never removing this from the composition tree, the TV remote always has
+        // valid focus nodes. When the picker overlay is dismissed the remote's focus
+        // falls naturally to the already-laid-out drawer items — no crash.
         if (layout.usePermanentDrawer()) {
             PermanentNavigationDrawer(
                 drawerContent = {
@@ -336,19 +306,56 @@ fun EnigmaShell(viewModel: EnigmaViewModel = viewModel()) {
                 content = { bodyContent() }
             )
         }
+
+        // ── LAYER 2: Bootstrap loading (only when genuinely no content and picker not covering) ──
         if (bootstrapLoading) {
             EnigmaLoadingRing(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .then(
-                        // On TV, make the overlay focusable so the remote doesn't lose all targets.
-                        if (layout == ScreenLayout.TV)
-                            Modifier.focusable()
-                        else Modifier
-                    ),
-                message = "LOADING MAIN",
+                modifier = Modifier.fillMaxSize().focusable(),
+                message = "LOADING",
                 fullscreen = true
             )
+        }
+
+        // ── LAYER 3: Profile picker overlay ──
+        // The picker sits on top of the main content. Because the main content (Layer 1)
+        // stays composed underneath, the TV focus tree is always valid. When this block
+        // is removed from composition the remote focus falls to the drawer items below.
+        if (state.showProfilePicker) {
+            Box(Modifier.fillMaxSize()) {
+                ProfilePickerGate(
+                    profiles = state.profiles,
+                    activeProfileId = state.activeProfileId,
+                    openingProfileId = state.openingProfileId,
+                    layout = layout,
+                    isLoggedIn = state.isLoggedIn,
+                    userEmail = state.userEmail,
+                    onSelectProfile = viewModel::selectProfileAndContinue,
+                    onAddProfile = viewModel::addProfile,
+                    onRenameProfile = viewModel::renameProfile,
+                    onRemoveProfile = viewModel::removeProfile,
+                    onSetAvatarIndex = viewModel::setProfileAvatarIndex,
+                    onSetAvatarUri = viewModel::setProfileAvatarUri,
+                    onSignIn = { viewModel.showAuthGateFromProfile() }
+                )
+                // ALL loading overlays are focusable — TV remote always has a valid target
+                when {
+                    state.openingProfileId != null -> {
+                        val name = state.profiles.find { it.id == state.openingProfileId }?.name ?: "profile"
+                        EnigmaLoadingRing(
+                            modifier = Modifier.fillMaxSize().focusable(),
+                            message = "OPENING $name",
+                            fullscreen = true
+                        )
+                    }
+                    state.profiles.isEmpty() -> {
+                        EnigmaLoadingRing(
+                            modifier = Modifier.fillMaxSize().focusable(),
+                            message = "LOADING PROFILES",
+                            fullscreen = true
+                        )
+                    }
+                }
+            }
         }
 
         EnigmaPlayerOverlay(state = state, viewModel = viewModel, layout = layout)
