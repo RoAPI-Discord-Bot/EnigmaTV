@@ -5,6 +5,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.focusable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -17,6 +18,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.text.KeyboardActions
@@ -293,33 +295,33 @@ fun PosterCard(
 ) {
     val cardW = cardWidthDp.dp
     val cardH = (cardWidthDp * 1.5f).dp
+    val isTv = cardWidthDp > 170
+
+    var focused by remember { mutableStateOf(false) }
+    val scale by animateFloatAsState(targetValue = if (focused) 1.08f else 1f, label = "card_scale")
+
     val clickModifier = if (onLongClickPlay != null) {
         Modifier.combinedClickable(onClick = onClick, onLongClick = onLongClickPlay)
     } else {
         Modifier.clickable(onClick = onClick)
     }
-    
-    var focused by remember { mutableStateOf(false) }
-    val scale by animateFloatAsState(targetValue = if (focused) 1.06f else 1f)
-    val isTv = cardWidthDp > 170
 
-    Column(
-        modifier = Modifier
-            .width(cardW)
-            .scale(scale)
-            .onFocusChanged { focused = it.isFocused }
-            .then(clickModifier)
-    ) {
+    val baseModifier = Modifier
+        .width(cardW)
+        .scale(scale)
+        .onFocusChanged { focused = it.isFocused || it.hasFocus }
+        .then(clickModifier)
+
+    Column(modifier = baseModifier) {
         Box(
             modifier = Modifier
                 .size(width = cardW, height = cardH)
-                .glassSurface(cornerRadius = 12.dp)
                 .clip(RoundedCornerShape(12.dp))
                 .background(CardBg.copy(alpha = 0.4f))
                 .then(
-                    if (focused && isTv) {
-                        Modifier.background(Color.Transparent, RoundedCornerShape(12.dp))
-                            .border(3.dp, Color.White, RoundedCornerShape(12.dp))
+                    if (focused) {
+                        Modifier
+                            .border(3.dp, if (isTv) Color.White else accent, RoundedCornerShape(12.dp))
                     } else Modifier
                 )
         ) {
@@ -406,6 +408,23 @@ fun PosterCard(
             modifier = Modifier.padding(top = 8.dp)
         )
     }
+}
+
+@Composable
+fun TvPosterRow(
+    modifier: Modifier = Modifier,
+    content: @Composable () -> Unit
+) {
+    // On TV use a simple horizontal scroll Row — LazyRow interferes with
+    // the vertical LazyColumn scroll nesting on Leanback. Each card is
+    // individually focusable so D-Pad navigation works naturally.
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .horizontalScroll(rememberScrollState()),
+        horizontalArrangement = Arrangement.spacedBy(20.dp),
+        content = { content() }
+    )
 }
 
 @Composable

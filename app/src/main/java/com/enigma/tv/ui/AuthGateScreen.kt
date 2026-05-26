@@ -62,7 +62,8 @@ fun AuthGateScreen(
     error: String?,
     onSignIn: (String, String) -> Unit,
     onSignUp: (String, String, String) -> Unit,
-    onGuest: () -> Unit
+    onGuest: () -> Unit,
+    onClearError: () -> Unit = {}
 ) {
     var mode by rememberSaveable { mutableStateOf("signin") }
     var name by rememberSaveable { mutableStateOf("") }
@@ -144,14 +145,14 @@ fun AuthGateScreen(
 
                 if (mode == "signup") {
                     AuthField(value = name, onValueChange = { name = it }, label = "Display name", modifier = Modifier.focusRequester(firstFieldRequester))
-                    AuthField(value = email, onValueChange = { email = it }, label = "Email")
+                    AuthField(value = email, onValueChange = { onClearError(); email = it }, label = "Email")
                 } else {
-                    AuthField(value = email, onValueChange = { email = it }, label = "Email", modifier = Modifier.focusRequester(firstFieldRequester))
+                    AuthField(value = email, onValueChange = { onClearError(); email = it }, label = "Email", modifier = Modifier.focusRequester(firstFieldRequester))
                 }
                 var passwordFocused by remember { mutableStateOf(false) }
                 OutlinedTextField(
                     value = password,
-                    onValueChange = { password = it },
+                    onValueChange = { onClearError(); password = it },
                     label = { Text("Password") },
                     modifier = Modifier
                         .fillMaxWidth()

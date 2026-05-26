@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -19,6 +20,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
@@ -32,6 +34,7 @@ import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.PlayCircle
 import androidx.compose.material.icons.filled.PlaylistAdd
 import androidx.compose.material.icons.filled.PlaylistPlay
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Button
@@ -62,6 +65,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
@@ -119,7 +124,8 @@ fun EnigmaShell(viewModel: EnigmaViewModel = viewModel()) {
             error = state.profileError,
             onSignIn = viewModel::signIn,
             onSignUp = viewModel::signUp,
-            onGuest = viewModel::signInGuest
+            onGuest = viewModel::signInGuest,
+            onClearError = { viewModel.clearAuthError() }
         )
         return
     }
@@ -181,7 +187,7 @@ fun EnigmaShell(viewModel: EnigmaViewModel = viewModel()) {
                     onMenuClick = if (!useBottomNav) null else null,
                     activeProfile = activeProfile,
                     onProfileClick = { viewModel.showProfilePickerScreen() },
-                    showSearch = state.section == NavSection.HOME
+                    showSearch = (state.section == NavSection.HOME || state.section == NavSection.SEARCH) && !layout.usePermanentDrawer()
                 )
 
                 when {
@@ -203,6 +209,11 @@ fun EnigmaShell(viewModel: EnigmaViewModel = viewModel()) {
                     ) { section ->
                         when (section) {
                             NavSection.HOME -> UnifiedHomeContent(state, viewModel, layout)
+                            NavSection.SEARCH -> if (layout.usePermanentDrawer()) {
+                                TvSearchContent(state, viewModel, layout)
+                            } else {
+                                UnifiedHomeContent(state, viewModel, layout)
+                            }
                             NavSection.LIVE -> LiveTvScreen(
                                 live = state.liveTv,
                                 layout = layout,
@@ -503,6 +514,7 @@ private fun EnigmaDrawerContent(
         Spacer(Modifier.height(12.dp))
 
         DrawerEntry(Icons.Default.Home, NavSection.HOME, current, onSelect)
+        DrawerEntry(Icons.Default.Search, NavSection.SEARCH, current, onSelect)
         DrawerEntry(Icons.Default.LiveTv, NavSection.LIVE, current, onSelect)
         DrawerEntry(Icons.Default.Favorite, NavSection.FAVORITES, current, onSelect)
         DrawerEntry(Icons.Default.PlayCircle, NavSection.CONTINUE, current, onSelect)
@@ -543,45 +555,111 @@ private fun DrawerEntry(
 @Composable
 private fun UnifiedHomeContent(state: EnigmaUiState, vm: EnigmaViewModel, layout: ScreenLayout) {
     val pad = layout.contentPaddingDp().dp
-    val cardW = layout.posterWidthDp()
-    ScrollableContent(padding = androidx.compose.foundation.layout.PaddingValues(pad)) {
-        val search = state.searchResults
-        if (search != null) {
-            if (search.movies.isNotEmpty()) {
-                ContentSection("🔍 Movies") {
-                    PosterRow {
-                        search.movies.take(20).forEach { MediaMovieCard(it, vm, cardW) }
+    val isTv = layout.usePermanentDrawer()
+
+    if (isTv) {
+        // TV: LazyColumn gives D-Pad vertical scroll for free; each row is a
+        // horizontally-scrollable TvPosterRow so Left/Right moves between cards.
+        LazyColumn(
+            contentPadding = PaddingValues(horizontal = pad, vertical = 24.dp),
+            verticalArrangement = Arrangement.spacedBy(32.dp),
+            modifier = androidx.compose.ui.Modifier.fillMaxSize()
+        ) {
+            val search = state.searchResults
+            if (search != null) {
+                if (search.movies.isNotEmpty()) item {
+                    TvContentSection("Movies") {
+                        TvPosterRow {
+                            search.movies.take(20).forEach { MediaMovieCard(it, vm, layout.posterWidthDp()) }
+                        }
                     }
                 }
-            }
-            if (search.tv.isNotEmpty()) {
-                ContentSection("🔍 TV Shows") {
-                    PosterRow {
-                        search.tv.take(20).forEach { MediaTvCard(it, vm, cardW) }
+                if (search.tv.isNotEmpty()) item {
+                    TvContentSection("TV Shows") {
+                        TvPosterRow {
+                            search.tv.take(20).forEach { MediaTvCard(it, vm, layout.posterWidthDp()) }
+                        }
                     }
                 }
-            }
-            if (search.movies.isEmpty() && search.tv.isEmpty()) {
-                Text("No results found.", color = TextSecondary, modifier = Modifier.padding(24.dp))
-            }
-        } else {
-            HomeQuickNav(current = state.section, onSelect = vm::setSection)
-            pickFeaturedMovie(state.homeRows)?.let { featured ->
-                HomeHeroBanner(
-                    movie = featured,
-                    layout = layout,
-                    onPlay = { vm.playMovie(featured) },
-                    onDetails = { vm.openMovieDetail(featured) }
-                )
-            }
-            ContinueWatchingSection(state.continueWatching, vm, cardW)
-            state.homeRows.forEach { row ->
-                when (row) {
-                    is HomeRow.Movies -> HomeMoviesSection(row.title, row.items, vm, layout, cardW)
-                    is HomeRow.TvShows -> HomeTvSection(row.title, row.items, vm, layout, cardW)
+            } else {
+                if (state.continueWatching.isNotEmpty()) item {
+                    TvContentSection("Continue Watching") {
+                        TvPosterRow {
+                            state.continueWatching.forEach { ContinueWatchingCard(it, vm, layout.posterWidthDp()) }
+                        }
+                    }
+                }
+                state.homeRows.forEach { row ->
+                    item {
+                        when (row) {
+                            is HomeRow.Movies -> TvContentSection(cleanRowTitle(row.title)) {
+                                TvPosterRow {
+                                    row.items.forEach { MediaMovieCard(it, vm, layout.posterWidthDp()) }
+                                }
+                            }
+                            is HomeRow.TvShows -> TvContentSection(cleanRowTitle(row.title)) {
+                                TvPosterRow {
+                                    row.items.forEach { MediaTvCard(it, vm, layout.posterWidthDp()) }
+                                }
+                            }
+                        }
+                    }
                 }
             }
         }
+    } else {
+        ScrollableContent(padding = PaddingValues(pad)) {
+            val search = state.searchResults
+            if (search != null) {
+                if (search.movies.isNotEmpty()) {
+                    ContentSection("🔍 Movies") {
+                        PosterRow { search.movies.take(20).forEach { MediaMovieCard(it, vm, layout.posterWidthDp()) } }
+                    }
+                }
+                if (search.tv.isNotEmpty()) {
+                    ContentSection("🔍 TV Shows") {
+                        PosterRow { search.tv.take(20).forEach { MediaTvCard(it, vm, layout.posterWidthDp()) } }
+                    }
+                }
+                if (search.movies.isEmpty() && search.tv.isEmpty()) {
+                    androidx.compose.material3.Text("No results found.", color = TextSecondary, modifier = androidx.compose.ui.Modifier.padding(24.dp))
+                }
+            } else {
+                HomeQuickNav(current = state.section, onSelect = vm::setSection)
+                pickFeaturedMovie(state.homeRows)?.let { featured ->
+                    HomeHeroBanner(
+                        movie = featured,
+                        layout = layout,
+                        onPlay = { vm.playMovie(featured) },
+                        onDetails = { vm.openMovieDetail(featured) }
+                    )
+                }
+                ContinueWatchingSection(state.continueWatching, vm, layout.posterWidthDp())
+                state.homeRows.forEach { row ->
+                    when (row) {
+                        is HomeRow.Movies -> HomeMoviesSection(row.title, row.items, vm, layout, layout.posterWidthDp())
+                        is HomeRow.TvShows -> HomeTvSection(row.title, row.items, vm, layout, layout.posterWidthDp())
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun TvContentSection(title: String, content: @Composable () -> Unit) {
+    androidx.compose.foundation.layout.Column(
+        modifier = androidx.compose.ui.Modifier.fillMaxWidth()
+    ) {
+        androidx.compose.material3.Text(
+            text = title,
+            color = TextPrimary,
+            fontSize = 22.sp,
+            fontWeight = FontWeight.Bold,
+            letterSpacing = 0.3.sp,
+            modifier = androidx.compose.ui.Modifier.padding(bottom = 14.dp, start = 4.dp)
+        )
+        content()
     }
 }
 
@@ -612,6 +690,115 @@ private fun HomeTvSection(
 }
 
 
+
+@Composable
+private fun TvSearchContent(state: EnigmaUiState, vm: EnigmaViewModel, layout: ScreenLayout) {
+    val pad = layout.contentPaddingDp().dp
+    val cardW = layout.posterWidthDp()
+    var query by rememberSaveable { mutableStateOf("") }
+    val searchFocusRequester = remember { FocusRequester() }
+
+    LaunchedEffect(Unit) {
+        kotlinx.coroutines.delay(200)
+        runCatching { searchFocusRequester.requestFocus() }
+    }
+
+    // Trigger search with debounce as user types
+    LaunchedEffect(query) {
+        if (query.trim().length >= 2) {
+            kotlinx.coroutines.delay(400)
+            vm.search(query.trim())
+        } else if (query.isBlank()) {
+            vm.clearSearch()
+        }
+    }
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(horizontal = pad, vertical = 24.dp),
+        verticalArrangement = Arrangement.spacedBy(28.dp)
+    ) {
+        // Large prominent search field
+        androidx.compose.material3.OutlinedTextField(
+            value = query,
+            onValueChange = { query = it },
+            placeholder = {
+                Text(
+                    "Search movies & TV shows…",
+                    color = TextSecondary.copy(alpha = 0.6f),
+                    fontSize = 20.sp
+                )
+            },
+            leadingIcon = {
+                Icon(
+                    Icons.Default.Search,
+                    contentDescription = null,
+                    tint = EnigmaPurple,
+                    modifier = Modifier.size(28.dp)
+                )
+            },
+            singleLine = true,
+            modifier = Modifier
+                .fillMaxWidth()
+                .focusRequester(searchFocusRequester),
+            textStyle = androidx.compose.ui.text.TextStyle(
+                color = TextPrimary,
+                fontSize = 20.sp
+            ),
+            colors = androidx.compose.material3.OutlinedTextFieldDefaults.colors(
+                focusedBorderColor = EnigmaPurple,
+                unfocusedBorderColor = Color.White.copy(alpha = 0.2f),
+                focusedContainerColor = Color.White.copy(alpha = 0.07f),
+                unfocusedContainerColor = Color.White.copy(alpha = 0.04f),
+                cursorColor = EnigmaPink
+            ),
+            shape = androidx.compose.foundation.shape.RoundedCornerShape(14.dp)
+        )
+
+        val results = state.searchResults
+        when {
+            query.trim().length < 2 -> {
+                // Prompt
+                Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+                    Text(
+                        "Type to search movies & TV shows",
+                        color = TextSecondary,
+                        fontSize = 18.sp
+                    )
+                }
+            }
+            state.contentLoading -> {
+                Box(Modifier.fillMaxWidth().height(200.dp), contentAlignment = Alignment.Center) {
+                    EnigmaLoadingRing(message = "SEARCHING")
+                }
+            }
+            results != null -> {
+                LazyColumn(verticalArrangement = Arrangement.spacedBy(28.dp)) {
+                    if (results.movies.isNotEmpty()) item {
+                        TvContentSection("Movies") {
+                            TvPosterRow {
+                                results.movies.take(20).forEach { MediaMovieCard(it, vm, cardW) }
+                            }
+                        }
+                    }
+                    if (results.tv.isNotEmpty()) item {
+                        TvContentSection("TV Shows") {
+                            TvPosterRow {
+                                results.tv.take(20).forEach { MediaTvCard(it, vm, cardW) }
+                            }
+                        }
+                    }
+                    if (results.movies.isEmpty() && results.tv.isEmpty()) item {
+                        Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+                            Text("No results for \"$query\"", color = TextSecondary, fontSize = 16.sp)
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
 
 @Composable
 private fun FavoritesContent(state: EnigmaUiState, vm: EnigmaViewModel, layout: ScreenLayout) {

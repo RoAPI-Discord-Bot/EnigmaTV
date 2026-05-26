@@ -58,6 +58,7 @@ import kotlinx.coroutines.launch
 
 enum class NavSection(val title: String) {
     HOME("Home"),
+    SEARCH("Search"),
     LIVE("Live TV"),
     FAVORITES("Favorites"),
     CONTINUE("Continue Watching"),
@@ -277,6 +278,7 @@ class EnigmaViewModel(application: Application) : AndroidViewModel(application) 
     }
 
     fun clearError() = _state.update { it.copy(error = null) }
+    fun clearAuthError() = _state.update { it.copy(profileError = null) }
 
     fun switchProfile(profileId: String) {
         viewModelScope.launch {
@@ -568,6 +570,10 @@ class EnigmaViewModel(application: Application) : AndroidViewModel(application) 
         _state.update { it.copy(searchSuggestions = emptyList()) }
     }
 
+    fun clearSearch() {
+        _state.update { it.copy(searchResults = null) }
+    }
+
     fun pickSearchSuggestion(suggestion: SearchSuggestion) {
         clearSearchSuggestions()
         when (suggestion.type) {
@@ -586,7 +592,8 @@ class EnigmaViewModel(application: Application) : AndroidViewModel(application) 
                     val movies = async { repo.searchMovies(query) }
                     val tv = async { repo.searchTv(query) }
                     _state.update {
-                        it.copy(contentLoading = false, searchResults = SearchResults(movies.await(), tv.await()), section = NavSection.HOME)
+                        val stayInSection = if (it.section == NavSection.SEARCH) NavSection.SEARCH else NavSection.HOME
+                        it.copy(contentLoading = false, searchResults = SearchResults(movies.await(), tv.await()), section = stayInSection)
                     }
                 }
             } catch (_: Exception) {
