@@ -29,8 +29,10 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -69,7 +71,7 @@ fun AuthGateScreen(
     var showPassword by rememberSaveable { mutableStateOf(false) }
 
     val firstFieldRequester = remember { FocusRequester() }
-    androidx.compose.runtime.LaunchedEffect(layout) {
+    LaunchedEffect(layout) {
         if (layout == ScreenLayout.TV) {
             kotlinx.coroutines.delay(300)
             runCatching { firstFieldRequester.requestFocus() }

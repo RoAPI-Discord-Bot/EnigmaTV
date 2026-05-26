@@ -139,6 +139,8 @@ fun ProfilePickerGate(
         }
     }
 
+    val distinctProfiles = remember(profiles) { profiles.distinctBy { it.id } }
+
     AppAmbientBackground(Modifier.fillMaxSize()) {
         Box(Modifier.fillMaxSize()) {
             Column(
@@ -195,11 +197,10 @@ fun ProfilePickerGate(
                             .weight(1f),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        val distinctList = remember(profiles) { profiles.distinctBy { it.id } }
-                        items(distinctList, key = { it.id }) { profile ->
+                        items(distinctProfiles, key = { it.id }) { profile ->
                             val focused = profile.id == focusedProfileId
                             val isInitialFocus = profile.id == (
-                                focusedProfileId ?: distinctList.firstOrNull()?.id
+                                focusedProfileId ?: distinctProfiles.firstOrNull()?.id
                                 )
                             ProfilePickerTile(
                                 profile = profile,
@@ -243,8 +244,7 @@ fun ProfilePickerGate(
                             .weight(1f)
                             .widthIn(max = 720.dp)
                     ) {
-                        val distinctList = remember(profiles) { profiles.distinctBy { it.id } }
-                        items(distinctList, key = { it.id }) { profile ->
+                        items(distinctProfiles, key = { it.id }) { profile ->
                             ProfilePickerTile(
                                 profile = profile,
                                 focused = profile.id == focusedProfileId,
