@@ -81,6 +81,29 @@ fun Modifier.glassSurface(
         .border(width = 1.dp, brush = borderBrush, shape = shape)
 }
 
-/** Strip emoji prefixes from TMDB row titles for a cleaner catalog look. */
-fun cleanRowTitle(title: String): String =
-    title.trim().replace(Regex("^[\\p{So}\\p{Sk}\\p{Emoji}\\p{Extended_Pictographic}\\s]+"), "").trim()
+/** Strip emoji/symbol prefixes from TMDB row titles for a cleaner catalog look.
+ *  Uses codepoint range checks instead of \p{Emoji}/\p{Extended_Pictographic} which
+ *  are not supported on Fire OS (older ICU / Java regex engine). */
+fun cleanRowTitle(title: String): String {
+    var start = 0
+    val cps = title.codePoints().toArray()
+    while (start < cps.size) {
+        val cp = cps[start]
+        if (isEmojiOrSymbolCodepoint(cp) || cp == 0x20 /* space */ || cp == 0x9 /* tab */) {
+            start++
+        } else {
+            break
+        }
+    }
+    return title.substring(cps.take(start).sumOf { Character.charCount(it) }).trim()
+}
+
+private fun isEmojiOrSymbolCodepoint(cp: Int): Boolean =
+    cp in 0x2000..0x2BFF ||   // General punctuation, arrows, misc symbols
+    cp in 0x2E00..0x2E7F ||   // Supplemental punctuation
+    cp in 0x3000..0x303F ||   // CJK symbols
+    cp in 0xFE30..0xFE4F ||   // CJK compatibility
+    cp in 0x1F000..0x1FFFF || // Emoticons, misc pictographs, transport, etc.
+    cp in 0x1FA00..0x1FAFF || // Supplemental symbols and pictographs
+    cp in 0x200D..0x200F ||   // Zero-width joiners / direction marks
+    cp in 0xFE00..0xFE0F      // Variation selectors
