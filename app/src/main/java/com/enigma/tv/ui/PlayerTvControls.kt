@@ -18,10 +18,10 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
-import androidx.compose.material3.DropdownMenuItem
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.ExposedDropdownMenuBox
-import androidx.compose.material3.HorizontalDivider
+import androidx.compose.foundation.focusable
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.OutlinedButton
@@ -52,7 +52,6 @@ data class TvPlayerControls(
 )
 
 /** Slide-up episode browser — only shown when user opens it; hides with player chrome. */
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun TvEpisodePickerPanel(
     visible: Boolean,
@@ -67,90 +66,103 @@ fun TvEpisodePickerPanel(
         exit = slideOutVertically { it },
         modifier = modifier
     ) {
-        var seasonExpanded by remember { mutableStateOf(false) }
         Column(
             modifier = Modifier
                 .fillMaxWidth()
                 .navigationBarsPadding()
-                .background(Color.Black.copy(alpha = 0.92f), RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp))
-                .padding(horizontal = 12.dp, vertical = 10.dp)
+                .background(Color.Black.copy(alpha = 0.95f), RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp))
+                .padding(horizontal = 24.dp, vertical = 16.dp)
         ) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text("Episodes", color = TextPrimary, fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                Text("Seasons & Episodes", color = TextPrimary, fontWeight = FontWeight.Bold, fontSize = 20.sp)
                 IconButton(onClick = onDismiss) {
-                    Icon(Icons.Default.Close, contentDescription = "Close episodes", tint = TextSecondary)
+                    Icon(Icons.Default.Close, contentDescription = "Close episodes", tint = TextSecondary, modifier = Modifier.size(28.dp))
                 }
             }
 
-            ExposedDropdownMenuBox(
-                expanded = seasonExpanded,
-                onExpandedChange = { seasonExpanded = it },
-                modifier = Modifier.padding(vertical = 8.dp)
-            ) {
-                OutlinedButton(
-                    onClick = { seasonExpanded = true },
-                    modifier = Modifier.menuAnchor().fillMaxWidth(),
-                    shape = RoundedCornerShape(8.dp)
-                ) {
-                    Text("Season ${controls.selectedSeason}", color = TextPrimary)
-                }
-                ExposedDropdownMenu(expanded = seasonExpanded, onDismissRequest = { seasonExpanded = false }) {
-                    controls.seasons.forEach { s ->
-                        DropdownMenuItem(
-                            text = { Text("Season $s") },
-                            onClick = {
-                                controls.onSeasonChange(s)
-                                seasonExpanded = false
-                            }
-                        )
-                    }
-                }
-            }
-
-            HorizontalDivider(color = Color.White.copy(alpha = 0.1f))
-
-            LazyColumn(
+            Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .heightIn(max = 280.dp),
-                verticalArrangement = Arrangement.spacedBy(4.dp)
+                    .padding(top = 16.dp)
+                    .heightIn(max = 300.dp),
+                horizontalArrangement = Arrangement.spacedBy(16.dp)
             ) {
-                items(controls.episodes, key = { it.first }) { (num, name) ->
-                    val selected = num == controls.selectedEpisode
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clip(RoundedCornerShape(8.dp))
-                            .background(
-                                if (selected) accent.copy(alpha = 0.35f)
-                                else Color.White.copy(alpha = 0.06f)
+                // Seasons List
+                LazyColumn(
+                    modifier = Modifier.weight(0.35f),
+                    contentPadding = PaddingValues(bottom = 16.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    items(controls.seasons, key = { it }) { s ->
+                        val selected = s == controls.selectedSeason
+                        var focused by remember { mutableStateOf(false) }
+                        
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(8.dp))
+                                .background(if (focused) accent.copy(alpha = 0.8f) else if (selected) accent.copy(alpha = 0.35f) else Color.White.copy(alpha = 0.06f))
+                                .clickable { controls.onSeasonChange(s) }
+                                .focusable()
+                                .androidx.compose.ui.focus.onFocusChanged { focused = it.isFocused }
+                                .padding(horizontal = 16.dp, vertical = 14.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                "Season $s",
+                                color = if (focused || selected) Color.White else TextSecondary,
+                                fontWeight = if (focused || selected) FontWeight.Bold else FontWeight.Medium,
+                                fontSize = 16.sp
                             )
-                            .clickable {
-                                controls.onEpisodeChange(num)
-                                onDismiss()
-                            }
-                            .padding(horizontal = 14.dp, vertical = 12.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text(
-                            "E$num",
-                            color = if (selected) EnigmaPink else TextSecondary,
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 13.sp,
-                            modifier = Modifier.padding(end = 12.dp)
-                        )
-                        Text(
-                            name,
-                            color = TextPrimary,
-                            fontSize = 14.sp,
-                            maxLines = 2,
-                            overflow = TextOverflow.Ellipsis,
-                            modifier = Modifier.weight(1f)
-                        )
+                        }
+                    }
+                }
+
+                // Episodes List
+                LazyColumn(
+                    modifier = Modifier.weight(0.65f),
+                    contentPadding = PaddingValues(bottom = 16.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    items(controls.episodes, key = { it.first }) { (num, name) ->
+                        val selected = num == controls.selectedEpisode
+                        var focused by remember { mutableStateOf(false) }
+
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(8.dp))
+                                .background(if (focused) accent.copy(alpha = 0.8f) else if (selected) accent.copy(alpha = 0.35f) else Color.White.copy(alpha = 0.06f))
+                                .clickable {
+                                    controls.onEpisodeChange(num)
+                                    onDismiss()
+                                }
+                                .focusable()
+                                .androidx.compose.ui.focus.onFocusChanged { focused = it.isFocused }
+                                .padding(horizontal = 16.dp, vertical = 14.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                "E$num",
+                                color = if (focused || selected) Color.White else accent,
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 16.sp,
+                                modifier = Modifier.padding(end = 16.dp)
+                            )
+                            Text(
+                                name,
+                                color = if (focused) Color.White else TextPrimary,
+                                fontSize = 15.sp,
+                                fontWeight = if (focused) FontWeight.SemiBold else FontWeight.Normal,
+                                maxLines = 2,
+                                overflow = TextOverflow.Ellipsis,
+                                modifier = Modifier.weight(1f)
+                            )
+                        }
                     }
                 }
             }

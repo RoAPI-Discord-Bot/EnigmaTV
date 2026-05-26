@@ -242,14 +242,7 @@ fun EnigmaShell(viewModel: EnigmaViewModel = viewModel()) {
                 }
             }
 
-            if (state.showLiveStreamPicker) {
-                LiveStreamPickerDialog(
-                    title = state.playerTitle,
-                    streams = state.liveStreamPicker,
-                    onPick = viewModel::pickLiveStream,
-                    onDismiss = viewModel::dismissLiveStreamPicker
-                )
-            }
+
 
             if (state.showDetail) {
                 MediaDetailOverlay(
@@ -409,7 +402,7 @@ private fun EnigmaPlayerOverlay(
             onNextEpisode = { viewModel.playAdjacentEpisode(forward = true) },
             hasPrevEpisode = viewModel.hasAdjacentEpisode(forward = false),
             hasNextEpisode = viewModel.hasAdjacentEpisode(forward = true)
-        ) {
+        ) { dispatcher ->
             when {
                 state.playerHls -> ExoLivePlayer(
                     visible = true,
@@ -448,6 +441,7 @@ private fun EnigmaPlayerOverlay(
                         season = state.selectedSeason,
                         episode = state.selectedEpisode,
                         useExternalChrome = true,
+                        actionDispatcher = dispatcher,
                         contentModifier = Modifier.fillMaxSize()
                     )
                 }
@@ -468,6 +462,7 @@ private fun EnigmaPlayerOverlay(
                         onLiveWaiting = viewModel::onPlayerLiveWaiting,
                         resolveToken = state.playerResolveToken,
                         useExternalChrome = true,
+                        actionDispatcher = dispatcher,
                         modifier = Modifier.fillMaxSize()
                     )
                 }
@@ -616,31 +611,7 @@ private fun HomeTvSection(
     }
 }
 
-@Composable
-private fun LiveStreamPickerDialog(
-    title: String,
-    streams: List<LiveStreamLink>,
-    onPick: (LiveStreamLink) -> Unit,
-    onDismiss: () -> Unit
-) {
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text("Pick stream · $title") },
-        text = {
-            Column {
-                streams.forEach { link ->
-                    TextButton(
-                        onClick = { onPick(link) },
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Text("${link.label} (${link.source})", modifier = Modifier.fillMaxWidth())
-                    }
-                }
-            }
-        },
-        confirmButton = { TextButton(onClick = onDismiss) { Text("Cancel") } }
-    )
-}
+
 
 @Composable
 private fun FavoritesContent(state: EnigmaUiState, vm: EnigmaViewModel, layout: ScreenLayout) {

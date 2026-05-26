@@ -918,16 +918,12 @@ class EnigmaViewModel(application: Application) : AndroidViewModel(application) 
                                 playerStreamPlaying = false
                             )
                         }
-                        if (streams.size == 1) {
-                            playLiveEmbed(
-                                match.title,
-                                streams.first().embedUrl,
-                                streams.first().label,
-                                pickerIndex = 0
-                            )
-                        } else {
-                            _state.update { it.copy(showLiveStreamPicker = true) }
-                        }
+                        playLiveEmbed(
+                            match.title,
+                            streams.first().embedUrl,
+                            streams.first().label,
+                            pickerIndex = 0
+                        )
                     }
                 }
             } catch (_: Exception) {

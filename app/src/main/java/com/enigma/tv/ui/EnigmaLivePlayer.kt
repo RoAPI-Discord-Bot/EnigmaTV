@@ -35,6 +35,7 @@ fun EnigmaLivePlayer(
     onNativeStream: ((String) -> Unit)? = null,
     resolveToken: Int = 0,
     useExternalChrome: Boolean = true,
+    actionDispatcher: PlayerActionDispatcher? = null,
     modifier: Modifier = Modifier.fillMaxSize()
 ) {
     if (!visible || embedUrl.isBlank()) return
@@ -64,6 +65,7 @@ fun EnigmaLivePlayer(
             onLiveWaiting = onLiveWaiting,
             liveTv = true,
             useExternalChrome = useExternalChrome,
+            actionDispatcher = actionDispatcher,
             onStreamCaptured = null,
             modifier = Modifier.fillMaxSize()
         )

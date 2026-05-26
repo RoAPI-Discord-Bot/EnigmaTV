@@ -22,6 +22,16 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import com.enigma.tv.ui.theme.BgDark
 
+class PlayerActionDispatcher {
+    var onTogglePlay: (() -> Unit)? = null
+    var onSeekForward: (() -> Unit)? = null
+    var onSeekBackward: (() -> Unit)? = null
+
+    fun togglePlay() = onTogglePlay?.invoke()
+    fun seekForward() = onSeekForward?.invoke()
+    fun seekBackward() = onSeekBackward?.invoke()
+}
+
 private const val TAG_STREAM_URL = 0xE71A001
 
 @SuppressLint("SetJavaScriptEnabled")
@@ -40,6 +50,7 @@ fun WebViewPlayer(
     liveTv: Boolean = false,
     posterUrl: String? = null,
     useExternalChrome: Boolean = false,
+    actionDispatcher: PlayerActionDispatcher? = null,
     onStreamCaptured: ((String) -> Unit)? = null,
     onStreamFailed: (() -> Unit)? = null,
     onPlaybackReady: (() -> Unit)? = null,
@@ -125,6 +136,7 @@ fun WebViewPlayer(
             liveTv = liveTv,
             guard = guard,
             startPositionMs = startPositionMs,
+            actionDispatcher = actionDispatcher,
             showOverlaySpinner = !useExternalChrome && (pageLoading || streamLoading)
         )
     }
@@ -144,8 +156,36 @@ private fun ColumnScope.WebViewStreamBody(
     liveTv: Boolean,
     guard: WebViewNavigationGuard,
     startPositionMs: Long,
+    actionDispatcher: PlayerActionDispatcher?,
     showOverlaySpinner: Boolean
 ) {
+    var webViewRef by remember { mutableStateOf<WebView?>(null) }
+
+    DisposableEffect(actionDispatcher, webViewRef) {
+        if (actionDispatcher != null && webViewRef != null) {
+            actionDispatcher.onTogglePlay = {
+                webViewRef?.evaluateJavascript(
+                    "document.querySelectorAll('video').forEach(v => v.paused ? v.play() : v.pause());", null
+                )
+            }
+            actionDispatcher.onSeekForward = {
+                webViewRef?.evaluateJavascript(
+                    "document.querySelectorAll('video').forEach(v => { if(!isNaN(v.duration)) v.currentTime = Math.min(v.duration, v.currentTime + 10); });", null
+                )
+            }
+            actionDispatcher.onSeekBackward = {
+                webViewRef?.evaluateJavascript(
+                    "document.querySelectorAll('video').forEach(v => v.currentTime = Math.max(0, v.currentTime - 10));", null
+                )
+            }
+        }
+        onDispose {
+            actionDispatcher?.onTogglePlay = null
+            actionDispatcher?.onSeekForward = null
+            actionDispatcher?.onSeekBackward = null
+        }
+    }
+
     DisposableEffect(url) {
         onDispose { EmbedPlayerShield.stopPeriodic() }
     }
@@ -170,6 +210,7 @@ private fun ColumnScope.WebViewStreamBody(
                     setTag(TAG_STREAM_URL, url)
                     guard.resetForUrl(url, liveTv = liveTv)
                     if (liveTv) LiveWebContent.load(this, url) else loadUrl(url)
+                    webViewRef = this
                 }
             },
             update = { view ->

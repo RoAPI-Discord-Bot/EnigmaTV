@@ -9,6 +9,12 @@ import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.ui.input.key.onKeyEvent
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.nativeKeyCode
+import androidx.compose.ui.input.key.type
+import androidx.compose.ui.input.key.KeyEventType
+import android.view.KeyEvent
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -19,10 +25,21 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.SkipNext
+import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.Pause
+import androidx.compose.material.icons.filled.FastForward
+import androidx.compose.material.icons.filled.FastRewind
+import androidx.compose.material.icons.filled.PlayCircle
+import androidx.compose.material.icons.filled.PauseCircle
 import androidx.compose.material3.Button
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
+import androidx.compose.material3.Text
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.size
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
@@ -69,12 +86,13 @@ fun PlayerFullscreenHost(
     onNextEpisode: (() -> Unit)? = null,
     hasPrevEpisode: Boolean = false,
     hasNextEpisode: Boolean = false,
-    content: @Composable () -> Unit
+    content: @Composable (PlayerActionDispatcher) -> Unit
 ) {
     var chromeVisible by remember { mutableStateOf(true) }
     var episodePanelOpen by remember { mutableStateOf(false) }
     val hasTv = tvControls != null
     val isLivePlayer = subtitle.contains("Live", ignoreCase = true)
+    val actionDispatcher = remember { PlayerActionDispatcher() }
 
     val syncChrome: (Boolean) -> Unit = { visible ->
         chromeVisible = visible
@@ -105,9 +123,28 @@ fun PlayerFullscreenHost(
             Modifier
                 .fillMaxSize()
                 .background(BgDark)
+                .onKeyEvent { event ->
+                    if (event.type == KeyEventType.KeyDown) {
+                        when (event.key.nativeKeyCode) {
+                            KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE -> {
+                                actionDispatcher.togglePlay()
+                                true
+                            }
+                            KeyEvent.KEYCODE_MEDIA_FAST_FORWARD -> {
+                                actionDispatcher.seekForward()
+                                true
+                            }
+                            KeyEvent.KEYCODE_MEDIA_REWIND -> {
+                                actionDispatcher.seekBackward()
+                                true
+                            }
+                            else -> false
+                        }
+                    } else false
+                }
         ) {
             Box(Modifier.fillMaxSize()) {
-                content()
+                content(actionDispatcher)
             }
 
             if (!chromeVisible && !streamLoading && !streamFailed) {
@@ -134,9 +171,9 @@ fun PlayerFullscreenHost(
                 EnigmaLoadingRing(
                     modifier = Modifier.fillMaxSize(),
                     message = if (subtitle.contains("Live", ignoreCase = true)) {
-                        "CONNECTING LIVE"
+                        "Connecting to broadcast..."
                     } else {
-                        "LOADING STREAM"
+                        "LOADING"
                     },
                     logoSize = 72.dp,
                     ringSize = 110.dp,
@@ -245,7 +282,16 @@ fun PlayerFullscreenHost(
                             { episodePanelOpen = !episodePanelOpen }
                         } else null,
                         isTvLayout = layout == ScreenLayout.TV,
-                        isLive = subtitle.contains("Live", ignoreCase = true)
+                        isLive = subtitle.contains("Live", ignoreCase = true),
+                        extraContent = {
+                            if (!isLivePlayer) {
+                                PlaybackControlsRow(
+                                    actionDispatcher = actionDispatcher,
+                                    accent = accent,
+                                    isTvLayout = layout == ScreenLayout.TV
+                                )
+                            }
+                        }
                     )
                 }
             }
@@ -282,6 +328,56 @@ private fun ImmersiveSystemBars(enabled: Boolean) {
         onDispose {
             controller.show(WindowInsetsCompat.Type.systemBars())
             WindowCompat.setDecorFitsSystemWindows(window, true)
+        }
+    }
+}
+
+@Composable
+fun PlaybackControlsRow(
+    actionDispatcher: PlayerActionDispatcher,
+    accent: Color,
+    isTvLayout: Boolean
+) {
+    var isPlaying by remember { mutableStateOf(true) }
+    
+    Row(
+        modifier = Modifier.fillMaxWidth().padding(top = 16.dp, bottom = 8.dp),
+        horizontalArrangement = Arrangement.Center,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        val iconSize = if (isTvLayout) 42.dp else 36.dp
+        
+        IconButton(
+            onClick = { actionDispatcher.seekBackward() },
+            modifier = Modifier.size(iconSize).padding(4.dp).background(Color.White.copy(alpha = 0.1f), RoundedCornerShape(percent = 50))
+        ) {
+            Icon(Icons.Default.FastRewind, contentDescription = "Rewind", tint = TextPrimary, modifier = Modifier.size(24.dp))
+        }
+        
+        Spacer(modifier = Modifier.width(24.dp))
+        
+        IconButton(
+            onClick = {
+                isPlaying = !isPlaying
+                actionDispatcher.togglePlay()
+            },
+            modifier = Modifier.size(if (isTvLayout) 56.dp else 48.dp).background(accent, RoundedCornerShape(percent = 50))
+        ) {
+            Icon(
+                if (isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
+                contentDescription = "Play/Pause",
+                tint = Color.White,
+                modifier = Modifier.size(32.dp)
+            )
+        }
+        
+        Spacer(modifier = Modifier.width(24.dp))
+        
+        IconButton(
+            onClick = { actionDispatcher.seekForward() },
+            modifier = Modifier.size(iconSize).padding(4.dp).background(Color.White.copy(alpha = 0.1f), RoundedCornerShape(percent = 50))
+        ) {
+            Icon(Icons.Default.FastForward, contentDescription = "Fast Forward", tint = TextPrimary, modifier = Modifier.size(24.dp))
         }
     }
 }

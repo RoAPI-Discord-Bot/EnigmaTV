@@ -51,6 +51,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.draw.scale
+import androidx.compose.animation.core.animateFloatAsState
 import coil.compose.AsyncImage
 import com.enigma.tv.data.IptvChannel
 import com.enigma.tv.data.LIVE_CHANNEL_QUICK_PICKS
@@ -392,11 +394,14 @@ private fun LiveEventsList(
 @Composable
 private fun LiveEventCard(match: LiveSportMatch, layout: ScreenLayout, onPlay: (LiveSportMatch) -> Unit) {
     var focused by remember { mutableStateOf(false) }
+    val isTv = layout == ScreenLayout.TV
     val padV = if (layout == ScreenLayout.PHONE) 14.dp else 12.dp
+    val scale by animateFloatAsState(targetValue = if (focused && isTv) 1.04f else 1f)
 
     Row(
         Modifier
             .fillMaxWidth()
+            .scale(scale)
             .clip(RoundedCornerShape(12.dp))
             .glassSurface(cornerRadius = 12.dp, accentBorder = focused)
             .background(
@@ -420,10 +425,10 @@ private fun LiveEventCard(match: LiveSportMatch, layout: ScreenLayout, onPlay: (
         Column(Modifier.weight(1f)) {
             Text(
                 match.title,
-                color = TextPrimary,
-                fontWeight = FontWeight.SemiBold,
-                fontSize = 15.sp,
-                lineHeight = 20.sp
+                color = if (focused && isTv) Color.White else TextPrimary,
+                fontWeight = if (focused && isTv) FontWeight.Bold else FontWeight.SemiBold,
+                fontSize = if (isTv) 17.sp else 15.sp,
+                lineHeight = 22.sp
             )
             Text(
                 match.category.replaceFirstChar { it.uppercase() },
@@ -465,12 +470,15 @@ private fun LiveChannelRow(
     onToggleFavorite: (IptvChannel) -> Unit
 ) {
     var focused by remember { mutableStateOf(false) }
+    val isTv = layout == ScreenLayout.TV
     val rowH = if (layout == ScreenLayout.PHONE) 72.dp else 64.dp
+    val scale by animateFloatAsState(targetValue = if (focused && isTv) 1.04f else 1f)
 
     Row(
         Modifier
             .fillMaxWidth()
             .height(rowH)
+            .scale(scale)
             .clip(RoundedCornerShape(10.dp))
             .glassSurface(cornerRadius = 10.dp, accentBorder = focused)
             .background(if (focused) EnigmaPurple.copy(alpha = 0.15f) else Color.Transparent)
@@ -496,8 +504,9 @@ private fun LiveChannelRow(
         Column(Modifier.weight(1f).padding(horizontal = 12.dp)) {
             Text(
                 channel.name,
-                color = TextPrimary,
-                fontSize = 15.sp,
+                color = if (focused && isTv) Color.White else TextPrimary,
+                fontWeight = if (focused && isTv) FontWeight.Bold else FontWeight.Normal,
+                fontSize = if (isTv) 17.sp else 15.sp,
                 fontWeight = FontWeight.Medium,
                 maxLines = 2,
                 lineHeight = 18.sp

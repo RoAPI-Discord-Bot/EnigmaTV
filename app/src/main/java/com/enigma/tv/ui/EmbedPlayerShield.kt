@@ -16,6 +16,23 @@ object EmbedPlayerShield {
   if (window.__enigmaShieldV2) return;
   window.__enigmaShieldV2 = true;
 
+  // Intercept iframe creation to prevent sandbox attributes from ever being applied.
+  // This fixes Cloudflare/Turnstile 'please remove sandbox attributes' errors.
+  try {
+    var origCreateElement = document.createElement;
+    document.createElement = function(tagName) {
+      var el = origCreateElement.call(document, tagName);
+      if (tagName && tagName.toLowerCase() === 'iframe') {
+        var origSetAttr = el.setAttribute;
+        el.setAttribute = function(name, val) {
+          if (name.toLowerCase() === 'sandbox') return;
+          return origSetAttr.call(el, name, val);
+        };
+      }
+      return el;
+    };
+  } catch (e) {}
+
   var AD_HOST_RE = /doubleclick|googlesyndication|popads|propeller|adsterra|exoclick|clickadu|outbrain|taboola|mgid|revcontent|chaturbate|stripchat/i;
 
   function isAdUrl(href) {
@@ -120,15 +137,11 @@ object EmbedPlayerShield {
       for (var i = 0; i < nodes.length; i++) {
         if (isHijackOverlay(nodes[i])) neuter(nodes[i]);
       }
-      
+
+      // Also clean up any existing sandbox attributes just in case they slipped through innerHTML
       var frames = document.querySelectorAll('iframe[sandbox]');
       for (var i = 0; i < frames.length; i++) {
         frames[i].removeAttribute('sandbox');
-        if (!frames[i].dataset.unboxed) {
-          frames[i].dataset.unboxed = '1';
-          var s = frames[i].src;
-          if (s) frames[i].src = s;
-        }
       }
 
       protectPlayers();

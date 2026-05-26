@@ -54,6 +54,7 @@ fun EnigmaMediaPlayer(
     season: Int = 1,
     episode: Int = 1,
     useExternalChrome: Boolean = false,
+    actionDispatcher: PlayerActionDispatcher? = null,
     contentModifier: Modifier = Modifier.fillMaxSize()
 ) {
     if (!visible) return
@@ -163,6 +164,7 @@ fun EnigmaMediaPlayer(
                             { ms: Long -> cb(ms) }
                         },
                         startPositionMs = startPositionMs,
+                        actionDispatcher = actionDispatcher,
                         modifier = Modifier.fillMaxSize()
                     )
                 }
