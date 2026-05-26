@@ -128,8 +128,8 @@ class EnigmaViewModel(application: Application) : AndroidViewModel(application) 
     private val playlistStore = PlaylistStore(application)
     private val sessionStore = UserSessionStore(application)
     private val profileStore = ProfileStore(application)
-    private val authService = FirebaseAuthService()
-    private val syncService = FirebaseSyncService()
+    private val authService by lazy { FirebaseAuthService() }
+    private val syncService by lazy { FirebaseSyncService() }
     private val iptvRepo = IptvRepository()
     private val streamedRepo = StreamedRepository()
     private val liveChannelStore = LiveChannelFavoritesStore(application)
@@ -233,7 +233,7 @@ class EnigmaViewModel(application: Application) : AndroidViewModel(application) 
                 }
             }
         }
-        viewModelScope.launch {
+        viewModelScope.launch(kotlinx.coroutines.Dispatchers.IO) {
             authService.authState.collect { user ->
                 _state.update {
                     it.copy(

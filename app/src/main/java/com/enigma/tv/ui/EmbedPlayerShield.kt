@@ -120,6 +120,17 @@ object EmbedPlayerShield {
       for (var i = 0; i < nodes.length; i++) {
         if (isHijackOverlay(nodes[i])) neuter(nodes[i]);
       }
+      
+      var frames = document.querySelectorAll('iframe[sandbox]');
+      for (var i = 0; i < frames.length; i++) {
+        frames[i].removeAttribute('sandbox');
+        if (!frames[i].dataset.unboxed) {
+          frames[i].dataset.unboxed = '1';
+          var s = frames[i].src;
+          if (s) frames[i].src = s;
+        }
+      }
+
       protectPlayers();
       unmuteVideos();
     } catch (e) {}

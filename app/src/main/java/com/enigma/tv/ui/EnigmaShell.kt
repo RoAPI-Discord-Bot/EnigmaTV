@@ -171,6 +171,12 @@ fun EnigmaShell(viewModel: EnigmaViewModel = viewModel()) {
     val activeProfile = state.profiles.find { it.id == state.activeProfileId }
     val useBottomNav = !layout.usePermanentDrawer()
 
+    LaunchedEffect(state.section, state.homeRows.isEmpty(), state.contentLoading, state.showProfilePicker, state.showAuthGate, state.error) {
+        if (state.section == NavSection.HOME && state.homeRows.isEmpty() && !state.contentLoading && !state.showProfilePicker && !state.showAuthGate && state.error == null) {
+            viewModel.loadHome()
+        }
+    }
+
     val drawerContent: @Composable () -> Unit = {
         EnigmaDrawerContent(
             current = state.section,
