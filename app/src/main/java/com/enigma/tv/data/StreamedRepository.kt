@@ -82,9 +82,11 @@ class StreamedRepository {
                 })
             }
         }
+        val now = System.currentTimeMillis()
         jobs.awaitAll()
             .flatten()
-            .distinctBy { it.id }
+            .sortedBy { kotlin.math.abs(it.dateMs - now) }
+            .distinctBy { it.title.substringBefore(" ·").trim() }
             .map { labelEventSchedule(it) }
             .sortedByDescending { it.dateMs }
     }

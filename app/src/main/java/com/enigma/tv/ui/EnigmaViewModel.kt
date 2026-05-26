@@ -454,6 +454,14 @@ class EnigmaViewModel(application: Application) : AndroidViewModel(application) 
             _state.update { it.copy(contentLoading = it.homeRows.isEmpty(), error = null, searchResults = null) }
             try {
                 val rows = repo.buildHomeRows()
+                if (rows.isNotEmpty()) {
+                    if (getApplication<android.app.Application>().packageManager.hasSystemFeature(
+                            android.content.pm.PackageManager.FEATURE_LEANBACK
+                        )
+                    ) {
+                        delay(400)
+                    }
+                }
                 _state.update {
                     val closeGate = closeProfileGate || it.openingProfileId != null
                     it.copy(
@@ -465,12 +473,6 @@ class EnigmaViewModel(application: Application) : AndroidViewModel(application) 
                     )
                 }
                 if (rows.isNotEmpty()) {
-                    if (getApplication<android.app.Application>().packageManager.hasSystemFeature(
-                            android.content.pm.PackageManager.FEATURE_LEANBACK
-                        )
-                    ) {
-                        delay(400)
-                    }
                     prefetchHomePosters(rows)
                 }
             } catch (e: kotlinx.coroutines.CancellationException) {

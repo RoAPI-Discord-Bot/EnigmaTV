@@ -305,7 +305,7 @@ class WebViewNavigationGuard(initialUrl: String) {
                   return live ? 'waiting' : 'ok';
                 }
                 if (live) {
-                  if (document.querySelector('iframe')) return 'waiting';
+                  if (document.querySelector('iframe')) return 'ok';
                   return 'empty';
                 }
                 if (document.querySelector('iframe')) return 'ok';
