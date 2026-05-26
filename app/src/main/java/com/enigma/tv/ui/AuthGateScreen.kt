@@ -35,6 +35,9 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
@@ -64,6 +67,14 @@ fun AuthGateScreen(
     var email by rememberSaveable { mutableStateOf("") }
     var password by rememberSaveable { mutableStateOf("") }
     var showPassword by rememberSaveable { mutableStateOf(false) }
+
+    val firstFieldRequester = remember { FocusRequester() }
+    androidx.compose.runtime.LaunchedEffect(layout) {
+        if (layout == ScreenLayout.TV) {
+            kotlinx.coroutines.delay(300)
+            runCatching { firstFieldRequester.requestFocus() }
+        }
+    }
 
     val bgRes = if (layout == ScreenLayout.PHONE) R.drawable.bg_auth_phone else R.drawable.bg_auth_tv
     val bgAlignment = if (layout == ScreenLayout.PHONE) Alignment.CenterEnd else Alignment.Center
@@ -130,14 +141,20 @@ fun AuthGateScreen(
                 }
 
                 if (mode == "signup") {
-                    AuthField(value = name, onValueChange = { name = it }, label = "Display name")
+                    AuthField(value = name, onValueChange = { name = it }, label = "Display name", modifier = Modifier.focusRequester(firstFieldRequester))
+                    AuthField(value = email, onValueChange = { email = it }, label = "Email")
+                } else {
+                    AuthField(value = email, onValueChange = { email = it }, label = "Email", modifier = Modifier.focusRequester(firstFieldRequester))
                 }
-                AuthField(value = email, onValueChange = { email = it }, label = "Email")
+                var passwordFocused by remember { mutableStateOf(false) }
                 OutlinedTextField(
                     value = password,
                     onValueChange = { password = it },
                     label = { Text("Password") },
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .onFocusChanged { passwordFocused = it.isFocused }
+                        .background(if (passwordFocused) Color.White.copy(alpha = 0.08f) else Color.Transparent, RoundedCornerShape(10.dp)),
                     singleLine = true,
                     visualTransformation = if (showPassword) VisualTransformation.None else PasswordVisualTransformation(),
                     trailingIcon = {
@@ -209,12 +226,16 @@ private fun RowScope.AuthTab(label: String, selected: Boolean, onClick: () -> Un
 }
 
 @Composable
-private fun AuthField(value: String, onValueChange: (String) -> Unit, label: String) {
+private fun AuthField(value: String, onValueChange: (String) -> Unit, label: String, modifier: Modifier = Modifier) {
+    var isFocused by remember { mutableStateOf(false) }
     OutlinedTextField(
         value = value,
         onValueChange = onValueChange,
         label = { Text(label) },
-        modifier = Modifier.fillMaxWidth(),
+        modifier = modifier
+            .fillMaxWidth()
+            .onFocusChanged { isFocused = it.isFocused }
+            .background(if (isFocused) Color.White.copy(alpha = 0.08f) else Color.Transparent, RoundedCornerShape(10.dp)),
         singleLine = true,
         colors = authFieldColors(),
         shape = RoundedCornerShape(10.dp)

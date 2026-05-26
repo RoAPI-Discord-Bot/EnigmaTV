@@ -509,19 +509,32 @@ class EnigmaViewModel(application: Application) : AndroidViewModel(application) 
 
     private suspend fun finishOnboarding() {
         sessionStore.setOnboardingComplete()
-        val profiles = profileStore.profiles.first()
+        val profiles = profileStore.profiles.first().ifEmpty {
+            listOf(profileStore.ensureDefaultProfile())
+        }
         val activeId = profileStore.activeProfileId.first()
+
+        // Step 1: hide the auth gate — the main app tree (PermanentNavigationDrawer +
+        // all drawer items) begins composing and registers its TV focus nodes.
         _state.update {
             it.copy(
                 showAuthGate = false,
                 authLoading = false,
                 profileError = null,
-                showProfilePicker = true,
                 contentLoading = false,
                 profiles = profiles,
                 activeProfileId = activeId.ifBlank { profiles.firstOrNull()?.id ?: "default" }
             )
         }
+
+        // Step 2: on TV the PermanentNavigationDrawer needs ~2 frames to fully lay out
+        // its focusable items before we overlay the profile picker on top. Without this
+        // delay the Leanback focus tree initialises two large subtrees simultaneously
+        // and throws an IllegalStateException (crash). 150 ms is safely > 2 frames at
+        // 60 fps. On phone/tablet the same delay is harmless.
+        kotlinx.coroutines.delay(150)
+
+        _state.update { it.copy(showProfilePicker = true) }
         schedulePostProfileCloudSync()
     }
 

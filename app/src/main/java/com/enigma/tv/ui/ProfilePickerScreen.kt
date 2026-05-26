@@ -195,10 +195,11 @@ fun ProfilePickerGate(
                             .weight(1f),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        items(profiles, key = { it.id }) { profile ->
+                        val distinctList = remember(profiles) { profiles.distinctBy { it.id } }
+                        items(distinctList, key = { it.id }) { profile ->
                             val focused = profile.id == focusedProfileId
                             val isInitialFocus = profile.id == (
-                                focusedProfileId ?: profiles.firstOrNull()?.id
+                                focusedProfileId ?: distinctList.firstOrNull()?.id
                                 )
                             ProfilePickerTile(
                                 profile = profile,
@@ -242,7 +243,8 @@ fun ProfilePickerGate(
                             .weight(1f)
                             .widthIn(max = 720.dp)
                     ) {
-                        items(profiles, key = { it.id }) { profile ->
+                        val distinctList = remember(profiles) { profiles.distinctBy { it.id } }
+                        items(distinctList, key = { it.id }) { profile ->
                             ProfilePickerTile(
                                 profile = profile,
                                 focused = profile.id == focusedProfileId,
