@@ -23,6 +23,8 @@ import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.runtime.Composable
+import androidx.compose.foundation.border
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -317,7 +319,7 @@ fun PosterCard(
                 .then(
                     if (focused && isTv) {
                         Modifier.background(Color.Transparent, RoundedCornerShape(12.dp))
-                            .androidx.compose.foundation.border(3.dp, Color.White, RoundedCornerShape(12.dp))
+                            .border(3.dp, Color.White, RoundedCornerShape(12.dp))
                     } else Modifier
                 )
         ) {

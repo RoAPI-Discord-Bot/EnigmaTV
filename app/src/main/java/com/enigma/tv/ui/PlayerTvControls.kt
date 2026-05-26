@@ -22,6 +22,8 @@ import androidx.compose.foundation.focusable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.size
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.OutlinedButton
@@ -108,7 +110,7 @@ fun TvEpisodePickerPanel(
                                 .background(if (focused) accent.copy(alpha = 0.8f) else if (selected) accent.copy(alpha = 0.35f) else Color.White.copy(alpha = 0.06f))
                                 .clickable { controls.onSeasonChange(s) }
                                 .focusable()
-                                .androidx.compose.ui.focus.onFocusChanged { focused = it.isFocused }
+                                .onFocusChanged { focused = it.isFocused }
                                 .padding(horizontal = 16.dp, vertical = 14.dp),
                             contentAlignment = Alignment.Center
                         ) {
@@ -142,7 +144,7 @@ fun TvEpisodePickerPanel(
                                     onDismiss()
                                 }
                                 .focusable()
-                                .androidx.compose.ui.focus.onFocusChanged { focused = it.isFocused }
+                                .onFocusChanged { focused = it.isFocused }
                                 .padding(horizontal = 16.dp, vertical = 14.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {

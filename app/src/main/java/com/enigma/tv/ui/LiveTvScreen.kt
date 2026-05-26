@@ -507,7 +507,6 @@ private fun LiveChannelRow(
                 color = if (focused && isTv) Color.White else TextPrimary,
                 fontWeight = if (focused && isTv) FontWeight.Bold else FontWeight.Normal,
                 fontSize = if (isTv) 17.sp else 15.sp,
-                fontWeight = FontWeight.Medium,
                 maxLines = 2,
                 lineHeight = 18.sp
             )
