@@ -6,6 +6,7 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.focusable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -135,12 +136,15 @@ fun EnigmaShell(viewModel: EnigmaViewModel = viewModel()) {
                 activeProfileId = state.activeProfileId,
                 openingProfileId = state.openingProfileId,
                 layout = layout,
+                isLoggedIn = state.isLoggedIn,
+                userEmail = state.userEmail,
                 onSelectProfile = viewModel::selectProfileAndContinue,
                 onAddProfile = viewModel::addProfile,
                 onRenameProfile = viewModel::renameProfile,
                 onRemoveProfile = viewModel::removeProfile,
                 onSetAvatarIndex = viewModel::setProfileAvatarIndex,
-                onSetAvatarUri = viewModel::setProfileAvatarUri
+                onSetAvatarUri = viewModel::setProfileAvatarUri,
+                onSignIn = { viewModel.showAuthGateFromProfile() }
             )
             when {
                 state.openingProfileId != null -> {
@@ -327,8 +331,15 @@ fun EnigmaShell(viewModel: EnigmaViewModel = viewModel()) {
         }
         if (bootstrapLoading) {
             EnigmaLoadingRing(
-                modifier = Modifier.fillMaxSize(),
-                message = "LOADING",
+                modifier = Modifier
+                    .fillMaxSize()
+                    .then(
+                        // On TV, make the overlay focusable so the remote doesn't lose all targets.
+                        if (layout == ScreenLayout.TV)
+                            Modifier.focusable()
+                        else Modifier
+                    ),
+                message = "LOADING MAIN",
                 fullscreen = true
             )
         }

@@ -72,6 +72,9 @@ import com.enigma.tv.ui.theme.EnigmaPink
 import com.enigma.tv.ui.theme.EnigmaPurple
 import com.enigma.tv.ui.theme.TextPrimary
 import com.enigma.tv.ui.theme.TextSecondary
+import androidx.compose.foundation.layout.width
+import androidx.compose.material.icons.filled.AccountCircle
+import androidx.compose.material.icons.filled.Cloud
 
 /**
  * Full-screen Netflix-style "Who's watching?" gate shown on every app open.
@@ -82,12 +85,15 @@ fun ProfilePickerGate(
     activeProfileId: String,
     openingProfileId: String? = null,
     layout: ScreenLayout,
+    isLoggedIn: Boolean = false,
+    userEmail: String = "",
     onSelectProfile: (String) -> Unit,
     onAddProfile: (String) -> Unit,
     onRenameProfile: (String, String) -> Unit,
     onRemoveProfile: (String) -> Unit,
     onSetAvatarIndex: (String, Int) -> Unit,
-    onSetAvatarUri: (String, String?) -> Unit
+    onSetAvatarUri: (String, String?) -> Unit,
+    onSignIn: (() -> Unit)? = null
 ) {
     var showAddDialog by rememberSaveable { mutableStateOf(false) }
     var newName by rememberSaveable { mutableStateOf("") }
@@ -271,10 +277,51 @@ fun ProfilePickerGate(
                     }
                 }
 
+                // Account sync banner
+                if (!gateLocked) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 24.dp, vertical = if (isTv) 8.dp else 4.dp)
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(
+                                if (isLoggedIn) EnigmaPurple.copy(alpha = 0.18f)
+                                else Color(0xFF1E1E2E)
+                            )
+                            .then(
+                                if (!isLoggedIn && onSignIn != null)
+                                    Modifier.clickable { onSignIn() }
+                                else Modifier
+                            )
+                            .padding(horizontal = 16.dp, vertical = 10.dp)
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.Center,
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Icon(
+                                if (isLoggedIn) Icons.Default.Cloud else Icons.Default.AccountCircle,
+                                contentDescription = null,
+                                tint = if (isLoggedIn) EnigmaPurple else TextSecondary,
+                                modifier = Modifier.size(18.dp)
+                            )
+                            Spacer(Modifier.width(8.dp))
+                            Text(
+                                if (isLoggedIn) "Synced to $userEmail"
+                                else "Sign in to sync profiles across devices",
+                                color = if (isLoggedIn) EnigmaPurple else TextSecondary,
+                                fontSize = if (isTv) 14.sp else 13.sp,
+                                fontWeight = FontWeight.Medium
+                            )
+                        }
+                    }
+                }
+
                 Row(
                     Modifier
                         .fillMaxWidth()
-                        .padding(bottom = if (isTv) 32.dp else 24.dp),
+                        .padding(bottom = if (isTv) 16.dp else 12.dp),
                     horizontalArrangement = Arrangement.Center
                 ) {
                     Text(

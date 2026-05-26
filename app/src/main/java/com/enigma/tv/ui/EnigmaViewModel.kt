@@ -253,17 +253,24 @@ class EnigmaViewModel(application: Application) : AndroidViewModel(application) 
         viewModelScope.launch {
             profileStore.ensureDefaultProfile()
             val done = sessionStore.isOnboardingComplete()
-            val profiles = profileStore.profiles.first()
-            val activeId = profileStore.activeProfileId.first()
+            // Unblock the UI immediately — don't wait for slow DataStore reads on Firestick.
+            // Profiles load reactively via the collect() above and will populate shortly.
             _state.update {
                 it.copy(
-                    profiles = profiles,
-                    activeProfileId = activeId.ifBlank { it.activeProfileId },
                     sessionReady = true,
                     showAuthGate = !done,
                     showSplash = false,
                     showProfilePicker = done,
                     contentLoading = false
+                )
+            }
+            // Now do a background read to fill in the real profile values
+            val profiles = profileStore.profiles.first()
+            val activeId = profileStore.activeProfileId.first()
+            _state.update {
+                it.copy(
+                    profiles = profiles,
+                    activeProfileId = activeId.ifBlank { it.activeProfileId }
                 )
             }
         }
@@ -342,6 +349,10 @@ class EnigmaViewModel(application: Application) : AndroidViewModel(application) 
             )
         }
         if (_state.value.homeRows.isEmpty()) loadHome()
+    }
+
+    fun showAuthGateFromProfile() {
+        _state.update { it.copy(showAuthGate = true, showProfilePicker = false) }
     }
 
     fun showProfilePickerScreen() {
@@ -940,6 +951,29 @@ class EnigmaViewModel(application: Application) : AndroidViewModel(application) 
     private fun playLiveEmbed(title: String, embedUrl: String, label: String, pickerIndex: Int? = null) {
         val idx = pickerIndex ?: _state.value.sourceIndex
         val pickerSize = _state.value.liveStreamPicker.size.coerceAtLeast(1)
+
+        // Build the best direct embed player URL without server-side resolution.
+        // Server-side fetching of streamed.pk embed pages fails because they require
+        // JS execution in a real browser to deliver the stream. Going directly to the
+        // embed player URL in WebView is the correct approach.
+        val directCandidates = StreamedRepository.embedCandidates(embedUrl)
+            .filter { it.startsWith("http", ignoreCase = true) && !LiveEmbedResolver.isUnplayableUrl(it) }
+        val playUrl = directCandidates.firstOrNull()
+            ?: embedUrl.trim().takeIf { it.startsWith("http") && !LiveEmbedResolver.isUnplayableUrl(it) }
+
+        if (playUrl.isNullOrBlank()) {
+            _state.update {
+                it.copy(
+                    playerVisible = true,
+                    playerLoading = false,
+                    playerStreamFailed = true,
+                    playerLiveHint = "No playable URL found. Try Next Server.",
+                    error = null
+                )
+            }
+            return
+        }
+
         _state.update {
             it.copy(
                 playerVisible = true,
@@ -950,7 +984,7 @@ class EnigmaViewModel(application: Application) : AndroidViewModel(application) 
                 playerLiveHint = null,
                 playerStreamPlaying = false,
                 playerTitle = title,
-                playerUrl = "",
+                playerUrl = playUrl,
                 playerAccentMovie = false,
                 playingType = null,
                 sourceLabel = "Live · $label (${idx + 1}/$pickerSize)",
@@ -959,37 +993,6 @@ class EnigmaViewModel(application: Application) : AndroidViewModel(application) 
                 playerResolveToken = it.playerResolveToken + 1,
                 error = null
             )
-        }
-        viewModelScope.launch {
-            val candidates = StreamedRepository.embedCandidates(embedUrl)
-                .filter { it.startsWith("http", ignoreCase = true) && !LiveEmbedResolver.isUnplayableUrl(it) }
-            val resolved = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
-                LiveEmbedResolver.resolvePlayableUrl(embedUrl)
-            }
-            val playUrl = listOfNotNull(resolved)
-                .plus(candidates)
-                .firstOrNull { url ->
-                    url.isNotBlank() && !LiveEmbedResolver.isUnplayableUrl(url)
-                }
-            if (playUrl.isNullOrBlank()) {
-                _state.update {
-                    it.copy(
-                        playerLoading = false,
-                        playerStreamFailed = true,
-                        playerLiveHint = "This source returned data instead of a player. Try Next Server."
-                    )
-                }
-                return@launch
-            }
-            _state.update {
-                it.copy(
-                    playerUrl = playUrl,
-                    playerLoading = true,
-                    playerStreamFailed = false,
-                    playerLiveHint = null,
-                    playerResolveToken = it.playerResolveToken + 1
-                )
-            }
         }
     }
 
