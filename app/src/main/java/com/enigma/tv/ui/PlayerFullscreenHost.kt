@@ -7,7 +7,9 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.ui.input.key.onKeyEvent
 import androidx.compose.ui.input.key.key
@@ -339,45 +341,83 @@ fun PlaybackControlsRow(
     isTvLayout: Boolean
 ) {
     var isPlaying by remember { mutableStateOf(true) }
-    
+    var rewindFocused by remember { mutableStateOf(false) }
+    var playFocused by remember { mutableStateOf(false) }
+    var forwardFocused by remember { mutableStateOf(false) }
+
     Row(
         modifier = Modifier.fillMaxWidth().padding(top = 16.dp, bottom = 8.dp),
         horizontalArrangement = Arrangement.Center,
         verticalAlignment = Alignment.CenterVertically
     ) {
-        val iconSize = if (isTvLayout) 42.dp else 36.dp
-        
+        val sideSize = if (isTvLayout) 52.dp else 40.dp
+        val sideIconSize = if (isTvLayout) 28.dp else 22.dp
+
+        // Rewind
         IconButton(
             onClick = { actionDispatcher.seekBackward() },
-            modifier = Modifier.size(iconSize).padding(4.dp).background(Color.White.copy(alpha = 0.1f), RoundedCornerShape(percent = 50))
+            modifier = Modifier
+                .size(sideSize)
+                .onFocusChanged { rewindFocused = it.isFocused }
+                .background(
+                    if (rewindFocused) Color.White.copy(alpha = 0.28f) else Color.White.copy(alpha = 0.10f),
+                    RoundedCornerShape(percent = 50)
+                )
+                .then(
+                    if (rewindFocused) Modifier.border(2.dp, Color.White, RoundedCornerShape(percent = 50))
+                    else Modifier
+                )
         ) {
-            Icon(Icons.Default.FastRewind, contentDescription = "Rewind", tint = TextPrimary, modifier = Modifier.size(24.dp))
+            Icon(Icons.Default.FastRewind, contentDescription = "Rewind", tint = TextPrimary, modifier = Modifier.size(sideIconSize))
         }
-        
-        Spacer(modifier = Modifier.width(24.dp))
-        
+
+        Spacer(modifier = Modifier.width(if (isTvLayout) 32.dp else 20.dp))
+
+        // Play / Pause — centre button, biggest
+        val playSize = if (isTvLayout) 64.dp else 52.dp
         IconButton(
             onClick = {
                 isPlaying = !isPlaying
                 actionDispatcher.togglePlay()
             },
-            modifier = Modifier.size(if (isTvLayout) 56.dp else 48.dp).background(accent, RoundedCornerShape(percent = 50))
+            modifier = Modifier
+                .size(playSize)
+                .onFocusChanged { playFocused = it.isFocused }
+                .background(
+                    if (playFocused) Color.White else accent,
+                    RoundedCornerShape(percent = 50)
+                )
+                .then(
+                    if (playFocused) Modifier.border(3.dp, Color.White, RoundedCornerShape(percent = 50))
+                    else Modifier
+                )
         ) {
             Icon(
                 if (isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
                 contentDescription = "Play/Pause",
-                tint = Color.White,
-                modifier = Modifier.size(32.dp)
+                tint = if (playFocused) accent else Color.White,
+                modifier = Modifier.size(if (isTvLayout) 34.dp else 28.dp)
             )
         }
-        
-        Spacer(modifier = Modifier.width(24.dp))
-        
+
+        Spacer(modifier = Modifier.width(if (isTvLayout) 32.dp else 20.dp))
+
+        // Fast Forward
         IconButton(
             onClick = { actionDispatcher.seekForward() },
-            modifier = Modifier.size(iconSize).padding(4.dp).background(Color.White.copy(alpha = 0.1f), RoundedCornerShape(percent = 50))
+            modifier = Modifier
+                .size(sideSize)
+                .onFocusChanged { forwardFocused = it.isFocused }
+                .background(
+                    if (forwardFocused) Color.White.copy(alpha = 0.28f) else Color.White.copy(alpha = 0.10f),
+                    RoundedCornerShape(percent = 50)
+                )
+                .then(
+                    if (forwardFocused) Modifier.border(2.dp, Color.White, RoundedCornerShape(percent = 50))
+                    else Modifier
+                )
         ) {
-            Icon(Icons.Default.FastForward, contentDescription = "Fast Forward", tint = TextPrimary, modifier = Modifier.size(24.dp))
+            Icon(Icons.Default.FastForward, contentDescription = "Fast Forward", tint = TextPrimary, modifier = Modifier.size(sideIconSize))
         }
     }
 }

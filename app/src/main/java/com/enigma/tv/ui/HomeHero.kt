@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Info
@@ -21,9 +22,14 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
@@ -34,6 +40,7 @@ import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import com.enigma.tv.data.HomeRow
 import com.enigma.tv.data.MovieItem
+import com.enigma.tv.ui.theme.EnigmaPink
 import com.enigma.tv.ui.theme.EnigmaPurple
 import com.enigma.tv.ui.theme.MovieAccent
 import com.enigma.tv.ui.theme.TextPrimary
@@ -59,7 +66,14 @@ fun HomeHeroBanner(
     onDetails: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val height = if (layout == ScreenLayout.TV) 320.dp else if (layout == ScreenLayout.TABLET) 260.dp else 220.dp
+    val isTv = layout == ScreenLayout.TV
+    // On TV keep the banner shorter so the first content row peeks below the fold,
+    // signalling to the user that they can scroll down.
+    val height = when (layout) {
+        ScreenLayout.TV     -> 260.dp
+        ScreenLayout.TABLET -> 260.dp
+        ScreenLayout.PHONE  -> 220.dp
+    }
 
     Box(
         modifier = modifier
@@ -67,8 +81,13 @@ fun HomeHeroBanner(
             .height(height)
             .padding(bottom = 16.dp)
             .clip(RoundedCornerShape(18.dp))
-            .border(1.dp, Brush.linearGradient(listOf(EnigmaPurple.copy(0.5f), Color.White.copy(0.12f))), RoundedCornerShape(18.dp))
-            .clickable(onClick = onDetails)
+            .border(
+                1.dp,
+                Brush.linearGradient(listOf(EnigmaPurple.copy(0.5f), Color.White.copy(0.12f))),
+                RoundedCornerShape(18.dp)
+            )
+            // Only make the whole box tappable on mobile; on TV the buttons handle it.
+            .then(if (!isTv) Modifier.clickable(onClick = onDetails) else Modifier)
     ) {
         val backdrop = movie.backdropUrl ?: movie.posterUrl
         if (backdrop != null) {
@@ -79,6 +98,7 @@ fun HomeHeroBanner(
                 contentScale = ContentScale.Crop
             )
         }
+        // Gradient scrim
         Box(
             Modifier
                 .fillMaxSize()
@@ -107,7 +127,7 @@ fun HomeHeroBanner(
             Text(
                 movie.title,
                 color = TextPrimary,
-                fontSize = if (layout == ScreenLayout.TV) 28.sp else 22.sp,
+                fontSize = if (isTv) 26.sp else 22.sp,
                 fontWeight = FontWeight.Bold,
                 maxLines = 2,
                 overflow = TextOverflow.Ellipsis
@@ -119,18 +139,38 @@ fun HomeHeroBanner(
                 modifier = Modifier.padding(top = 4.dp, bottom = 12.dp)
             )
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                // Play button — on TV this gets a bright focus ring so the D-pad target is obvious
+                var playFocused by remember { mutableStateOf(false) }
                 Button(
                     onClick = onPlay,
                     colors = ButtonDefaults.buttonColors(containerColor = MovieAccent),
-                    shape = RoundedCornerShape(10.dp)
+                    shape = RoundedCornerShape(10.dp),
+                    modifier = Modifier
+                        .onFocusChanged { playFocused = it.isFocused }
+                        .then(
+                            if (playFocused) Modifier.border(3.dp, Color.White, RoundedCornerShape(10.dp))
+                            else Modifier
+                        )
                 ) {
                     Icon(Icons.Default.PlayArrow, contentDescription = null)
                     Text("Play", modifier = Modifier.padding(start = 4.dp), fontWeight = FontWeight.SemiBold)
                 }
+
+                // Details button
+                var detailsFocused by remember { mutableStateOf(false) }
                 OutlinedButton(
                     onClick = onDetails,
                     shape = RoundedCornerShape(10.dp),
-                    border = androidx.compose.foundation.BorderStroke(1.dp, Color.White.copy(0.35f))
+                    border = androidx.compose.foundation.BorderStroke(
+                        if (detailsFocused) 2.dp else 1.dp,
+                        if (detailsFocused) Color.White else Color.White.copy(0.35f)
+                    ),
+                    modifier = Modifier
+                        .onFocusChanged { detailsFocused = it.isFocused }
+                        .then(
+                            if (detailsFocused) Modifier.background(Color.White.copy(0.15f), RoundedCornerShape(10.dp))
+                            else Modifier
+                        )
                 ) {
                     Icon(Icons.Default.Info, contentDescription = null, tint = TextPrimary)
                     Text("Details", color = TextPrimary, modifier = Modifier.padding(start = 4.dp))
@@ -161,15 +201,17 @@ fun HomeQuickNav(
 
 @Composable
 private fun QuickChip(label: String, selected: Boolean, onClick: () -> Unit) {
+    var focused by remember { mutableStateOf(false) }
     Text(
         text = label,
-        color = if (selected) TextPrimary else TextSecondary,
+        color = if (selected || focused) TextPrimary else TextSecondary,
         fontSize = 13.sp,
-        fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Medium,
+        fontWeight = if (selected || focused) FontWeight.SemiBold else FontWeight.Medium,
         modifier = Modifier
             .clip(RoundedCornerShape(20.dp))
-            .glassSurface(cornerRadius = 20.dp, accentBorder = selected)
+            .glassSurface(cornerRadius = 20.dp, accentBorder = selected || focused)
             .clickable(onClick = onClick)
+            .onFocusChanged { focused = it.isFocused }
             .padding(horizontal = 14.dp, vertical = 8.dp)
     )
 }

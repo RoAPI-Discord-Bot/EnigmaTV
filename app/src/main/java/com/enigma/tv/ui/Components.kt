@@ -295,7 +295,7 @@ fun PosterCard(
 ) {
     val cardW = cardWidthDp.dp
     val cardH = (cardWidthDp * 1.5f).dp
-    val isTv = cardWidthDp > 170
+    val isTv = cardWidthDp >= 140
 
     var focused by remember { mutableStateOf(false) }
     val scale by animateFloatAsState(targetValue = if (focused) 1.08f else 1f, label = "card_scale")
@@ -421,7 +421,8 @@ fun TvPosterRow(
     Row(
         modifier = modifier
             .fillMaxWidth()
-            .horizontalScroll(rememberScrollState()),
+            .horizontalScroll(rememberScrollState())
+            .padding(bottom = 8.dp),
         horizontalArrangement = Arrangement.spacedBy(20.dp),
         content = { content() }
     )

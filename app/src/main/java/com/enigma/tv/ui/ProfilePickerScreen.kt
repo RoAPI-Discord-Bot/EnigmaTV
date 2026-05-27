@@ -465,18 +465,7 @@ private fun ProfilePickerTile(
                 if (isTv) {
                     Modifier
                         .focusable(interactionSource = interaction)
-                        .onKeyEvent { event ->
-                            if (event.type != KeyEventType.KeyDown) return@onKeyEvent false
-                            val okKey = event.key == Key.DirectionCenter ||
-                                event.key == Key.Enter ||
-                                event.key == Key.NumPadEnter
-                            if (!okKey) return@onKeyEvent false
-                            val now = System.currentTimeMillis()
-                            if (now - lastActivateAt < 700L) return@onKeyEvent true
-                            lastActivateAt = now
-                            onActivate()
-                            true
-                        }
+                        .clickable(interactionSource = interaction, indication = null, onClick = onActivate)
                 } else {
                     Modifier
                         .focusable(interactionSource = interaction)

@@ -24,7 +24,7 @@ fun ScreenLayout.posterColumns(): Int = when (this) {
 fun ScreenLayout.drawerWidthDp(): Int = when (this) {
     ScreenLayout.PHONE -> 280
     ScreenLayout.TABLET -> 300
-    ScreenLayout.TV -> 340
+    ScreenLayout.TV -> 240
 }
 
 fun ScreenLayout.usePermanentDrawer(): Boolean = this == ScreenLayout.TV
@@ -32,11 +32,11 @@ fun ScreenLayout.usePermanentDrawer(): Boolean = this == ScreenLayout.TV
 fun ScreenLayout.posterWidthDp(): Int = when (this) {
     ScreenLayout.PHONE -> 148
     ScreenLayout.TABLET -> 168
-    ScreenLayout.TV -> 214
+    ScreenLayout.TV -> 154
 }
 
 fun ScreenLayout.contentPaddingDp(): Int = when (this) {
     ScreenLayout.PHONE -> 16
     ScreenLayout.TABLET -> 24
-    ScreenLayout.TV -> 48
+    ScreenLayout.TV -> 36
 }

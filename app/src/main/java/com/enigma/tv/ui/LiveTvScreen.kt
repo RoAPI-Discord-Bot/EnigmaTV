@@ -168,7 +168,6 @@ fun LiveTvScreen(
                             modifier = Modifier
                                 .padding(top = 8.dp)
                                 .clickable { onReload() }
-                                .focusable()
                         )
                     }
                 }
@@ -206,8 +205,7 @@ private fun LiveTabChip(tab: LiveTvTab, selected: Boolean, onTab: (LiveTvTab) ->
                 contentDescription = null,
                 modifier = Modifier.size(20.dp)
             )
-        },
-        modifier = Modifier.focusable()
+        }
     )
 }
 
@@ -240,8 +238,7 @@ private fun LiveChannelsBrowser(
                     FilterChip(
                         selected = live.searchQuery.equals(q, ignoreCase = true),
                         onClick = { onQuickPick(q) },
-                        label = { Text(label, fontSize = 13.sp) },
-                        modifier = Modifier.focusable()
+                        label = { Text(label, fontSize = 13.sp) }
                     )
                 }
             }
@@ -260,21 +257,18 @@ private fun LiveChannelsBrowser(
                         onGroupFilter(null)
                         if (live.favoritesOnly) onFavoritesOnly()
                     },
-                    label = { Text("All") },
-                    modifier = Modifier.focusable()
+                    label = { Text("All") }
                 )
                 FilterChip(
                     selected = live.favoritesOnly,
                     onClick = onFavoritesOnly,
-                    label = { Text("♥ Favorites") },
-                    modifier = Modifier.focusable()
+                    label = { Text("♥ Favorites") }
                 )
                 live.channelGroups.take(24).forEach { group ->
                     FilterChip(
                         selected = live.channelGroupFilter == group,
                         onClick = { onGroupFilter(group) },
-                        label = { Text(group, maxLines = 1) },
-                        modifier = Modifier.focusable()
+                        label = { Text(group, maxLines = 1) }
                     )
                 }
             }
@@ -408,7 +402,6 @@ private fun LiveEventCard(match: LiveSportMatch, layout: ScreenLayout, onPlay: (
                 if (focused) EnigmaPurple.copy(alpha = 0.18f) else Color.Transparent
             )
             .clickable { onPlay(match) }
-            .focusable()
             .onFocusChanged { focused = it.isFocused }
             .padding(horizontal = 14.dp, vertical = padV),
         verticalAlignment = Alignment.CenterVertically,
@@ -483,7 +476,6 @@ private fun LiveChannelRow(
             .glassSurface(cornerRadius = 10.dp, accentBorder = focused)
             .background(if (focused) EnigmaPurple.copy(alpha = 0.15f) else Color.Transparent)
             .clickable { onPlay(channel) }
-            .focusable()
             .onFocusChanged { focused = it.isFocused }
             .padding(horizontal = 12.dp),
         verticalAlignment = Alignment.CenterVertically
@@ -520,7 +512,7 @@ private fun LiveChannelRow(
         }
         IconButton(
             onClick = { onToggleFavorite(channel) },
-            modifier = Modifier.size(40.dp).focusable()
+            modifier = Modifier.size(40.dp)
         ) {
             Icon(
                 if (isFavorite) Icons.Filled.Favorite else Icons.Outlined.FavoriteBorder,
