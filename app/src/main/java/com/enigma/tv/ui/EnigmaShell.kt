@@ -4,6 +4,7 @@ import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -259,6 +260,7 @@ fun EnigmaShell(viewModel: EnigmaViewModel = viewModel()) {
                     }
                 }
             }
+        }
         }
     }
 
