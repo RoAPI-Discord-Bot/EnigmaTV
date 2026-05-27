@@ -4,6 +4,7 @@ import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.foundation.border
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
@@ -555,27 +556,23 @@ private fun DrawerEntry(
     isExpanded: Boolean,
     onSelect: (NavSection) -> Unit
 ) {
+    var isFocused by remember { mutableStateOf(false) }
     NavigationDrawerItem(
         icon = { Icon(icon, contentDescription = section.title) },
         label = { if (isExpanded) Text(section.title, fontWeight = if (current == section) FontWeight.Bold else FontWeight.Normal) },
         selected = current == section,
         onClick = { onSelect(section) },
+        modifier = Modifier
+            .padding(NavigationDrawerItemDefaults.ItemPadding)
+            .onFocusChanged { isFocused = it.isFocused },
         colors = NavigationDrawerItemDefaults.colors(
-            selectedContainerColor = EnigmaPurple.copy(alpha = 0.3f),
-            selectedIconColor = EnigmaPink,
-            selectedTextColor = TextPrimary,
-            unselectedContainerColor = Color.Transparent,
-            unselectedIconColor = TextSecondary,
-            unselectedTextColor = TextSecondary,
-            // TV D-Pad focus ring — this is what lights up when the remote lands here
-            focusedSelectedContainerColor = EnigmaPurple.copy(alpha = 0.55f),
-            focusedUnselectedContainerColor = Color.White.copy(alpha = 0.12f),
-            focusedSelectedIconColor = Color.White,
-            focusedUnselectedIconColor = Color.White,
-            focusedSelectedTextColor = Color.White,
-            focusedUnselectedTextColor = Color.White
-        ),
-        modifier = Modifier.padding(NavigationDrawerItemDefaults.ItemPadding)
+            selectedContainerColor = if (isFocused) EnigmaPurple.copy(alpha = 0.55f) else EnigmaPurple.copy(alpha = 0.3f),
+            selectedIconColor = if (isFocused) Color.White else EnigmaPink,
+            selectedTextColor = if (isFocused) Color.White else TextPrimary,
+            unselectedContainerColor = if (isFocused) Color.White.copy(alpha = 0.12f) else Color.Transparent,
+            unselectedIconColor = if (isFocused) Color.White else TextSecondary,
+            unselectedTextColor = if (isFocused) Color.White else TextSecondary
+        )
     )
 }
 
