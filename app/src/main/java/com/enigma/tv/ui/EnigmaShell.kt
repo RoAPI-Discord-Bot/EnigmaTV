@@ -104,6 +104,8 @@ fun EnigmaShell(viewModel: EnigmaViewModel = viewModel()) {
     val drawerState = rememberDrawerState(DrawerValue.Closed)
     val scope = rememberCoroutineScope()
     var query by rememberSaveable { mutableStateOf("") }
+    // Exit confirmation dialog
+    var showExitDialog by remember { mutableStateOf(false) }
 
     val layout = rememberScreenLayout()
 
@@ -143,7 +145,6 @@ fun EnigmaShell(viewModel: EnigmaViewModel = viewModel()) {
         viewModel.refreshProfilesFromCloud()
     }
 
-
     // Only show bootstrap loading when the picker is NOT on screen to avoid double overlays.
     val bootstrapLoading = state.contentLoading && state.homeRows.isEmpty() && !state.showProfilePicker
     val activeProfile = state.profiles.find { it.id == state.activeProfileId }
@@ -155,9 +156,41 @@ fun EnigmaShell(viewModel: EnigmaViewModel = viewModel()) {
         }
     }
 
+    // Back handler: navigate up through sections, then show exit prompt
+    androidx.activity.compose.BackHandler(
+        enabled = !state.showDetail && !state.playerVisible && !state.showProfilePicker
+    ) {
+        when {
+            state.section != NavSection.HOME -> viewModel.setSection(NavSection.HOME)
+            else -> showExitDialog = true
+        }
+    }
+
+    // Exit confirmation dialog
+    if (showExitDialog) {
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = { showExitDialog = false },
+            title = { Text("Exit EnigmaTV?", color = TextPrimary) },
+            text = { Text("Are you sure you want to exit?", color = TextSecondary) },
+            confirmButton = {
+                val ctx = androidx.compose.ui.platform.LocalContext.current
+                TextButton(onClick = {
+                    (ctx as? android.app.Activity)?.finish()
+                }) { Text("Exit", color = EnigmaPink) }
+            },
+            dismissButton = {
+                TextButton(onClick = { showExitDialog = false }) { Text("Cancel", color = TextSecondary) }
+            },
+            containerColor = androidx.compose.ui.graphics.Color(0xFF1A1A2E)
+        )
+    }
+
+    // Sidebar: fully collapsed (0dp) unless focused on TV
     var isTvDrawerFocused by remember { mutableStateOf(false) }
-    val tvDrawerWidth by animateDpAsState(if (isTvDrawerFocused) layout.drawerWidthDp().dp else 72.dp)
-    
+    val tvDrawerWidth by animateDpAsState(
+        if (isTvDrawerFocused) layout.drawerWidthDp().dp else 0.dp
+    )
+
     val drawerContent: @Composable () -> Unit = {
         EnigmaDrawerContent(
             current = state.section,
@@ -175,32 +208,55 @@ fun EnigmaShell(viewModel: EnigmaViewModel = viewModel()) {
         AppAmbientBackground {
         Box(Modifier.fillMaxSize()) {
             Column(Modifier.fillMaxSize()) {
-                EnigmaHeader(
-                    sectionLabel = if (state.section == NavSection.HOME) null else state.section.title,
-                    placeholder = if (state.section == NavSection.LIVE) "Search games or channels…" else "Search movies & TV…",
-                    query = query,
-                    onQueryChange = {
-                        query = it
-                        if (state.section == NavSection.HOME) viewModel.onSearchQueryChanged(it)
-                    },
-                    onSearch = {
-                        if (state.section == NavSection.LIVE) viewModel.searchLiveTv(query)
-                        else viewModel.search(query)
-                    },
-                    searchSuggestions = if (state.section == NavSection.HOME) state.searchSuggestions else emptyList(),
-                    onSuggestionClick = { suggestion ->
-                        query = suggestion.title
-                        viewModel.pickSearchSuggestion(suggestion)
-                    },
-                    onDismissSuggestions = viewModel::clearSearchSuggestions,
-                    onMenuClick = if (!useBottomNav) null else null,
-                    activeProfile = activeProfile,
-                    onProfileClick = { viewModel.showProfilePickerScreen() },
-                    showSearch = (state.section == NavSection.HOME || state.section == NavSection.SEARCH) && !layout.usePermanentDrawer()
-                )
+                // On TV, show a slim menu button at top-left when sidebar is collapsed
+                if (layout == ScreenLayout.TV && !isTvDrawerFocused) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(start = 4.dp, top = 4.dp, bottom = 4.dp)
+                    ) {
+                        androidx.compose.material3.IconButton(
+                            onClick = { isTvDrawerFocused = true },
+                            modifier = Modifier.onFocusChanged { isTvDrawerFocused = it.hasFocus }
+                        ) {
+                            Icon(
+                                Icons.Default.Menu,
+                                contentDescription = "Open menu",
+                                tint = TextSecondary
+                            )
+                        }
+                    }
+                }
+
+                if (!layout.usePermanentDrawer()) {
+                    EnigmaHeader(
+                        sectionLabel = if (state.section == NavSection.HOME) null else state.section.title,
+                        placeholder = if (state.section == NavSection.LIVE) "Search games or channels…" else "Search movies & TV…",
+                        query = query,
+                        onQueryChange = {
+                            query = it
+                            if (state.section == NavSection.HOME) viewModel.onSearchQueryChanged(it)
+                        },
+                        onSearch = {
+                            if (state.section == NavSection.LIVE) viewModel.searchLiveTv(query)
+                            else viewModel.search(query)
+                        },
+                        searchSuggestions = if (state.section == NavSection.HOME) state.searchSuggestions else emptyList(),
+                        onSuggestionClick = { suggestion ->
+                            query = suggestion.title
+                            viewModel.pickSearchSuggestion(suggestion)
+                        },
+                        onDismissSuggestions = viewModel::clearSearchSuggestions,
+                        onMenuClick = null,
+                        activeProfile = activeProfile,
+                        onProfileClick = { viewModel.showProfilePickerScreen() },
+                        showSearch = (state.section == NavSection.HOME || state.section == NavSection.SEARCH)
+                    )
+                }
 
                 when {
-                    state.contentLoading && !bootstrapLoading -> EnigmaLoadingRing(
+                    // Don't replace SEARCH screen with a loading spinner — that unmounts the text field
+                    state.contentLoading && !bootstrapLoading && state.section != NavSection.SEARCH -> EnigmaLoadingRing(
                         modifier = Modifier.fillMaxWidth().height(320.dp),
                         message = "LOADING"
                     )
@@ -255,7 +311,8 @@ fun EnigmaShell(viewModel: EnigmaViewModel = viewModel()) {
                                 onSwitchProfile = viewModel::switchProfile,
                                 onAddProfile = viewModel::addProfile,
                                 onRemoveProfile = viewModel::removeProfile,
-                                onOpenProfilePicker = viewModel::showProfilePickerScreen
+                                onOpenProfilePicker = viewModel::showProfilePickerScreen,
+                                layout = layout
                             )
                         }
                     }
@@ -267,18 +324,24 @@ fun EnigmaShell(viewModel: EnigmaViewModel = viewModel()) {
 
     Box(Modifier.fillMaxSize()) {
         // ── LAYER 1: Main app content – ALWAYS composed, even while picker is visible ──
-        // By never removing this from the composition tree, the TV remote always has
-        // valid focus nodes. When the picker overlay is dismissed the remote's focus
-        // falls naturally to the already-laid-out drawer items — no crash.
         if (layout.usePermanentDrawer()) {
             PermanentNavigationDrawer(
                 drawerContent = {
-                    PermanentDrawerSheet(
-                        drawerContainerColor = BgSidebar,
+                    // Wrap in a Box so focus events on the sheet are always catchable
+                    // even when tvDrawerWidth is 0dp (the Box still has a focus target)
+                    Box(
                         modifier = Modifier
                             .width(tvDrawerWidth)
+                            .fillMaxHeight()
                             .onFocusChanged { isTvDrawerFocused = it.hasFocus }
-                    ) { drawerContent() }
+                    ) {
+                        if (isTvDrawerFocused) {
+                            PermanentDrawerSheet(
+                                drawerContainerColor = BgSidebar,
+                                modifier = Modifier.fillMaxSize()
+                            ) { drawerContent() }
+                        }
+                    }
                 },
                 content = { bodyContent() }
             )
@@ -507,40 +570,35 @@ private fun EnigmaDrawerContent(
             .statusBarsPadding()
             .padding(vertical = 24.dp)
     ) {
-        if (isExpanded) {
-            Text(
-                text = ENIGMA_TV_BRAND,
-                color = EnigmaPurple,
-                fontSize = if (layout == ScreenLayout.TV) 26.sp else 22.sp,
-                fontWeight = FontWeight.Black,
-                letterSpacing = 2.sp,
-                modifier = Modifier.padding(horizontal = 28.dp, vertical = 8.dp)
-            )
-            Text(
-                text = "Stream movies & TV",
-                color = EnigmaPink.copy(alpha = 0.8f),
-                fontSize = 12.sp,
-                modifier = Modifier.padding(horizontal = 28.dp)
-            )
-        } else {
-            // Collapsed placeholder so the header takes the same vertical space
-            Spacer(Modifier.height(60.dp))
-        }
+        Text(
+            text = ENIGMA_TV_BRAND,
+            color = EnigmaPurple,
+            fontSize = if (layout == ScreenLayout.TV) 26.sp else 22.sp,
+            fontWeight = FontWeight.Black,
+            letterSpacing = 2.sp,
+            modifier = Modifier.padding(horizontal = 28.dp, vertical = 8.dp)
+        )
+        Text(
+            text = "Stream movies & TV",
+            color = EnigmaPink.copy(alpha = 0.8f),
+            fontSize = 12.sp,
+            modifier = Modifier.padding(horizontal = 28.dp)
+        )
         Spacer(Modifier.height(20.dp))
         HorizontalDivider(color = Color.White.copy(alpha = 0.08f))
         Spacer(Modifier.height(12.dp))
 
-        DrawerEntry(Icons.Default.Home, NavSection.HOME, current, isExpanded, onSelect)
-        DrawerEntry(Icons.Default.Search, NavSection.SEARCH, current, isExpanded, onSelect)
-        DrawerEntry(Icons.Default.LiveTv, NavSection.LIVE, current, isExpanded, onSelect)
-        DrawerEntry(Icons.Default.Favorite, NavSection.FAVORITES, current, isExpanded, onSelect)
-        DrawerEntry(Icons.Default.PlayCircle, NavSection.CONTINUE, current, isExpanded, onSelect)
-        DrawerEntry(Icons.Default.PlaylistPlay, NavSection.LISTS, current, isExpanded, onSelect)
-        DrawerEntry(Icons.Default.Person, NavSection.PROFILE, current, isExpanded, onSelect)
+        DrawerEntry(Icons.Default.Home, NavSection.HOME, current, true, onSelect)
+        DrawerEntry(Icons.Default.Search, NavSection.SEARCH, current, true, onSelect)
+        DrawerEntry(Icons.Default.LiveTv, NavSection.LIVE, current, true, onSelect)
+        DrawerEntry(Icons.Default.Favorite, NavSection.FAVORITES, current, true, onSelect)
+        DrawerEntry(Icons.Default.PlayCircle, NavSection.CONTINUE, current, true, onSelect)
+        DrawerEntry(Icons.Default.PlaylistPlay, NavSection.LISTS, current, true, onSelect)
+        DrawerEntry(Icons.Default.Person, NavSection.PROFILE, current, true, onSelect)
         Spacer(Modifier.weight(1f))
         NavigationDrawerItem(
             icon = { Icon(Icons.Default.Person, contentDescription = "Switch profile") },
-            label = { if (isExpanded) Text("Switch Profile") },
+            label = { Text("Switch Profile") },
             selected = false,
             onClick = onSwitchProfile,
             modifier = Modifier.padding(NavigationDrawerItemDefaults.ItemPadding)

@@ -90,7 +90,8 @@ fun PlayerFullscreenHost(
     hasNextEpisode: Boolean = false,
     content: @Composable (PlayerActionDispatcher) -> Unit
 ) {
-    var chromeVisible by remember { mutableStateOf(true) }
+    // Chrome starts HIDDEN — only show on user interaction
+    var chromeVisible by remember { mutableStateOf(false) }
     var episodePanelOpen by remember { mutableStateOf(false) }
     val hasTv = tvControls != null
     val isLivePlayer = subtitle.contains("Live", ignoreCase = true)
@@ -101,8 +102,21 @@ fun PlayerFullscreenHost(
         if (!visible) episodePanelOpen = false
     }
 
+    // Auto-hide chrome after 4 seconds when playing
+    LaunchedEffect(chromeVisible, streamFailed) {
+        if (chromeVisible && !streamFailed && streamPlaying) {
+            kotlinx.coroutines.delay(4000)
+            chromeVisible = false
+        }
+    }
+
     LaunchedEffect(streamFailed) {
         if (streamFailed) chromeVisible = true
+    }
+
+    // Always show chrome while loading so the X button is reachable
+    LaunchedEffect(streamLoading) {
+        if (streamLoading) chromeVisible = true
     }
 
     LaunchedEffect(chromeVisible) {
@@ -125,20 +139,39 @@ fun PlayerFullscreenHost(
             Modifier
                 .fillMaxSize()
                 .background(BgDark)
+                .clickable(
+                    interactionSource = remember { MutableInteractionSource() },
+                    indication = null
+                ) {
+                    // Tap anywhere to toggle chrome
+                    chromeVisible = !chromeVisible
+                }
                 .onKeyEvent { event ->
                     if (event.type == KeyEventType.KeyDown) {
                         when (event.key.nativeKeyCode) {
-                            KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE -> {
-                                actionDispatcher.togglePlay()
+                            KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE,
+                            KeyEvent.KEYCODE_DPAD_CENTER -> {
+                                if (!chromeVisible) {
+                                    chromeVisible = true
+                                } else {
+                                    actionDispatcher.togglePlay()
+                                }
                                 true
                             }
-                            KeyEvent.KEYCODE_MEDIA_FAST_FORWARD -> {
-                                actionDispatcher.seekForward()
-                                true
+                            KeyEvent.KEYCODE_MEDIA_FAST_FORWARD,
+                            KeyEvent.KEYCODE_DPAD_RIGHT -> {
+                                if (!chromeVisible) { chromeVisible = true; true }
+                                else { actionDispatcher.seekForward(); true }
                             }
-                            KeyEvent.KEYCODE_MEDIA_REWIND -> {
-                                actionDispatcher.seekBackward()
-                                true
+                            KeyEvent.KEYCODE_MEDIA_REWIND,
+                            KeyEvent.KEYCODE_DPAD_LEFT -> {
+                                if (!chromeVisible) { chromeVisible = true; true }
+                                else { actionDispatcher.seekBackward(); true }
+                            }
+                            KeyEvent.KEYCODE_DPAD_UP,
+                            KeyEvent.KEYCODE_DPAD_DOWN -> {
+                                chromeVisible = true
+                                false // let focus move naturally to chrome buttons
                             }
                             else -> false
                         }
