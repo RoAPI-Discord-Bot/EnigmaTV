@@ -117,8 +117,8 @@ fun ExoLivePlayer(
     val player = remember(playUrl, playToken) {
         val loadControl = DefaultLoadControl.Builder()
             .setBufferDurationsMs(
-                /* minBufferMs */ 1_500,
-                /* maxBufferMs */ 30_000,
+                /* minBufferMs */ 2_500,
+                /* maxBufferMs */ 50_000,
                 /* bufferForPlaybackMs */ 1_000,
                 /* bufferForPlaybackAfterRebufferMs */ 2_000
             )

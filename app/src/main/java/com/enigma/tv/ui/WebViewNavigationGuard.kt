@@ -297,7 +297,8 @@ class WebViewNavigationGuard(initialUrl: String) {
             (function(){
               try {
                 var live = $liveJs;
-                var b = document.body ? document.body.innerText.trim() : '';
+                var b = document.body ? document.body.innerText.trim().toLowerCase() : '';
+                if (b.includes("we couldn't find this content") || b.includes("we couldn\\\'t find this content") || b.includes("we don't have this") || b.includes("we dont have this") || b.includes("no media found") || b.includes("media not found") || b.includes("404 not found") || (b === "not found") || b.includes("server error")) return 'notfound';
                 if (b.length > 0 && b.length < 12000 && (b.charAt(0)==='{' || b.charAt(0)==='[')) return 'json';
                 var v = document.querySelector('video');
                 if (v) {
@@ -317,8 +318,13 @@ class WebViewNavigationGuard(initialUrl: String) {
         ) { raw ->
             val verdict = raw?.trim('"', ' ') ?: "empty"
             val isJsonWall = verdict == "json"
+            val notFound = verdict == "notfound"
             val ok = verdict == "ok"
             android.os.Handler(android.os.Looper.getMainLooper()).post {
+                if (notFound) {
+                    onStreamFailed?.invoke()
+                    return@post
+                }
                 if (ok) {
                     suppressLoadingPulses = true
                     streamPlaying = true

@@ -282,46 +282,6 @@ fun ProfilePickerGate(
                     }
                 }
 
-                // Account sync banner
-                if (!gateLocked) {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 24.dp, vertical = if (isTv) 8.dp else 4.dp)
-                            .clip(RoundedCornerShape(12.dp))
-                            .background(
-                                if (isLoggedIn) EnigmaPurple.copy(alpha = 0.18f)
-                                else Color(0xFF1E1E2E)
-                            )
-                            .then(
-                                if (!isLoggedIn && onSignIn != null)
-                                    Modifier.clickable { onSignIn() }
-                                else Modifier
-                            )
-                            .padding(horizontal = 16.dp, vertical = 10.dp)
-                    ) {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.Center,
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            Icon(
-                                if (isLoggedIn) Icons.Default.Cloud else Icons.Default.AccountCircle,
-                                contentDescription = null,
-                                tint = if (isLoggedIn) EnigmaPurple else TextSecondary,
-                                modifier = Modifier.size(18.dp)
-                            )
-                            Spacer(Modifier.width(8.dp))
-                            Text(
-                                if (isLoggedIn) "Synced to $userEmail"
-                                else "Sign in to sync profiles across devices",
-                                color = if (isLoggedIn) EnigmaPurple else TextSecondary,
-                                fontSize = if (isTv) 14.sp else 13.sp,
-                                fontWeight = FontWeight.Medium
-                            )
-                        }
-                    }
-                }
 
                 Row(
                     Modifier

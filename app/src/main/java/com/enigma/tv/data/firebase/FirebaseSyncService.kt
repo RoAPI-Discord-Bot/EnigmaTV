@@ -117,25 +117,40 @@ class FirebaseSyncService {
 
     private fun parseProfilesFromAccount(snap: DataSnapshot): List<ViewerProfile> {
         val fromJson = parseViewerProfiles(snap.child("profileList").getValue(String::class.java))
-        if (fromJson.isNotEmpty()) return fromJson
-
-        val fromNodes = mutableListOf<ViewerProfile>()
+        
+        val fromNodes = mutableMapOf<String, ViewerProfile>()
         for (child in snap.child("profiles").children) {
             val id = child.child("id").getValue(String::class.java) ?: child.key ?: continue
             val name = child.child("name").getValue(String::class.java)
                 ?: child.child("profile").child("displayName").getValue(String::class.java)
                 ?: "Profile"
-            fromNodes.add(
-                ViewerProfile(
-                    id = id,
-                    name = name,
-                    avatarIndex = (child.child("avatarIndex").getValue(Long::class.java) ?: 0L).toInt(),
-                    avatarUri = child.child("avatarUrl").getValue(String::class.java),
-                    avatarBase64 = child.child("avatarBase64").getValue(String::class.java)
-                )
+            fromNodes[id] = ViewerProfile(
+                id = id,
+                name = name,
+                avatarIndex = (child.child("avatarIndex").getValue(Long::class.java) ?: 0L).toInt(),
+                avatarUri = child.child("avatarUrl").getValue(String::class.java),
+                avatarBase64 = child.child("avatarBase64").getValue(String::class.java)
             )
         }
-        return fromNodes
+
+        if (fromJson.isNotEmpty()) {
+            val mergedList = fromJson.map { profile ->
+                val nodeData = fromNodes[profile.id]
+                profile.copy(
+                    avatarUri = profile.avatarUri?.takeIf { it.isNotBlank() } ?: nodeData?.avatarUri,
+                    avatarBase64 = profile.avatarBase64?.takeIf { it.isNotBlank() } ?: nodeData?.avatarBase64
+                )
+            }.toMutableList()
+            
+            for (nodeProfile in fromNodes.values) {
+                if (mergedList.none { it.id == nodeProfile.id }) {
+                    mergedList.add(nodeProfile)
+                }
+            }
+            return mergedList
+        }
+        
+        return fromNodes.values.toList()
     }
 
     private fun parseViewerProfiles(json: String?): List<ViewerProfile> {

@@ -138,7 +138,8 @@ fun WebViewPlayer(
             guard = guard,
             startPositionMs = startPositionMs,
             actionDispatcher = actionDispatcher,
-            showOverlaySpinner = !useExternalChrome && (pageLoading || streamLoading)
+            showOverlaySpinner = !useExternalChrome && (pageLoading || streamLoading),
+            onClose = onClose
         )
     }
 
@@ -158,7 +159,8 @@ private fun ColumnScope.WebViewStreamBody(
     guard: WebViewNavigationGuard,
     startPositionMs: Long,
     actionDispatcher: PlayerActionDispatcher?,
-    showOverlaySpinner: Boolean
+    showOverlaySpinner: Boolean,
+    onClose: () -> Unit
 ) {
     var webViewRef by remember { mutableStateOf<WebView?>(null) }
 
@@ -210,6 +212,16 @@ private fun ColumnScope.WebViewStreamBody(
                     settings.mediaPlaybackRequiresUserGesture = false
                     setTag(TAG_STREAM_URL, url)
                     guard.resetForUrl(url, liveTv = liveTv)
+                    setOnKeyListener { _, keyCode, event ->
+                        if (event.action == android.view.KeyEvent.ACTION_UP && keyCode == android.view.KeyEvent.KEYCODE_BACK) {
+                            if (canGoBack()) {
+                                goBack()
+                            } else {
+                                onClose()
+                            }
+                            true
+                        } else false
+                    }
                     if (liveTv) LiveWebContent.load(this, url) else loadUrl(url)
                     webViewRef = this
                 }
