@@ -31,6 +31,7 @@ class WebViewNavigationGuard(initialUrl: String) {
     var onLiveWaiting: (() -> Unit)? = null
     var onPlaybackProgress: ((Long) -> Unit)? = null
     var onPlaybackEnded: (() -> Unit)? = null
+    var onStreamFailed: (() -> Unit)? = null
 
     init {
         resetForUrl(initialUrl)
