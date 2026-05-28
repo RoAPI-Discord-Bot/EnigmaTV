@@ -469,6 +469,8 @@ private fun EnigmaPlayerOverlay(
             .fillMaxSize()
             .background(BgDark)
     ) {
+        var isNativePlayerActive by remember { mutableStateOf(false) }
+
         PlayerFullscreenHost(
             title = state.playerTitle,
             subtitle = state.sourceLabel,
@@ -486,7 +488,8 @@ private fun EnigmaPlayerOverlay(
             onPrevEpisode = { viewModel.playAdjacentEpisode(forward = false) },
             onNextEpisode = { viewModel.playAdjacentEpisode(forward = true) },
             hasPrevEpisode = viewModel.hasAdjacentEpisode(forward = false),
-            hasNextEpisode = viewModel.hasAdjacentEpisode(forward = true)
+            hasNextEpisode = viewModel.hasAdjacentEpisode(forward = true),
+            isNativePlayerActive = isNativePlayerActive
         ) { dispatcher ->
             when {
                 state.playerHls -> ExoLivePlayer(
@@ -518,6 +521,7 @@ private fun EnigmaPlayerOverlay(
                         onLoadingChange = { viewModel.onPlayerPageLoading(it) },
                         onPlaybackEnded = viewModel::onEpisodeFinished,
                         onPlaybackPositionMs = viewModel::onPlaybackPositionMs,
+                        onNativePlayerActive = { isNativePlayerActive = it },
                         startPositionMs = state.playbackPositionMs,
                         tvControls = null,
                         resolveToken = state.playerResolveToken,

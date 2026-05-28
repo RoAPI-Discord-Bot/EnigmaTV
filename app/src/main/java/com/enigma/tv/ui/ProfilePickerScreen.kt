@@ -462,15 +462,15 @@ private fun ProfilePickerTile(
                 if (state.isFocused) onFocus()
             }
             .then(
-                if (isTv) {
-                    Modifier
-                        .focusable(interactionSource = interaction)
-                        .clickable(interactionSource = interaction, indication = null, onClick = onActivate)
-                } else {
-                    Modifier
-                        .focusable(interactionSource = interaction)
-                        .clickable(interactionSource = interaction, indication = null, onClick = onActivate)
-                }
+                Modifier
+                    .focusable(interactionSource = interaction)
+                    .onKeyEvent { event ->
+                        if (event.type == KeyEventType.KeyDown && (event.key.nativeKeyCode == KeyEvent.KEYCODE_DPAD_CENTER || event.key.nativeKeyCode == KeyEvent.KEYCODE_ENTER)) {
+                            onActivate()
+                            true
+                        } else false
+                    }
+                    .clickable(interactionSource = interaction, indication = null, onClick = onActivate)
             )
             .padding(horizontal = if (isTv) 14.dp else 8.dp, vertical = if (isTv) 10.dp else 6.dp)
     ) {
@@ -489,13 +489,20 @@ private fun ProfilePickerTile(
                 onClick = null
             )
         }
+        Spacer(Modifier.height(10.dp))
+        Text(
+            text = profile.name,
+            color = if (showFocusRing) Color.White else TextSecondary,
+            fontSize = if (isTv) 16.sp else 14.sp,
+            fontWeight = if (showFocusRing) FontWeight.Bold else FontWeight.Medium
+        )
         if (!isTv && showFocusRing && !showEditBadge) {
             Text(
                 "Selected",
                 color = EnigmaPink,
                 fontSize = 12.sp,
                 fontWeight = FontWeight.SemiBold,
-                modifier = Modifier.padding(top = 6.dp)
+                modifier = Modifier.padding(top = 4.dp)
             )
         }
     }

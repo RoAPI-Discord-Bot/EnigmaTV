@@ -88,6 +88,7 @@ fun PlayerFullscreenHost(
     onNextEpisode: (() -> Unit)? = null,
     hasPrevEpisode: Boolean = false,
     hasNextEpisode: Boolean = false,
+    isNativePlayerActive: Boolean = false,
     content: @Composable (PlayerActionDispatcher) -> Unit
 ) {
     // Chrome starts HIDDEN — only show on user interaction
@@ -147,9 +148,23 @@ fun PlayerFullscreenHost(
                     chromeVisible = !chromeVisible
                 }
                 .onKeyEvent { event ->
+                    if (isNativePlayerActive) return@onKeyEvent false
                     if (event.type == KeyEventType.KeyDown) {
                         when (event.key.nativeKeyCode) {
                             KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE,
+                            KeyEvent.KEYCODE_MEDIA_PLAY,
+                            KeyEvent.KEYCODE_MEDIA_PAUSE -> {
+                                actionDispatcher.togglePlay()
+                                true
+                            }
+                            KeyEvent.KEYCODE_MEDIA_FAST_FORWARD -> {
+                                actionDispatcher.seekForward()
+                                true
+                            }
+                            KeyEvent.KEYCODE_MEDIA_REWIND -> {
+                                actionDispatcher.seekBackward()
+                                true
+                            }
                             KeyEvent.KEYCODE_DPAD_CENTER -> {
                                 if (!chromeVisible) {
                                     chromeVisible = true
@@ -158,20 +173,16 @@ fun PlayerFullscreenHost(
                                 }
                                 true
                             }
-                            KeyEvent.KEYCODE_MEDIA_FAST_FORWARD,
-                            KeyEvent.KEYCODE_DPAD_RIGHT -> {
-                                if (!chromeVisible) { chromeVisible = true; true }
-                                else { actionDispatcher.seekForward(); true }
-                            }
-                            KeyEvent.KEYCODE_MEDIA_REWIND,
-                            KeyEvent.KEYCODE_DPAD_LEFT -> {
-                                if (!chromeVisible) { chromeVisible = true; true }
-                                else { actionDispatcher.seekBackward(); true }
-                            }
+                            KeyEvent.KEYCODE_DPAD_RIGHT,
+                            KeyEvent.KEYCODE_DPAD_LEFT,
                             KeyEvent.KEYCODE_DPAD_UP,
                             KeyEvent.KEYCODE_DPAD_DOWN -> {
-                                chromeVisible = true
-                                false // let focus move naturally to chrome buttons
+                                if (!chromeVisible) {
+                                    chromeVisible = true
+                                    true // Consumed to open chrome
+                                } else {
+                                    false // Let focus move naturally to chrome buttons
+                                }
                             }
                             else -> false
                         }
@@ -270,6 +281,7 @@ fun PlayerFullscreenHost(
                         } else {
                             "Try the next server — some feeds only work on certain mirrors."
                         },
+
                         color = TextSecondary,
                         fontSize = 14.sp,
                         textAlign = TextAlign.Center,
@@ -291,43 +303,73 @@ fun PlayerFullscreenHost(
                 }
             }
 
-            AnimatedVisibility(
-                visible = chromeVisible && !streamLoading,
-                enter = slideInVertically { -it } + fadeIn(),
-                exit = slideOutVertically { -it } + fadeOut(),
-                modifier = Modifier
-                    .align(Alignment.TopCenter)
-                    .clickable(
-                        interactionSource = remember { MutableInteractionSource() },
-                        indication = null
-                    ) { /* keep chrome open while interacting */ }
-            ) {
-                Column(Modifier.fillMaxWidth()) {
-                    PlayerChrome(
-                        title = title,
-                        subtitle = subtitle,
-                        posterUrl = posterUrl,
-                        accent = accent,
-                        onClose = onClose,
-                        showBack = false,
-                        showNextSource = showNextSource && !streamFailed,
-                        onNextSource = onNextSource,
-                        showEpisodesButton = hasTv,
-                        onShowEpisodes = if (hasTv) {
-                            { episodePanelOpen = !episodePanelOpen }
-                        } else null,
-                        isTvLayout = layout == ScreenLayout.TV,
-                        isLive = subtitle.contains("Live", ignoreCase = true),
-                        extraContent = {
-                            if (!isLivePlayer) {
-                                PlaybackControlsRow(
-                                    actionDispatcher = actionDispatcher,
-                                    accent = accent,
-                                    isTvLayout = layout == ScreenLayout.TV
-                                )
+            if (!isNativePlayerActive) {
+                AnimatedVisibility(
+                    visible = chromeVisible && !streamLoading,
+                    enter = slideInVertically { -it } + fadeIn(),
+                    exit = slideOutVertically { -it } + fadeOut(),
+                    modifier = Modifier
+                        .align(Alignment.TopCenter)
+                        .clickable(
+                            interactionSource = remember { MutableInteractionSource() },
+                            indication = null
+                        ) { /* keep chrome open while interacting */ }
+                ) {
+                    Column(Modifier.fillMaxWidth()) {
+                        PlayerChrome(
+                            title = title,
+                            subtitle = subtitle,
+                            posterUrl = posterUrl,
+                            accent = accent,
+                            onClose = onClose,
+                            showBack = false,
+                            showNextSource = showNextSource && !streamFailed,
+                            onNextSource = onNextSource,
+                            showEpisodesButton = hasTv,
+                            onShowEpisodes = if (hasTv) {
+                                { episodePanelOpen = !episodePanelOpen }
+                            } else null,
+                            isTvLayout = layout == ScreenLayout.TV,
+                            isLive = subtitle.contains("Live", ignoreCase = true),
+                            extraContent = {
+                                if (!isLivePlayer && layout != ScreenLayout.TV) {
+                                    PlaybackControlsRow(
+                                        actionDispatcher = actionDispatcher,
+                                        accent = accent,
+                                        isTvLayout = false
+                                    )
+                                }
                             }
+                        )
+                    }
+                }
+
+                // TV Layout: Put playback controls in a separate bottom bar
+                if (layout == ScreenLayout.TV && !isLivePlayer) {
+                    AnimatedVisibility(
+                        visible = chromeVisible && !streamLoading,
+                        enter = slideInVertically { it } + fadeIn(),
+                        exit = slideOutVertically { it } + fadeOut(),
+                        modifier = Modifier
+                            .align(Alignment.BottomCenter)
+                            .clickable(
+                                interactionSource = remember { MutableInteractionSource() },
+                                indication = null
+                            ) { /* keep chrome open while interacting */ }
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .background(Color.Black.copy(alpha = 0.82f))
+                                .padding(bottom = 32.dp, top = 8.dp)
+                        ) {
+                            PlaybackControlsRow(
+                                actionDispatcher = actionDispatcher,
+                                accent = accent,
+                                isTvLayout = true
+                            )
                         }
-                    )
+                    }
                 }
             }
 

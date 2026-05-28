@@ -67,6 +67,7 @@ fun ExoLivePlayer(
     isLiveBroadcast: Boolean = false,
     showNextSource: Boolean = false,
     onNextSource: (() -> Unit)? = null,
+    onShowEpisodes: (() -> Unit)? = null,
     tvControls: TvPlayerControls? = null,
     useExternalChrome: Boolean = false,
     onPlaybackEnded: (() -> Unit)? = null,
@@ -273,7 +274,8 @@ fun ExoLivePlayer(
             Box(Modifier.fillMaxSize()) {
                 AndroidView(
                     factory = { ctx ->
-                        PlayerView(ctx).apply {
+                        val view = android.view.LayoutInflater.from(ctx).inflate(com.enigma.tv.R.layout.enigma_player_view, null) as PlayerView
+                        view.apply {
                             layoutParams = ViewGroup.LayoutParams(
                                 ViewGroup.LayoutParams.MATCH_PARENT,
                                 ViewGroup.LayoutParams.MATCH_PARENT
@@ -284,6 +286,27 @@ fun ExoLivePlayer(
                             controllerHideOnTouch = true
                             setShowNextButton(false)
                             setShowPreviousButton(false)
+                            
+                            findViewById<android.widget.TextView>(com.enigma.tv.R.id.tv_enigma_title)?.text = title
+                            findViewById<android.widget.TextView>(com.enigma.tv.R.id.tv_enigma_subtitle)?.text = sourceLabel
+                            
+                            findViewById<android.view.View>(com.enigma.tv.R.id.btn_enigma_close)?.setOnClickListener { onClose() }
+                            
+                            val nextBtn = findViewById<android.view.View>(com.enigma.tv.R.id.btn_enigma_next)
+                            if (showNextSource) {
+                                nextBtn?.visibility = View.VISIBLE
+                                nextBtn?.setOnClickListener { onNextSource?.invoke() }
+                            } else {
+                                nextBtn?.visibility = View.GONE
+                            }
+                            
+                            val epBtn = findViewById<android.view.View>(com.enigma.tv.R.id.btn_enigma_episodes)
+                            if (tvControls != null) {
+                                epBtn?.visibility = View.VISIBLE
+                                epBtn?.setOnClickListener { onShowEpisodes?.invoke() }
+                            } else {
+                                epBtn?.visibility = View.GONE
+                            }
                             if (useExternalChrome) {
                                 setControllerVisibilityListener(
                                     PlayerView.ControllerVisibilityListener { visibility ->

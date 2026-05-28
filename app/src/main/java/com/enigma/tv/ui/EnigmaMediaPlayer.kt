@@ -46,6 +46,8 @@ fun EnigmaMediaPlayer(
     onLoadingChange: (Boolean) -> Unit,
     onPlaybackEnded: (() -> Unit)? = null,
     onPlaybackPositionMs: ((Long) -> Unit)? = null,
+    onShowEpisodes: (() -> Unit)? = null,
+    onNativePlayerActive: ((Boolean) -> Unit)? = null,
     startPositionMs: Long = 0L,
     tvControls: TvPlayerControls? = null,
     resolveToken: Int = 0,
@@ -86,6 +88,9 @@ fun EnigmaMediaPlayer(
         resolvingNative = false
         if (resolvedStream != null) {
             mode = MediaPlayMode.Native
+            onNativePlayerActive?.invoke(true)
+        } else {
+            onNativePlayerActive?.invoke(false)
         }
     }
 
@@ -105,6 +110,7 @@ fun EnigmaMediaPlayer(
                 onLoadingChange = onLoadingChange,
                 showNextSource = true,
                 onNextSource = onNextSource,
+                onShowEpisodes = onShowEpisodes,
                 tvControls = if (useExternalChrome) null else tvControls,
                 useExternalChrome = useExternalChrome,
                 onPlaybackEnded = onPlaybackEnded,
@@ -126,7 +132,7 @@ fun EnigmaMediaPlayer(
                             showNextSource = true,
                             onNextSource = onNextSource,
                             showEpisodesButton = tvControls != null,
-                            onShowEpisodes = null
+                            onShowEpisodes = onShowEpisodes
                         )
                         if (resolvingNative) {
                             LinearProgressIndicator(
@@ -158,6 +164,7 @@ fun EnigmaMediaPlayer(
                             resolvedStream = ResolvedStream.fromEmbed(embedUrl, captured, "embed-capture")
                             mode = MediaPlayMode.Native
                             resolvingNative = false
+                            onNativePlayerActive?.invoke(true)
                         },
                         onPlaybackEnded = if (playingType == ContentType.TV) onPlaybackEnded else null,
                         onPlaybackProgress = onPlaybackPositionMs?.let { cb ->
