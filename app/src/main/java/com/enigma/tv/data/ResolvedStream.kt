@@ -23,14 +23,15 @@ data class ResolvedStream(
     }
 
     companion object {
-        fun fromEmbed(embedUrl: String, streamUrl: String, provider: String, cookies: String = ""): ResolvedStream {
+        fun fromEmbed(embedUrl: String, streamUrl: String, provider: String, cookies: String = "", userAgent: String = StreamResolver.USER_AGENT): ResolvedStream {
             val referer = embedReferer(embedUrl)
             return ResolvedStream(
                 url = streamUrl,
                 referer = referer,
                 origin = embedOrigin(embedUrl),
                 provider = provider,
-                cookies = cookies
+                cookies = cookies,
+                userAgent = userAgent
             )
         }
 

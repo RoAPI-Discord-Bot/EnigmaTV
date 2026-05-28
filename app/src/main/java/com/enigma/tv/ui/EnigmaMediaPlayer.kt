@@ -165,8 +165,17 @@ fun EnigmaMediaPlayer(
                         liveTv = false,
                         useExternalChrome = true,
                         onStreamCaptured = { captured ->
-                            val cookies = android.webkit.CookieManager.getInstance().getCookie(embedUrl) ?: ""
-                            resolvedStream = ResolvedStream.fromEmbed(embedUrl, captured, "embed-capture", cookies)
+                            val mgr = android.webkit.CookieManager.getInstance()
+                            val c1 = mgr.getCookie(embedUrl) ?: ""
+                            val c2 = mgr.getCookie(captured) ?: ""
+                            val mergedCookies = (c1.split(";") + c2.split(";"))
+                                .map { it.trim() }
+                                .filter { it.isNotEmpty() }
+                                .distinct()
+                                .joinToString("; ")
+                            
+                            val webViewUserAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36"
+                            resolvedStream = ResolvedStream.fromEmbed(embedUrl, captured, "embed-capture", mergedCookies, webViewUserAgent)
                             mode = MediaPlayMode.Native
                             resolvingNative = false
                             onNativePlayerActive?.invoke(true)

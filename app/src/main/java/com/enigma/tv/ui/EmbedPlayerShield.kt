@@ -83,6 +83,8 @@ object EmbedPlayerShield {
 
     if ((pos === 'fixed' || pos === 'absolute') && large && (z > 50 || opacity < 0.25)) return true;
     if ((pos === 'fixed' || pos === 'absolute') && coverW > 0.9 && coverH > 0.9 && z > 10) return true;
+    if (z >= 9000 && !isPlayerNode(el)) return true;
+    
     if (t === 'iframe' && large && z > 5) {
       try {
         var src = (el.src || '').toLowerCase();
@@ -90,7 +92,18 @@ object EmbedPlayerShield {
         if (src.indexOf('player') < 0 && src.indexOf('embed') < 0 && src.indexOf('video') < 0) return true;
       } catch (e) { return true; }
     }
-    if ((t === 'a' || t === 'div' || t === 'ins') && large && (el.onclick || el.getAttribute('onclick'))) return true;
+    
+    if (t === 'a') {
+      try {
+        var href = (el.href || '').toLowerCase();
+        if (isAdUrl(href)) return true;
+        if (el.target === '_blank' && !isPlayerNode(el) && large) return true;
+      } catch(e) {}
+    }
+    
+    if ((t === 'a' || t === 'div' || t === 'ins') && (el.onclick || el.getAttribute('onclick'))) {
+        if (large || z > 100) return true;
+    }
     return false;
   }
 
@@ -175,6 +188,18 @@ object EmbedPlayerShield {
     }
   }, true);
 
+  function tryPlayVideo() {
+    try {
+      var v = document.querySelector('video');
+      if (v && v.paused) {
+        var playPromise = v.play();
+        if (playPromise !== undefined) {
+          playPromise.catch(function(e) {});
+        }
+      }
+    } catch(err) {}
+  }
+
   document.addEventListener('pointerdown', function(e) {
     var el = e.target;
     var depth = 0;
@@ -184,6 +209,7 @@ object EmbedPlayerShield {
         e.stopImmediatePropagation();
         neuter(el);
         sweep();
+        tryPlayVideo();
         return;
       }
       if (isPlayerNode(el)) return;
@@ -201,6 +227,7 @@ object EmbedPlayerShield {
         e.stopImmediatePropagation();
         neuter(el);
         sweep();
+        tryPlayVideo();
         return;
       }
       if (isPlayerNode(el)) return;
