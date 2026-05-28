@@ -246,7 +246,10 @@ class EnigmaViewModel(application: Application) : AndroidViewModel(application) 
                 if (user != null) {
                     viewModelScope.launch {
                         delay(1500)
-                        if (!cloudSyncBlocked()) syncIfLoggedIn()
+                        if (!cloudSyncBlocked()) {
+                            pullCloudSafe()
+                            syncIfLoggedIn()
+                        }
                     }
                 }
             }

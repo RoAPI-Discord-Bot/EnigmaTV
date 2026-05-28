@@ -136,9 +136,13 @@ class FirebaseSyncService {
         if (fromJson.isNotEmpty()) {
             val mergedList = fromJson.map { profile ->
                 val nodeData = fromNodes[profile.id]
+                // Always prefer the individual node data — it's written atomically per-field
+                // and is always current. The profileList JSON blob can be stale.
                 profile.copy(
-                    avatarUri = profile.avatarUri?.takeIf { it.isNotBlank() } ?: nodeData?.avatarUri,
-                    avatarBase64 = profile.avatarBase64?.takeIf { it.isNotBlank() } ?: nodeData?.avatarBase64
+                    name = nodeData?.name?.takeIf { it.isNotBlank() } ?: profile.name.takeIf { it.isNotBlank() } ?: "Profile",
+                    avatarUri = nodeData?.avatarUri?.takeIf { it.isNotBlank() } ?: profile.avatarUri,
+                    avatarBase64 = nodeData?.avatarBase64?.takeIf { it.isNotBlank() } ?: profile.avatarBase64,
+                    avatarIndex = nodeData?.avatarIndex?.takeIf { it != 0 } ?: profile.avatarIndex
                 )
             }.toMutableList()
             

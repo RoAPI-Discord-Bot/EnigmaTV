@@ -160,23 +160,18 @@ class ProfileStore(private val context: Context) {
 
     private fun mergeProfileEntry(local: ViewerProfile, remote: ViewerProfile?): ViewerProfile {
         if (remote == null) return local
-        return when {
-            !remote.avatarBase64.isNullOrBlank() -> remote.copy(
-                name = remote.name.ifBlank { local.name }
-            )
-            !local.avatarBase64.isNullOrBlank() -> remote.copy(
-                avatarBase64 = local.avatarBase64,
-                avatarUri = local.avatarUri ?: remote.avatarUri,
-                name = remote.name.ifBlank { local.name },
-                avatarIndex = remote.avatarIndex.takeIf { it != 0 } ?: local.avatarIndex
-            )
-            else -> remote.copy(
-                name = remote.name.ifBlank { local.name },
-                avatarUri = remote.avatarUri?.takeIf { it.isNotBlank() } ?: local.avatarUri,
-                avatarBase64 = remote.avatarBase64?.takeIf { it.isNotBlank() } ?: local.avatarBase64,
-                avatarIndex = remote.avatarIndex.takeIf { it != 0 } ?: local.avatarIndex
-            )
-        }
+        // Cloud is always the source of truth for name and avatarIndex.
+        // Only inherit local avatar data if cloud has none (locally uploaded but not yet pushed).
+        val resolvedAvatarBase64 = remote.avatarBase64?.takeIf { it.isNotBlank() }
+            ?: local.avatarBase64?.takeIf { it.isNotBlank() }
+        val resolvedAvatarUri = remote.avatarUri?.takeIf { it.isNotBlank() }
+            ?: local.avatarUri?.takeIf { it.isNotBlank() }
+        return remote.copy(
+            name = remote.name.ifBlank { local.name }.ifBlank { "Profile" },
+            avatarUri = resolvedAvatarUri,
+            avatarBase64 = resolvedAvatarBase64,
+            avatarIndex = remote.avatarIndex.takeIf { it != 0 } ?: local.avatarIndex
+        )
     }
 
     suspend fun snapshot(): Pair<List<ViewerProfile>, String> {

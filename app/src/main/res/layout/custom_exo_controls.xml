@@ -10,7 +10,7 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_gravity="top"
-        android:background="#D9000000"
+        android:background="@drawable/gradient_top_scrim"
         android:orientation="horizontal"
         android:padding="16dp"
         android:gravity="center_vertical">
@@ -74,7 +74,7 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_gravity="bottom"
-        android:background="#D9000000"
+        android:background="@drawable/gradient_bottom_scrim"
         android:orientation="vertical"
         android:padding="16dp">
 

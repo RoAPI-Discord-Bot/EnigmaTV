@@ -117,10 +117,10 @@ fun ExoLivePlayer(
     val player = remember(playUrl, playToken) {
         val loadControl = DefaultLoadControl.Builder()
             .setBufferDurationsMs(
-                /* minBufferMs */ 2_500,
+                /* minBufferMs */ 32_000,
                 /* maxBufferMs */ 50_000,
-                /* bufferForPlaybackMs */ 1_000,
-                /* bufferForPlaybackAfterRebufferMs */ 2_000
+                /* bufferForPlaybackMs */ 2_500,
+                /* bufferForPlaybackAfterRebufferMs */ 5_000
             )
             .build()
         ExoPlayer.Builder(context)
@@ -156,8 +156,8 @@ fun ExoLivePlayer(
         val dataSourceFactory = DefaultHttpDataSource.Factory()
             .setUserAgent(resolved.userAgent)
             .setAllowCrossProtocolRedirects(true)
-            .setConnectTimeoutMs(8_000)
-            .setReadTimeoutMs(12_000)
+            .setConnectTimeoutMs(5_000)
+            .setReadTimeoutMs(8_000)
             .apply {
                 if (effectiveHeaders.isNotEmpty()) {
                     setDefaultRequestProperties(effectiveHeaders)
@@ -247,12 +247,7 @@ fun ExoLivePlayer(
 
             override fun onPlayerError(error: PlaybackException) {
                 onLoadingChange(false)
-                if (!stripHeaders && playbackHeaders.isNotEmpty()) {
-                    stripHeaders = true
-                    playToken++
-                } else {
-                    errorMessage = "Stream blocked — try next server"
-                }
+                errorMessage = "Stream blocked — try next server"
             }
         }
         player.addListener(listener)
