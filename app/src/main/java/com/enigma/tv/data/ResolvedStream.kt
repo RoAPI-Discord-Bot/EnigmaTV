@@ -11,23 +11,26 @@ data class ResolvedStream(
     val origin: String = "",
     val userAgent: String = StreamResolver.USER_AGENT,
     val provider: String = "direct",
-    val subtitleUrl: String? = null
+    val subtitleUrl: String? = null,
+    val cookies: String = ""
 ) {
     fun playbackHeaders(): Map<String, String> {
         val headers = linkedMapOf<String, String>()
         if (referer.isNotBlank()) headers["Referer"] = referer
         if (origin.isNotBlank()) headers["Origin"] = origin
+        if (cookies.isNotBlank()) headers["Cookie"] = cookies
         return headers
     }
 
     companion object {
-        fun fromEmbed(embedUrl: String, streamUrl: String, provider: String): ResolvedStream {
+        fun fromEmbed(embedUrl: String, streamUrl: String, provider: String, cookies: String = ""): ResolvedStream {
             val referer = embedReferer(embedUrl)
             return ResolvedStream(
                 url = streamUrl,
                 referer = referer,
                 origin = embedOrigin(embedUrl),
-                provider = provider
+                provider = provider,
+                cookies = cookies
             )
         }
 

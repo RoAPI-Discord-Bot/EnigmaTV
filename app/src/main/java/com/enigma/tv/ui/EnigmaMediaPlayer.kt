@@ -165,7 +165,8 @@ fun EnigmaMediaPlayer(
                         liveTv = false,
                         useExternalChrome = true,
                         onStreamCaptured = { captured ->
-                            resolvedStream = ResolvedStream.fromEmbed(embedUrl, captured, "embed-capture")
+                            val cookies = android.webkit.CookieManager.getInstance().getCookie(embedUrl) ?: ""
+                            resolvedStream = ResolvedStream.fromEmbed(embedUrl, captured, "embed-capture", cookies)
                             mode = MediaPlayMode.Native
                             resolvingNative = false
                             onNativePlayerActive?.invoke(true)

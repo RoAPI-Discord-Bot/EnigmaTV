@@ -147,7 +147,7 @@ fun ExoLivePlayer(
         onLoadingChange(true)
         var prepared = false
         val loadTimeoutJob = scope.launch {
-            delay(12_000)
+            delay(35_000)
             if (player.playbackState != Player.STATE_READY) {
                 onLoadingChange(false)
                 errorMessage = "Stream timed out — try next server"
