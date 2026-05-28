@@ -109,7 +109,8 @@ fun WebViewPlayer(
     }
 
     LaunchedEffect(url, liveTv) {
-        kotlinx.coroutines.delay(if (liveTv) 7_000 else 14_000)
+        // Bail out sooner if page never reaches playing state
+        kotlinx.coroutines.delay(if (liveTv) 5_000 else 10_000)
         if (pageLoading) {
             pageLoading = false
             onPlaybackReady?.invoke() ?: onLoadingChange(false)

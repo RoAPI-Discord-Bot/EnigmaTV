@@ -18,11 +18,28 @@ object StreamPlaybackResolver {
         type: ContentType?,
         season: Int = 1,
         episode: Int = 1
-    ): ResolvedStream? = withTimeoutOrNull(22_000) {
+    ): ResolvedStream? = withTimeoutOrNull(10_000) {
         resolveInternal(context, embedUrl, activity, tmdbId, type, season, episode)
     }
 
     private suspend fun resolveInternal(
+        context: Context,
+        embedUrl: String,
+        activity: Activity?,
+        tmdbId: Int?,
+        type: ContentType?,
+        season: Int,
+        episode: Int
+    ): ResolvedStream? {
+        val stream = findStreamInternal(context, embedUrl, activity, tmdbId, type, season, episode)
+            ?: return null
+            
+        // Now that we have a playable stream, probe it and its embed source for subtitles
+        val subtitleUrl = StreamResolver.resolveSubtitlesForStream(stream.url, embedUrl)
+        return stream.copy(subtitleUrl = subtitleUrl)
+    }
+
+    private suspend fun findStreamInternal(
         context: Context,
         embedUrl: String,
         activity: Activity?,

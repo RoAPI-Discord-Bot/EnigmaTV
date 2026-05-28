@@ -1,6 +1,5 @@
 package com.enigma.tv.ui
 
-import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -61,19 +60,22 @@ fun EnigmaMediaPlayer(
 ) {
     if (!visible) return
 
-    BackHandler { onClose() }
-
     val context = LocalContext.current
     val activity = remember(context) { context.findActivity() }
     var resolvedStream by remember(embedUrl, resolveToken) { mutableStateOf<ResolvedStream?>(null) }
     var mode by remember(embedUrl, resolveToken) { mutableStateOf(MediaPlayMode.Embed) }
     var resolvingNative by remember(embedUrl, resolveToken) { mutableStateOf(true) }
 
+    // Start in Embed mode immediately — WebView loads while we probe for a native stream
     LaunchedEffect(embedUrl, resolveToken, activity, tmdbId, playingType) {
         resolvingNative = true
-        onLoadingChange(false)
         resolvedStream = null
         mode = MediaPlayMode.Embed
+        onNativePlayerActive?.invoke(false)
+        // Drop any loading overlay immediately — WebView renders transparently (like a browser).
+        // The spinner only makes sense for ExoPlayer buffering, not WebView page loads.
+        onLoadingChange(false)
+        // Probe for a native stream in the background while WebView is already visible
         resolvedStream = withContext(Dispatchers.IO) {
             StreamPlaybackResolver.resolve(
                 context = context,
@@ -87,10 +89,10 @@ fun EnigmaMediaPlayer(
         }
         resolvingNative = false
         if (resolvedStream != null) {
+            // Seamless upgrade: signal loading so ExoPlayer buffering spinner shows
+            onLoadingChange(true)
             mode = MediaPlayMode.Native
             onNativePlayerActive?.invoke(true)
-        } else {
-            onNativePlayerActive?.invoke(false)
         }
     }
 
@@ -151,11 +153,13 @@ fun EnigmaMediaPlayer(
                         accent = accent,
                         sourceLabel = sourceLabel,
                         posterUrl = posterUrl,
-                        streamLoading = streamLoading && useExternalChrome,
+                        streamLoading = false, // never block WebView with a spinner
                         onClose = onClose,
                         onNextSource = onNextSource,
-                        onLoadingChange = onLoadingChange,
-                        onPlaybackReady = { onLoadingChange(false) },
+                        // Suppress WebView's loading callbacks — it renders transparently.
+                        // We already cleared loading above; don't let it re-raise the overlay.
+                        onLoadingChange = { /* WebView renders like a browser — no spinner */ },
+                        onPlaybackReady = { /* no-op: WebView is already visible */ },
                         onStreamFailed = { onLoadingChange(false) },
                         tvControls = null,
                         liveTv = false,

@@ -21,7 +21,7 @@
             android:layout_height="48dp"
             android:background="?android:attr/selectableItemBackgroundBorderless"
             android:src="@drawable/ic_close"
-            android:tint="#FFFFFF"
+            app:tint="#FFFFFF"
             android:focusable="true"/>
 
         <LinearLayout
@@ -56,7 +56,7 @@
             android:layout_marginEnd="16dp"
             android:background="?android:attr/selectableItemBackgroundBorderless"
             android:src="@drawable/ic_list"
-            android:tint="#9C27B0"
+            app:tint="#9C27B0"
             android:focusable="true"/>
 
         <Button
@@ -83,44 +83,22 @@
             android:layout_height="wrap_content"
             android:gravity="center"
             android:orientation="horizontal"
-            android:paddingBottom="16dp">
+            android:paddingBottom="8dp">
 
             <ImageButton
-                android:id="@id/exo_rew"
-                android:layout_width="56dp"
-                android:layout_height="56dp"
+                android:id="@id/exo_play"
+                android:layout_width="48dp"
+                android:layout_height="48dp"
                 android:background="?android:attr/selectableItemBackgroundBorderless"
-                android:tint="#FFFFFF"
+                app:tint="#9C27B0"
                 android:focusable="true"/>
 
-            <FrameLayout
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_marginHorizontal="24dp">
-
-                <ImageButton
-                    android:id="@id/exo_play"
-                    android:layout_width="72dp"
-                    android:layout_height="72dp"
-                    android:background="?android:attr/selectableItemBackgroundBorderless"
-                    android:tint="#9C27B0"
-                    android:focusable="true"/>
-
-                <ImageButton
-                    android:id="@id/exo_pause"
-                    android:layout_width="72dp"
-                    android:layout_height="72dp"
-                    android:background="?android:attr/selectableItemBackgroundBorderless"
-                    android:tint="#9C27B0"
-                    android:focusable="true"/>
-            </FrameLayout>
-
             <ImageButton
-                android:id="@id/exo_ffwd"
-                android:layout_width="56dp"
-                android:layout_height="56dp"
+                android:id="@id/exo_pause"
+                android:layout_width="48dp"
+                android:layout_height="48dp"
                 android:background="?android:attr/selectableItemBackgroundBorderless"
-                android:tint="#FFFFFF"
+                app:tint="#9C27B0"
                 android:focusable="true"/>
         </LinearLayout>
 

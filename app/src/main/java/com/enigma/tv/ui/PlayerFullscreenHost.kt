@@ -25,6 +25,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.SkipNext
 import androidx.compose.material.icons.filled.PlayArrow
@@ -42,7 +43,6 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.size
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
@@ -115,9 +115,9 @@ fun PlayerFullscreenHost(
         if (streamFailed) chromeVisible = true
     }
 
-    // Always show chrome while loading so the X button is reachable
-    LaunchedEffect(streamLoading) {
-        if (streamLoading) chromeVisible = true
+    // Always show chrome while loading or failed so the X button is always reachable
+    LaunchedEffect(streamLoading, streamFailed) {
+        if (streamLoading || streamFailed) chromeVisible = true
     }
 
     LaunchedEffect(chromeVisible) {
@@ -214,17 +214,34 @@ fun PlayerFullscreenHost(
                 !streamLoading
 
             if (streamLoading && !showLiveMessage) {
-                EnigmaLoadingRing(
-                    modifier = Modifier.fillMaxSize(),
-                    message = if (subtitle.contains("Live", ignoreCase = true)) {
-                        "Connecting to broadcast..."
-                    } else {
-                        "LOADING"
-                    },
-                    logoSize = 72.dp,
-                    ringSize = 110.dp,
-                    fullscreen = true
-                )
+                // Show close button during loading so user can always exit
+                Box(Modifier.fillMaxSize()) {
+                    EnigmaLoadingRing(
+                        modifier = Modifier.fillMaxSize(),
+                        message = if (subtitle.contains("Live", ignoreCase = true)) {
+                            "Connecting..."
+                        } else {
+                            "Loading..."
+                        },
+                        logoSize = 60.dp,
+                        ringSize = 90.dp,
+                        fullscreen = true
+                    )
+                    // Always-visible close button so user isn't stuck
+                    androidx.compose.material3.IconButton(
+                        onClick = onClose,
+                        modifier = Modifier
+                            .align(Alignment.TopEnd)
+                            .padding(16.dp)
+                    ) {
+                        Icon(
+                            Icons.Default.Close,
+                            contentDescription = "Close",
+                            tint = TextPrimary,
+                            modifier = Modifier.size(28.dp)
+                        )
+                    }
+                }
             }
 
             if (showLiveMessage) {
@@ -330,45 +347,8 @@ fun PlayerFullscreenHost(
                                 { episodePanelOpen = !episodePanelOpen }
                             } else null,
                             isTvLayout = layout == ScreenLayout.TV,
-                            isLive = subtitle.contains("Live", ignoreCase = true),
-                            extraContent = {
-                                if (!isLivePlayer && layout != ScreenLayout.TV) {
-                                    PlaybackControlsRow(
-                                        actionDispatcher = actionDispatcher,
-                                        accent = accent,
-                                        isTvLayout = false
-                                    )
-                                }
-                            }
+                            isLive = subtitle.contains("Live", ignoreCase = true)
                         )
-                    }
-                }
-
-                // TV Layout: Put playback controls in a separate bottom bar
-                if (layout == ScreenLayout.TV && !isLivePlayer) {
-                    AnimatedVisibility(
-                        visible = chromeVisible && !streamLoading,
-                        enter = slideInVertically { it } + fadeIn(),
-                        exit = slideOutVertically { it } + fadeOut(),
-                        modifier = Modifier
-                            .align(Alignment.BottomCenter)
-                            .clickable(
-                                interactionSource = remember { MutableInteractionSource() },
-                                indication = null
-                            ) { /* keep chrome open while interacting */ }
-                    ) {
-                        Box(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .background(Color.Black.copy(alpha = 0.82f))
-                                .padding(bottom = 32.dp, top = 8.dp)
-                        ) {
-                            PlaybackControlsRow(
-                                actionDispatcher = actionDispatcher,
-                                accent = accent,
-                                isTvLayout = true
-                            )
-                        }
                     }
                 }
             }

@@ -2,7 +2,6 @@ package com.enigma.tv.ui
 
 import android.view.View
 import android.view.ViewGroup
-import androidx.activity.compose.BackHandler
 import androidx.annotation.OptIn
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
@@ -40,6 +39,7 @@ import androidx.media3.common.Player
 import androidx.media3.common.Tracks
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.datasource.DefaultHttpDataSource
+import androidx.media3.exoplayer.DefaultLoadControl
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.hls.HlsMediaSource
 import androidx.media3.exoplayer.source.MediaSource
@@ -77,7 +77,6 @@ fun ExoLivePlayer(
 ) {
     if (!visible) return
 
-    BackHandler { onClose() }
 
     val resolved = stream ?: streamUrl.takeIf { it.isNotBlank() }?.let {
         ResolvedStream(url = it, referer = "", provider = "direct")
@@ -116,10 +115,20 @@ fun ExoLivePlayer(
     }
 
     val player = remember(playUrl, playToken) {
-        ExoPlayer.Builder(context).build().apply {
-            playWhenReady = true
-            volume = 1f
-        }
+        val loadControl = DefaultLoadControl.Builder()
+            .setBufferDurationsMs(
+                /* minBufferMs */ 1_500,
+                /* maxBufferMs */ 30_000,
+                /* bufferForPlaybackMs */ 1_000,
+                /* bufferForPlaybackAfterRebufferMs */ 2_000
+            )
+            .build()
+        ExoPlayer.Builder(context)
+            .setLoadControl(loadControl)
+            .build().apply {
+                playWhenReady = true
+                volume = 1f
+            }
     }
 
     val effectiveHeaders = if (stripHeaders) emptyMap() else playbackHeaders
@@ -138,7 +147,7 @@ fun ExoLivePlayer(
         onLoadingChange(true)
         var prepared = false
         val loadTimeoutJob = scope.launch {
-            delay(28_000)
+            delay(12_000)
             if (player.playbackState != Player.STATE_READY) {
                 onLoadingChange(false)
                 errorMessage = "Stream timed out — try next server"
@@ -147,8 +156,8 @@ fun ExoLivePlayer(
         val dataSourceFactory = DefaultHttpDataSource.Factory()
             .setUserAgent(resolved.userAgent)
             .setAllowCrossProtocolRedirects(true)
-            .setConnectTimeoutMs(18_000)
-            .setReadTimeoutMs(25_000)
+            .setConnectTimeoutMs(8_000)
+            .setReadTimeoutMs(12_000)
             .apply {
                 if (effectiveHeaders.isNotEmpty()) {
                     setDefaultRequestProperties(effectiveHeaders)
