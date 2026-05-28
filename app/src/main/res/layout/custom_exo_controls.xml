@@ -21,7 +21,7 @@
             android:layout_height="48dp"
             android:background="?android:attr/selectableItemBackgroundBorderless"
             android:src="@drawable/ic_close"
-            app:tint="#FFFFFF"
+            android:imageTintList="#FFFFFF"
             android:focusable="true"/>
 
         <LinearLayout
@@ -56,7 +56,7 @@
             android:layout_marginEnd="16dp"
             android:background="?android:attr/selectableItemBackgroundBorderless"
             android:src="@drawable/ic_list"
-            app:tint="#9C27B0"
+            android:imageTintList="#9C27B0"
             android:focusable="true"/>
 
         <Button
@@ -90,7 +90,7 @@
                 android:layout_width="48dp"
                 android:layout_height="48dp"
                 android:background="?android:attr/selectableItemBackgroundBorderless"
-                app:tint="#9C27B0"
+                android:imageTintList="#9C27B0"
                 android:focusable="true"/>
 
             <ImageButton
@@ -98,7 +98,7 @@
                 android:layout_width="48dp"
                 android:layout_height="48dp"
                 android:background="?android:attr/selectableItemBackgroundBorderless"
-                app:tint="#9C27B0"
+                android:imageTintList="#9C27B0"
                 android:focusable="true"/>
         </LinearLayout>
 
