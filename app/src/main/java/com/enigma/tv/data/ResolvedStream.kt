@@ -24,11 +24,32 @@ data class ResolvedStream(
 
     companion object {
         fun fromEmbed(embedUrl: String, streamUrl: String, provider: String, cookies: String = "", userAgent: String = StreamResolver.USER_AGENT): ResolvedStream {
-            val referer = embedReferer(embedUrl)
+            var urlToUse = streamUrl
+            var referer = embedReferer(embedUrl)
+            var origin = embedOrigin(embedUrl)
+
+            try {
+                val uri = Uri.parse(streamUrl)
+                val headersJson = uri.getQueryParameter("headers")
+                if (headersJson != null) {
+                    val jsonObj = org.json.JSONObject(headersJson)
+                    if (jsonObj.has("referer")) referer = jsonObj.getString("referer")
+                    if (jsonObj.has("origin")) origin = jsonObj.getString("origin")
+                    
+                    val newUri = uri.buildUpon().clearQuery()
+                    for (param in uri.queryParameterNames) {
+                        if (param != "headers") {
+                            newUri.appendQueryParameter(param, uri.getQueryParameter(param))
+                        }
+                    }
+                    urlToUse = newUri.toString()
+                }
+            } catch (_: Exception) {}
+
             return ResolvedStream(
-                url = streamUrl,
+                url = urlToUse,
                 referer = referer,
-                origin = embedOrigin(embedUrl),
+                origin = origin,
                 provider = provider,
                 cookies = cookies,
                 userAgent = userAgent

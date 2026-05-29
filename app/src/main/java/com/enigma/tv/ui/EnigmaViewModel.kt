@@ -151,7 +151,6 @@ class EnigmaViewModel(application: Application) : AndroidViewModel(application) 
 
     private fun cloudSyncBlocked(): Boolean =
         profileSelectionInProgress ||
-            _state.value.showProfilePicker ||
             !_state.value.openingProfileId.isNullOrBlank()
 
     private fun scheduleCloudSync() {
