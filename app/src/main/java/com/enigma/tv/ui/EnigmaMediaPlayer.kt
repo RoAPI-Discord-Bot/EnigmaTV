@@ -165,6 +165,7 @@ fun EnigmaMediaPlayer(
                         liveTv = false,
                         useExternalChrome = true,
                         onStreamCaptured = { captured ->
+                            android.util.Log.d("EnigmaCapture", "Captured stream URL: $captured")
                             val mgr = android.webkit.CookieManager.getInstance()
                             val c1 = mgr.getCookie(embedUrl) ?: ""
                             val c2 = mgr.getCookie(captured) ?: ""
@@ -174,8 +175,15 @@ fun EnigmaMediaPlayer(
                                 .distinct()
                                 .joinToString("; ")
                             
+                            val lowerUrl = captured.lowercase()
+                            val provider = when {
+                                lowerUrl.contains(".m3u8") || lowerUrl.contains("playlist") -> "embed-hls"
+                                lowerUrl.contains(".mp4") -> "embed-mp4"
+                                else -> "embed-hls" // VidLink default is HLS; log will tell us if wrong
+                            }
+                            android.util.Log.d("EnigmaCapture", "Detected provider: $provider")
                             val webViewUserAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36"
-                            resolvedStream = ResolvedStream.fromEmbed(embedUrl, captured, "embed-capture", mergedCookies, webViewUserAgent)
+                            resolvedStream = ResolvedStream.fromEmbed(embedUrl, captured, provider, mergedCookies, webViewUserAgent)
                             mode = MediaPlayMode.Native
                             resolvingNative = false
                             onNativePlayerActive?.invoke(true)

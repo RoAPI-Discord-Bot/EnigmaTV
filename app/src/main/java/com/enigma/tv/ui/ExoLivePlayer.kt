@@ -193,20 +193,26 @@ fun ExoLivePlayer(
                     )
                 }
                 val mediaItem = itemBuilder.build()
-                // embed-capture streams from VidLink/VidSrc are ALWAYS HLS (.m3u8)
-                // even when the URL doesn't have .m3u8 in the path (CDN token URLs).
-                // Forcing ProgressiveMediaSource on HLS causes 502s and 3-5s stutters.
-                val isHls = resolved.provider == "embed-capture" ||
+                // Provider tag is set by EnigmaMediaPlayer based on actual URL content.
+                // embed-hls = captured HLS/m3u8, embed-mp4 = captured direct mp4
+                val mediaSource: MediaSource = when {
+                    resolved.provider == "embed-hls" ||
                     playUrl.contains(".m3u8", ignoreCase = true) ||
-                    playUrl.contains("playlist", ignoreCase = true)
-                val mediaSource: MediaSource = if (isHls) {
-                    HlsMediaSource.Factory(dataSourceFactory).createMediaSource(mediaItem)
-                } else if (playUrl.contains(".mp4", ignoreCase = true)) {
-                    androidx.media3.exoplayer.source.ProgressiveMediaSource.Factory(dataSourceFactory)
-                        .createMediaSource(mediaItem)
-                } else {
-                    // Let ExoPlayer auto-detect: it sniffs the content-type header
-                    DefaultMediaSourceFactory(dataSourceFactory).createMediaSource(mediaItem)
+                    playUrl.contains("playlist", ignoreCase = true) -> {
+                        android.util.Log.d("EnigmaPlayer", "Using HlsMediaSource for: $playUrl")
+                        HlsMediaSource.Factory(dataSourceFactory).createMediaSource(mediaItem)
+                    }
+                    resolved.provider == "embed-mp4" ||
+                    playUrl.contains(".mp4", ignoreCase = true) -> {
+                        android.util.Log.d("EnigmaPlayer", "Using ProgressiveMediaSource for: $playUrl")
+                        androidx.media3.exoplayer.source.ProgressiveMediaSource.Factory(dataSourceFactory)
+                            .createMediaSource(mediaItem)
+                    }
+                    else -> {
+                        // Auto-detect from Content-Type header
+                        android.util.Log.d("EnigmaPlayer", "Using DefaultMediaSourceFactory for: $playUrl")
+                        DefaultMediaSourceFactory(dataSourceFactory).createMediaSource(mediaItem)
+                    }
                 }
                 val startMs = if (isLiveBroadcast) C.TIME_UNSET else startPositionMs.coerceAtLeast(0L)
                 player.setMediaSource(mediaSource, startMs)
