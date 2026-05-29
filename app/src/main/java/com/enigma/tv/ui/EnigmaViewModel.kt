@@ -523,6 +523,7 @@ class EnigmaViewModel(application: Application) : AndroidViewModel(application) 
         _state.update {
             it.copy(
                 showAuthGate = false,
+                showProfilePicker = true,
                 authLoading = false,
                 profileError = null,
                 contentLoading = false,
@@ -1441,8 +1442,9 @@ class EnigmaViewModel(application: Application) : AndroidViewModel(application) 
             _state.update { it.copy(profileError = null, authLoading = true) }
             authService.signIn(email, password)
                 .onSuccess {
+                    pullCloudSafe()
                     finishOnboarding()
-                    _state.update { it.copy(profileMessage = "Signed in — profiles syncing…") }
+                    _state.update { it.copy(profileMessage = "Signed in — profiles loaded") }
                 }
                 .onFailure { e ->
                     _state.update { it.copy(profileError = authErrorMessage(e), authLoading = false) }
@@ -1455,8 +1457,9 @@ class EnigmaViewModel(application: Application) : AndroidViewModel(application) 
             _state.update { it.copy(profileError = null, authLoading = true) }
             authService.signUp(email, password, name)
                 .onSuccess {
+                    pullCloudSafe()
                     finishOnboarding()
-                    _state.update { it.copy(profileMessage = "Account created — profiles syncing…") }
+                    _state.update { it.copy(profileMessage = "Account created — profiles loaded") }
                 }
                 .onFailure { e ->
                     _state.update { it.copy(profileError = authErrorMessage(e), authLoading = false) }
