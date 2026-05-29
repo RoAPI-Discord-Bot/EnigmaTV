@@ -56,14 +56,20 @@ class ProfileStore(private val context: Context) {
         context.profileDataStore.edit { it[activeKey] = id }
     }
 
+    private fun formatProfileName(name: String): String {
+        val trimmed = name.trim()
+        if (trimmed.isEmpty()) return "Profile"
+        return trimmed.replaceFirstChar { if (it.isLowerCase()) it.titlecase() else it.toString() }
+    }
+
     suspend fun addProfile(name: String): ViewerProfile {
-        val trimmed = name.trim().ifBlank { "Profile" }
-        var created = ViewerProfile(id = "", name = trimmed, avatarIndex = 0)
+        val formatted = formatProfileName(name)
+        var created = ViewerProfile(id = "", name = formatted, avatarIndex = 0)
         context.profileDataStore.edit { prefs ->
             val current = readProfiles(prefs[profilesKey]).toMutableList()
             created = ViewerProfile(
                 id = UUID.randomUUID().toString(),
-                name = trimmed,
+                name = formatted,
                 avatarIndex = current.size % ProfileConstants.AVATAR_PRESET_COUNT
             )
             current.add(created)
@@ -78,7 +84,7 @@ class ProfileStore(private val context: Context) {
             val current = readProfiles(prefs[profilesKey]).map { p ->
                 if (p.id != id) p
                 else p.copy(
-                    name = name?.trim()?.takeIf { it.isNotBlank() } ?: p.name,
+                    name = name?.let { formatProfileName(it) } ?: p.name,
                     avatarIndex = avatarIndex ?: p.avatarIndex,
                     avatarUri = avatarUri ?: p.avatarUri
                 )
@@ -117,10 +123,10 @@ class ProfileStore(private val context: Context) {
     }
 
     suspend fun renameProfile(id: String, name: String) {
-        val trimmed = name.trim().ifBlank { return }
+        val formatted = formatProfileName(name)
         context.profileDataStore.edit { prefs ->
             val current = readProfiles(prefs[profilesKey]).map {
-                if (it.id == id) it.copy(name = trimmed) else it
+                if (it.id == id) it.copy(name = formatted) else it
             }
             prefs[profilesKey] = gson.toJson(current)
         }

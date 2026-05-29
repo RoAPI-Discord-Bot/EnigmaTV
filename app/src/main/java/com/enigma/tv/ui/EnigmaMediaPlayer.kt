@@ -182,7 +182,7 @@ fun EnigmaMediaPlayer(
                                 else -> "embed-hls" // VidLink default is HLS; log will tell us if wrong
                             }
                             android.util.Log.d("EnigmaCapture", "Detected provider: $provider")
-                            val webViewUserAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36"
+                            val webViewUserAgent = android.webkit.WebSettings.getDefaultUserAgent(context)
                             resolvedStream = ResolvedStream.fromEmbed(embedUrl, captured, provider, mergedCookies, webViewUserAgent)
                             mode = MediaPlayMode.Native
                             resolvingNative = false
