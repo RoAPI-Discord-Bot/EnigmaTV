@@ -42,6 +42,7 @@ import androidx.media3.datasource.DefaultHttpDataSource
 import androidx.media3.exoplayer.DefaultLoadControl
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.hls.HlsMediaSource
+import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import androidx.media3.exoplayer.source.MediaSource
 import androidx.media3.ui.PlayerView
 import androidx.media3.ui.R as MediaUiR
@@ -192,11 +193,20 @@ fun ExoLivePlayer(
                     )
                 }
                 val mediaItem = itemBuilder.build()
-                val mediaSource: MediaSource = if (playUrl.contains(".m3u8", ignoreCase = true)) {
+                // embed-capture streams from VidLink/VidSrc are ALWAYS HLS (.m3u8)
+                // even when the URL doesn't have .m3u8 in the path (CDN token URLs).
+                // Forcing ProgressiveMediaSource on HLS causes 502s and 3-5s stutters.
+                val isHls = resolved.provider == "embed-capture" ||
+                    playUrl.contains(".m3u8", ignoreCase = true) ||
+                    playUrl.contains("playlist", ignoreCase = true)
+                val mediaSource: MediaSource = if (isHls) {
                     HlsMediaSource.Factory(dataSourceFactory).createMediaSource(mediaItem)
-                } else {
+                } else if (playUrl.contains(".mp4", ignoreCase = true)) {
                     androidx.media3.exoplayer.source.ProgressiveMediaSource.Factory(dataSourceFactory)
                         .createMediaSource(mediaItem)
+                } else {
+                    // Let ExoPlayer auto-detect: it sniffs the content-type header
+                    DefaultMediaSourceFactory(dataSourceFactory).createMediaSource(mediaItem)
                 }
                 val startMs = if (isLiveBroadcast) C.TIME_UNSET else startPositionMs.coerceAtLeast(0L)
                 player.setMediaSource(mediaSource, startMs)
