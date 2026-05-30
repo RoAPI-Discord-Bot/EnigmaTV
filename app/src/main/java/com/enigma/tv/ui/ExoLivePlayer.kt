@@ -119,10 +119,10 @@ fun ExoLivePlayer(
     val player = remember(playUrl, playToken) {
         val loadControl = DefaultLoadControl.Builder()
             .setBufferDurationsMs(
-                /* minBufferMs               */ 30_000,
-                /* maxBufferMs               */ 60_000,
-                /* bufferForPlaybackMs       */ 5_000,
-                /* bufferForPlaybackAfterRebufferMs */ 10_000
+                /* minBufferMs                     */ 60_000,  // stay 60s ahead while playing
+                /* maxBufferMs                     */ 120_000, // store up to 2min ahead
+                /* bufferForPlaybackMs             */ 3_000,   // start after 3s (slightly slower, much smoother)
+                /* bufferForPlaybackAfterRebufferMs*/ 20_000   // after stall, wait 20s before resuming
             )
             .build()
         ExoPlayer.Builder(context)
@@ -241,6 +241,8 @@ fun ExoLivePlayer(
                         }
                     }
                     Player.STATE_BUFFERING -> {
+                        // Never show loading spinner during mid-play rebuffer — just
+                        // buffer silently. Only show spinner on initial load.
                         if (!hasReachedReady) onLoadingChange(true)
                     }
                     Player.STATE_ENDED -> {
@@ -353,6 +355,52 @@ fun ExoLivePlayer(
                             } else {
                                 epBtn?.visibility = View.GONE
                             }
+
+                            // ── 5-second seek increments ─────────────────────────────────
+                            player.seekBackIncrementMs = 5_000
+                            player.seekForwardIncrementMs = 5_000
+
+                            // ── Play/Pause overlay: single focusable button over the two
+                            //    hidden exo_play / exo_pause views ─────────────────────────
+                            val overlay = findViewById<android.view.View>(com.enigma.tv.R.id.btn_play_pause_overlay)
+                            overlay?.setOnClickListener {
+                                if (player.isPlaying) player.pause() else player.play()
+                            }
+
+                            // ── Hold-to-accelerate on rewind / fast-forward ───────────────
+                            // Tap = 5 s, hold = jumps 30 s every 500 ms while held
+                            fun attachHoldSeek(btnId: Int, direction: Int) {
+                                val btn = findViewById<android.view.View>(btnId) ?: return
+                                var holdJob: kotlinx.coroutines.Job? = null
+                                btn.setOnClickListener {
+                                    val pos = player.currentPosition
+                                    val target = (pos + direction * 5_000L).coerceIn(0L, player.duration.coerceAtLeast(0L))
+                                    player.seekTo(target)
+                                }
+                                btn.setOnLongClickListener {
+                                    holdJob = scope.launch {
+                                        while (kotlinx.coroutines.isActive) {
+                                            val pos = player.currentPosition
+                                            val target = (pos + direction * 30_000L).coerceIn(0L, player.duration.coerceAtLeast(0L))
+                                            player.seekTo(target)
+                                            delay(500)
+                                        }
+                                    }
+                                    true
+                                }
+                                btn.setOnTouchListener { _, event ->
+                                    if (event.action == android.view.MotionEvent.ACTION_UP ||
+                                        event.action == android.view.MotionEvent.ACTION_CANCEL) {
+                                        holdJob?.cancel()
+                                        holdJob = null
+                                    }
+                                    false
+                                }
+                            }
+                            // Use Media3's resource IDs for rew/ffwd so the layout IDs match
+                            attachHoldSeek(androidx.media3.ui.R.id.exo_rew, -1)
+                            attachHoldSeek(androidx.media3.ui.R.id.exo_ffwd, +1)
+
                             if (useExternalChrome) {
                                 setControllerVisibilityListener(
                                     PlayerView.ControllerVisibilityListener { visibility ->
