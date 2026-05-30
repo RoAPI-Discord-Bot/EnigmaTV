@@ -5,8 +5,15 @@ import android.content.Context
 import kotlinx.coroutines.withTimeoutOrNull
 
 /**
- * Full playback resolution chain used by movie/TV apps:
- * 1) VidLink API (TMDB)  2) All embed mirrors  3) Current embed HTTP  4) WebView intercept
+ * Coordinates the full playback resolution chain.
+ *
+ * Resolution is delegated to EmbedProvidersResolver which races:
+ *   - VidLink direct API (fast JSON path)
+ *   - Hidden WebView extractor on primary embed URL (JS-capable, catches anything)
+ *
+ * The visible WebViewPlayer is already rendering in the background while this runs,
+ * so the user never sees a black screen. This just upgrades them to ExoPlayer
+ * (better controls, seek bar, CC) as soon as a native stream is found.
  */
 object StreamPlaybackResolver {
 
@@ -18,7 +25,7 @@ object StreamPlaybackResolver {
         type: ContentType?,
         season: Int = 1,
         episode: Int = 1
-    ): ResolvedStream? = withTimeoutOrNull(15_000) {
+    ): ResolvedStream? = withTimeoutOrNull(20_000) {
         resolveInternal(context, embedUrl, activity, tmdbId, type, season, episode)
     }
 
@@ -31,23 +38,7 @@ object StreamPlaybackResolver {
         season: Int,
         episode: Int
     ): ResolvedStream? {
-        val stream = findStreamInternal(context, embedUrl, activity, tmdbId, type, season, episode)
-            ?: return null
-            
-        // Now that we have a playable stream, probe it and its embed source for subtitles
-        val subtitleUrl = StreamResolver.resolveSubtitlesForStream(stream.url, embedUrl)
-        return stream.copy(subtitleUrl = subtitleUrl)
-    }
-
-    private suspend fun findStreamInternal(
-        context: Context,
-        embedUrl: String,
-        activity: Activity?,
-        tmdbId: Int?,
-        type: ContentType?,
-        season: Int,
-        episode: Int
-    ): ResolvedStream? {
+        // Direct stream (already an .m3u8 or .mp4) — no extraction needed
         if (isDirectStream(embedUrl)) {
             return ResolvedStream.fromEmbed(embedUrl, embedUrl, "direct")
         }
@@ -55,12 +46,8 @@ object StreamPlaybackResolver {
         val id = tmdbId
         val contentType = type ?: ContentType.MOVIE
 
-        if (id != null) {
-            when (contentType) {
-                ContentType.MOVIE -> VidLinkResolver.resolveMovie(id)?.let { return it }
-                ContentType.TV -> VidLinkResolver.resolveTv(id, season, episode)?.let { return it }
-            }
-
+        // Race VidLink API vs WebView extractor
+        val stream = if (id != null) {
             EmbedProvidersResolver.resolveFromAllProviders(
                 context = context,
                 activity = activity,
@@ -69,24 +56,17 @@ object StreamPlaybackResolver {
                 season = season,
                 episode = episode,
                 preferredEmbedUrl = embedUrl
-            )?.let { return it }
-        }
+            )
+        } else {
+            // No TMDB ID — just try to extract the provided URL directly
+            if (activity != null)
+                StreamExtractor(context).extractStreamUrl(embedUrl, activity = activity)
+            else null
+        } ?: return null
 
-        return resolveSingleEmbed(context, embedUrl, activity)
-    }
-
-    private suspend fun resolveSingleEmbed(
-        context: Context,
-        embedUrl: String,
-        activity: Activity?
-    ): ResolvedStream? {
-        StreamResolver.resolveDirectUrl(embedUrl)?.let { stream ->
-            return ResolvedStream.fromEmbed(embedUrl, stream, "scrape")
-        }
-        if (activity != null) {
-            StreamExtractor(context).extractStreamUrl(embedUrl, activity = activity)?.let { return it }
-        }
-        return null
+        // Attach subtitles if found
+        val subtitleUrl = StreamResolver.resolveSubtitlesForStream(stream.url, embedUrl)
+        return stream.copy(subtitleUrl = subtitleUrl)
     }
 
     private fun isDirectStream(url: String): Boolean {
