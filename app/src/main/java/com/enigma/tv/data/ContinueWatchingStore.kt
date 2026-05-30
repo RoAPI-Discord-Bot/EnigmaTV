@@ -70,6 +70,14 @@ class ContinueWatchingStore(private val context: Context) {
         }
     }
 
+    suspend fun removeEntry(profileId: String, id: Int, type: ContentType) {
+        context.dataStore.edit { prefs ->
+            val current = readList(jsonForProfile(prefs, profileId))
+            val updated = current.filter { it.id != id || it.type != type }
+            prefs[key(profileId)] = gson.toJson(updated)
+        }
+    }
+
     private fun readList(json: String?): List<ContinueWatchingEntry> {
         if (json.isNullOrBlank()) return emptyList()
         val type = object : TypeToken<List<ContinueWatchingEntry>>() {}.type

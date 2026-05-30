@@ -44,7 +44,7 @@ interface TmdbApi {
     suspend fun movieDetail(
         @Path("id") id: Int,
         @Query("api_key") apiKey: String,
-        @Query("append_to_response") append: String = "credits,videos,release_dates"
+        @Query("append_to_response") append: String = "credits,videos,release_dates,external_ids"
     ): MovieDetailResponse
 
     @GET("trending/tv/week")
@@ -72,7 +72,7 @@ interface TmdbApi {
     suspend fun tvDetail(
         @Path("id") id: Int,
         @Query("api_key") apiKey: String,
-        @Query("append_to_response") append: String = "credits,videos,content_ratings"
+        @Query("append_to_response") append: String = "credits,videos,content_ratings,external_ids"
     ): TvShowDetail
 
     @GET("tv/{id}/season/{season}")

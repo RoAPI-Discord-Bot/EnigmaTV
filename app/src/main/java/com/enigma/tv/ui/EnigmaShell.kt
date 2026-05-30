@@ -940,16 +940,41 @@ private fun ContinueWatchingCard(entry: ContinueWatchingEntry, vm: EnigmaViewMod
         resumeTime != null -> "Resume $resumeTime"
         else -> "Resume"
     }
-    PosterCard(
-        title = entry.name,
-        posterUrl = entry.poster.ifBlank { null },
-        accent = accent,
-        badge = badge,
-        subtitle = subtitle,
-        cardWidthDp = cardW,
-        onClick = { vm.resumeContinue(entry) }
-    )
+    var showRemove by remember { mutableStateOf(false) }
+
+    Box {
+        PosterCard(
+            title = entry.name,
+            posterUrl = entry.poster.ifBlank { null },
+            accent = accent,
+            badge = badge,
+            subtitle = subtitle,
+            cardWidthDp = cardW,
+            onClick = { vm.resumeContinue(entry) },
+            onLongClickPlay = { showRemove = true }
+        )
+        if (showRemove) {
+            Box(
+                Modifier
+                    .matchParentSize()
+                    .background(Color.Black.copy(alpha = 0.75f), RoundedCornerShape(12.dp))
+                    .clickable { showRemove = false },
+                contentAlignment = Alignment.Center
+            ) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    IconButton(onClick = {
+                        showRemove = false
+                        vm.removeFromContinue(entry)
+                    }) {
+                        Icon(Icons.Default.Delete, contentDescription = "Remove", tint = EnigmaPink, modifier = Modifier.size(28.dp))
+                    }
+                    Text("Remove", color = EnigmaPink, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                }
+            }
+        }
+    }
 }
+
 
 @Composable
 private fun ContinueContent(state: EnigmaUiState, vm: EnigmaViewModel, layout: ScreenLayout) {

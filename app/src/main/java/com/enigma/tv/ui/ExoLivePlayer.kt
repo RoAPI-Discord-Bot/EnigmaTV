@@ -1,7 +1,9 @@
 package com.enigma.tv.ui
 
+import android.app.Activity
 import android.view.View
 import android.view.ViewGroup
+import android.view.WindowManager
 import androidx.annotation.OptIn
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
@@ -98,6 +100,15 @@ fun ExoLivePlayer(
     val playbackHeaders = resolved.playbackHeaders()
     val syncChrome = LocalPlayerChromeSync.current
     val context = LocalContext.current
+
+    // ── Keep screen on while the player is visible ────────────────────────────
+    DisposableEffect(Unit) {
+        val activity = context as? Activity
+        activity?.window?.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        onDispose {
+            activity?.window?.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        }
+    }
     val scope = rememberCoroutineScope()
     var playToken by remember { mutableIntStateOf(0) }
     var retryCount by remember(playUrl) { mutableIntStateOf(0) }
@@ -356,13 +367,6 @@ fun ExoLivePlayer(
                                 epBtn?.setOnClickListener { onShowEpisodes?.invoke() }
                             } else {
                                 epBtn?.visibility = View.GONE
-                            }
-
-                            // ── Play/Pause overlay: single focusable button over the two
-                            //    hidden exo_play / exo_pause views ─────────────────────────
-                            val overlay = findViewById<android.view.View>(com.enigma.tv.R.id.btn_play_pause_overlay)
-                            overlay?.setOnClickListener {
-                                if (player.isPlaying) player.pause() else player.play()
                             }
 
                             // ── Hold-to-accelerate on rewind / fast-forward ───────────────

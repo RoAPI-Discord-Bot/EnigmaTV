@@ -1074,6 +1074,18 @@ class EnigmaViewModel(application: Application) : AndroidViewModel(application) 
         }
     }
 
+    fun removeFromContinue(entry: ContinueWatchingEntry) {
+        viewModelScope.launch {
+            cwStore.removeEntry(activeProfileId(), entry.id, entry.type)
+            _state.update { st ->
+                st.copy(continueWatching = st.continueWatching.filter {
+                    it.id != entry.id || it.type != entry.type
+                })
+            }
+            syncIfLoggedIn()
+        }
+    }
+
     fun playFavorite(item: FavoriteItem) {
         when (item.type) {
             ContentType.MOVIE -> openMovieDetail(MovieItem(item.id, item.title))

@@ -2,19 +2,22 @@ package com.enigma.tv.data
 
 import android.app.Activity
 import android.content.Context
+import android.util.Log
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.selects.select
 
+private const val TAG = "EmbedResolver"
+
 /**
- * Resolves a playable stream by racing two proven paths simultaneously:
+ * Resolves a playable stream by:
  *
- *   Path A — VidLink direct API (fast JSON, ~0.5–2s when working)
- *   Path B — Hidden WebView extractor on the primary embed URL
- *             (runs real JS like a browser, catches the .m3u8 when API fails)
+ *   Round 1 — Race VidLink direct API vs hidden WebView on primary embed URL.
+ *             Whichever returns a non-null stream first wins.
  *
- * Whichever path returns first wins; the other is immediately cancelled.
- * No HTTP scraping — it almost never works on JS-obfuscated providers and just wastes time.
+ *   Round 2 — If Round 1 fails (both return null), try ALL remaining embed
+ *             sources sequentially via WebView until one works.
+ *             This handles newer/obscure content that isn't on VidLink yet.
  */
 object EmbedProvidersResolver {
 
@@ -27,61 +30,62 @@ object EmbedProvidersResolver {
         episode: Int,
         preferredEmbedUrl: String? = null
     ): ResolvedStream? {
-        // Build ordered list of embed URLs to try in WebView
         val embedUrls = buildEmbedList(tmdbId, type, season, episode, preferredEmbedUrl)
         val primaryEmbedUrl = embedUrls.firstOrNull()?.second ?: return null
 
         return coroutineScope {
-            // Path A: VidLink direct API
+            // ── Round 1: VidLink API vs primary WebView ──────────────────────────────
             val apiJob = async {
-                when (type) {
+                Log.d(TAG, "[$tmdbId] Round1/VidLink: starting")
+                val r = when (type) {
                     ContentType.MOVIE -> VidLinkResolver.resolveMovie(tmdbId)
-                    ContentType.TV -> VidLinkResolver.resolveTv(tmdbId, season, episode)
+                    ContentType.TV    -> VidLinkResolver.resolveTv(tmdbId, season, episode)
                 }
+                Log.d(TAG, "[$tmdbId] Round1/VidLink: ${if (r != null) "got stream" else "null"}")
+                r
             }
 
-            // Path B: Hidden WebView on primary embed URL (requires activity)
             val webViewJob = async {
                 if (activity == null) return@async null
-                StreamExtractor(context).extractStreamUrl(primaryEmbedUrl, activity = activity)
+                Log.d(TAG, "[$tmdbId] Round1/WebView: $primaryEmbedUrl")
+                val r = StreamExtractor(context).extractStreamUrl(primaryEmbedUrl, activity = activity)
+                Log.d(TAG, "[$tmdbId] Round1/WebView: ${if (r != null) "got stream" else "null"}")
+                r
             }
 
-            // Race them — first non-null result wins
             var result: ResolvedStream? = null
             try {
-                // Round 1: whichever finishes first
                 select<Unit> {
                     apiJob.onAwait { r ->
-                        if (r != null) {
-                            result = r
-                            webViewJob.cancel()
-                        } else {
-                            result = webViewJob.await()
-                        }
+                        if (r != null) { result = r; webViewJob.cancel() }
+                        else           { result = webViewJob.await() }
                     }
                     webViewJob.onAwait { r ->
-                        if (r != null) {
-                            result = r
-                            apiJob.cancel()
-                        } else {
-                            result = apiJob.await()
-                        }
+                        if (r != null) { result = r; apiJob.cancel() }
+                        else           { result = apiJob.await() }
                     }
                 }
-
             } finally {
-                if (apiJob.isActive) apiJob.cancel()
+                if (apiJob.isActive)     apiJob.cancel()
                 if (webViewJob.isActive) webViewJob.cancel()
             }
 
-            // If primary embed failed and we have activity, try next embed URL in WebView
+            // ── Round 2: Try remaining embed sources sequentially ────────────────────
             if (result == null && activity != null) {
-                val fallbackUrl = embedUrls.getOrNull(1)?.second
-                if (fallbackUrl != null) {
+                Log.d(TAG, "[$tmdbId] Round1 failed — trying ${embedUrls.size - 1} fallback sources")
+                for (i in 1 until embedUrls.size) {
+                    val (srcName, fallbackUrl) = embedUrls[i]
+                    Log.d(TAG, "[$tmdbId] Fallback[$i] $srcName: $fallbackUrl")
                     result = StreamExtractor(context).extractStreamUrl(fallbackUrl, activity = activity)
+                    if (result != null) {
+                        Log.d(TAG, "[$tmdbId] Fallback[$i] $srcName: SUCCESS")
+                        break
+                    }
+                    Log.d(TAG, "[$tmdbId] Fallback[$i] $srcName: failed")
                 }
             }
 
+            if (result == null) Log.w(TAG, "[$tmdbId] All sources exhausted — content not found")
             result
         }
     }
@@ -98,15 +102,11 @@ object EmbedProvidersResolver {
             list.add("Current" to preferredEmbedUrl)
         }
         when (type) {
-            ContentType.MOVIE -> {
-                StreamSources.movieSources.forEach { src ->
-                    list.add(src.name to src.movieUrl(tmdbId))
-                }
+            ContentType.MOVIE -> StreamSources.movieSources.forEach { src ->
+                list.add(src.name to src.movieUrl(tmdbId))
             }
-            ContentType.TV -> {
-                StreamSources.tvSources.forEach { src ->
-                    list.add(src.name to src.tvUrl(tmdbId, season, episode))
-                }
+            ContentType.TV -> StreamSources.tvSources.forEach { src ->
+                list.add(src.name to src.tvUrl(tmdbId, season, episode))
             }
         }
         return list.toList()

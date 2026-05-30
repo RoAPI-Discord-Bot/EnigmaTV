@@ -97,48 +97,15 @@
             Single play/pause toggle button.
             ExoPlayer's PlayerControlView automatically toggles between
             ic_play_arrow (when paused) and ic_pause (when playing)
-            using the exo_play and exo_pause IDs inside this FrameLayout.
-            Both start GONE — ExoPlayer sets the correct one VISIBLE on first state update.
-        -->
-        <FrameLayout
+        <ImageButton
+            android:id="@id/exo_play_pause"
             android:layout_width="80dp"
-            android:layout_height="80dp">
-
-            <ImageButton
-                android:id="@id/exo_play"
-                android:layout_width="80dp"
-                android:layout_height="80dp"
-                android:background="?android:attr/selectableItemBackgroundBorderless"
-                android:src="@drawable/ic_play_arrow"
-                android:tint="#FFFFFF"
-                android:visibility="visible"
-                android:focusable="false"
-                android:contentDescription="Play"/>
-
-            <ImageButton
-                android:id="@id/exo_pause"
-                android:layout_width="80dp"
-                android:layout_height="80dp"
-                android:background="?android:attr/selectableItemBackgroundBorderless"
-                android:src="@drawable/ic_pause"
-                android:tint="#FFFFFF"
-                android:visibility="gone"
-                android:focusable="false"
-                android:contentDescription="Pause"/>
-
-            <!--
-                This transparent overlay intercepts all clicks/focus on the play/pause area
-                and toggles playback. This avoids focus fighting between the two hidden buttons.
-            -->
-            <View
-                android:id="@+id/btn_play_pause_overlay"
-                android:layout_width="80dp"
-                android:layout_height="80dp"
-                android:background="?android:attr/selectableItemBackgroundBorderless"
-                android:focusable="true"
-                android:clickable="true"
-                android:contentDescription="Play/Pause"/>
-        </FrameLayout>
+            android:layout_height="80dp"
+            android:background="?android:attr/selectableItemBackgroundBorderless"
+            android:src="@drawable/ic_play_arrow"
+            android:tint="#FFFFFF"
+            android:focusable="true"
+            android:contentDescription="Play/Pause"/>
 
         <!-- +5 s (tap) / hold to accelerate -->
         <ImageButton
