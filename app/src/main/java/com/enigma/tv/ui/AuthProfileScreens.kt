@@ -138,7 +138,7 @@ private fun TvProfileScreen(
             // Left: Avatar + profile card
             Column(
                 modifier = Modifier
-                    .width(260.dp)
+                    .width(300.dp)
                     .fillMaxHeight()
                     .clip(RoundedCornerShape(20.dp))
                     .glassSurface(cornerRadius = 20.dp)
@@ -167,7 +167,11 @@ private fun TvProfileScreen(
                     profile.name,
                     color = TextPrimary,
                     fontSize = 22.sp,
-                    fontWeight = FontWeight.Bold
+                    fontWeight = FontWeight.Bold,
+                    maxLines = 2,
+                    overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+                    textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                    modifier = Modifier.fillMaxWidth()
                 )
                 Text(
                     "Active Profile",

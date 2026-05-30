@@ -185,10 +185,12 @@ fun EnigmaShell(viewModel: EnigmaViewModel = viewModel()) {
         )
     }
 
-    // Sidebar: fully collapsed (0dp) unless focused on TV
+    // Sidebar: on TV always show an icon rail (72dp); expands to full width when any item has focus
+    val TV_RAIL_WIDTH = 72
     var isTvDrawerFocused by remember { mutableStateOf(false) }
     val tvDrawerWidth by animateDpAsState(
-        if (isTvDrawerFocused) layout.drawerWidthDp().dp else 0.dp
+        if (isTvDrawerFocused) layout.drawerWidthDp().dp else TV_RAIL_WIDTH.dp,
+        label = "tvDrawerWidth"
     )
 
     val drawerContent: @Composable () -> Unit = {
@@ -200,7 +202,8 @@ fun EnigmaShell(viewModel: EnigmaViewModel = viewModel()) {
                 viewModel.setSection(section)
                 if (!layout.usePermanentDrawer()) scope.launch { drawerState.close() }
             },
-            onSwitchProfile = { viewModel.showProfilePickerScreen() }
+            onSwitchProfile = { viewModel.showProfilePickerScreen() },
+            onAnyItemFocused = { hasFocus -> if (layout == ScreenLayout.TV) isTvDrawerFocused = hasFocus }
         )
     }
 
@@ -208,25 +211,7 @@ fun EnigmaShell(viewModel: EnigmaViewModel = viewModel()) {
         AppAmbientBackground {
         Box(Modifier.fillMaxSize()) {
             Column(Modifier.fillMaxSize()) {
-                // On TV, show a slim menu button at top-left when sidebar is collapsed
-                if (layout == ScreenLayout.TV && !isTvDrawerFocused) {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(start = 4.dp, top = 4.dp, bottom = 4.dp)
-                    ) {
-                        androidx.compose.material3.IconButton(
-                            onClick = { isTvDrawerFocused = true },
-                            modifier = Modifier.onFocusChanged { isTvDrawerFocused = it.hasFocus }
-                        ) {
-                            Icon(
-                                Icons.Default.Menu,
-                                contentDescription = "Open menu",
-                                tint = TextSecondary
-                            )
-                        }
-                    }
-                }
+                // On TV the permanent rail handles navigation — no extra menu button needed
 
                 if (!layout.usePermanentDrawer()) {
                     EnigmaHeader(
@@ -327,21 +312,15 @@ fun EnigmaShell(viewModel: EnigmaViewModel = viewModel()) {
         if (layout.usePermanentDrawer()) {
             PermanentNavigationDrawer(
                 drawerContent = {
-                    // Wrap in a Box so focus events on the sheet are always catchable
-                    // even when tvDrawerWidth is 0dp (the Box still has a focus target)
-                    Box(
+                    // Always render the sheet — starts at rail width (72dp), expands on focus.
+                    // Conditional mounting caused the flicker: items would mount, immediately
+                    // steal focus, then the Box lost hasFocus and collapsed again.
+                    PermanentDrawerSheet(
+                        drawerContainerColor = BgSidebar,
                         modifier = Modifier
                             .width(tvDrawerWidth)
                             .fillMaxHeight()
-                            .onFocusChanged { isTvDrawerFocused = it.hasFocus }
-                    ) {
-                        if (isTvDrawerFocused) {
-                            PermanentDrawerSheet(
-                                drawerContainerColor = BgSidebar,
-                                modifier = Modifier.fillMaxSize()
-                            ) { drawerContent() }
-                        }
-                    }
+                    ) { drawerContent() }
                 },
                 content = { bodyContent() }
             )
@@ -566,7 +545,8 @@ private fun EnigmaDrawerContent(
     layout: ScreenLayout,
     isExpanded: Boolean,
     onSelect: (NavSection) -> Unit,
-    onSwitchProfile: () -> Unit
+    onSwitchProfile: () -> Unit,
+    onAnyItemFocused: ((Boolean) -> Unit)? = null
 ) {
     Column(
         modifier = Modifier
@@ -574,38 +554,44 @@ private fun EnigmaDrawerContent(
             .statusBarsPadding()
             .padding(vertical = 24.dp)
     ) {
-        Text(
-            text = ENIGMA_TV_BRAND,
-            color = EnigmaPurple,
-            fontSize = if (layout == ScreenLayout.TV) 26.sp else 22.sp,
-            fontWeight = FontWeight.Black,
-            letterSpacing = 2.sp,
-            modifier = Modifier.padding(horizontal = 28.dp, vertical = 8.dp)
-        )
-        Text(
-            text = "Stream movies & TV",
-            color = EnigmaPink.copy(alpha = 0.8f),
-            fontSize = 12.sp,
-            modifier = Modifier.padding(horizontal = 28.dp)
-        )
-        Spacer(Modifier.height(20.dp))
-        HorizontalDivider(color = Color.White.copy(alpha = 0.08f))
-        Spacer(Modifier.height(12.dp))
+        if (isExpanded) {
+            Text(
+                text = ENIGMA_TV_BRAND,
+                color = EnigmaPurple,
+                fontSize = if (layout == ScreenLayout.TV) 26.sp else 22.sp,
+                fontWeight = FontWeight.Black,
+                letterSpacing = 2.sp,
+                modifier = Modifier.padding(horizontal = 28.dp, vertical = 8.dp)
+            )
+            Text(
+                text = "Stream movies & TV",
+                color = EnigmaPink.copy(alpha = 0.8f),
+                fontSize = 12.sp,
+                modifier = Modifier.padding(horizontal = 28.dp)
+            )
+            Spacer(Modifier.height(20.dp))
+            HorizontalDivider(color = Color.White.copy(alpha = 0.08f))
+            Spacer(Modifier.height(12.dp))
+        } else {
+            Spacer(Modifier.height(24.dp))
+        }
 
-        DrawerEntry(Icons.Default.Home, NavSection.HOME, current, true, onSelect)
-        DrawerEntry(Icons.Default.Search, NavSection.SEARCH, current, true, onSelect)
-        DrawerEntry(Icons.Default.LiveTv, NavSection.LIVE, current, true, onSelect)
-        DrawerEntry(Icons.Default.Favorite, NavSection.FAVORITES, current, true, onSelect)
-        DrawerEntry(Icons.Default.PlayCircle, NavSection.CONTINUE, current, true, onSelect)
-        DrawerEntry(Icons.Default.PlaylistPlay, NavSection.LISTS, current, true, onSelect)
-        DrawerEntry(Icons.Default.Person, NavSection.PROFILE, current, true, onSelect)
+        DrawerEntry(Icons.Default.Home, NavSection.HOME, current, isExpanded, onSelect, onAnyItemFocused)
+        DrawerEntry(Icons.Default.Search, NavSection.SEARCH, current, isExpanded, onSelect, onAnyItemFocused)
+        DrawerEntry(Icons.Default.LiveTv, NavSection.LIVE, current, isExpanded, onSelect, onAnyItemFocused)
+        DrawerEntry(Icons.Default.Favorite, NavSection.FAVORITES, current, isExpanded, onSelect, onAnyItemFocused)
+        DrawerEntry(Icons.Default.PlayCircle, NavSection.CONTINUE, current, isExpanded, onSelect, onAnyItemFocused)
+        DrawerEntry(Icons.Default.PlaylistPlay, NavSection.LISTS, current, isExpanded, onSelect, onAnyItemFocused)
+        DrawerEntry(Icons.Default.Person, NavSection.PROFILE, current, isExpanded, onSelect, onAnyItemFocused)
         Spacer(Modifier.weight(1f))
         NavigationDrawerItem(
             icon = { Icon(Icons.Default.Person, contentDescription = "Switch profile") },
-            label = { Text("Switch Profile") },
+            label = { if (isExpanded) Text("Switch Profile") },
             selected = false,
             onClick = onSwitchProfile,
-            modifier = Modifier.padding(NavigationDrawerItemDefaults.ItemPadding)
+            modifier = Modifier
+                .padding(NavigationDrawerItemDefaults.ItemPadding)
+                .onFocusChanged { onAnyItemFocused?.invoke(it.hasFocus) }
         )
     }
 }
@@ -616,7 +602,8 @@ private fun DrawerEntry(
     section: NavSection,
     current: NavSection,
     isExpanded: Boolean,
-    onSelect: (NavSection) -> Unit
+    onSelect: (NavSection) -> Unit,
+    onFocusChange: ((Boolean) -> Unit)? = null
 ) {
     var isFocused by remember { mutableStateOf(false) }
     NavigationDrawerItem(
@@ -626,7 +613,11 @@ private fun DrawerEntry(
         onClick = { onSelect(section) },
         modifier = Modifier
             .padding(NavigationDrawerItemDefaults.ItemPadding)
-            .onFocusChanged { isFocused = it.isFocused },
+            .onFocusChanged {
+                isFocused = it.isFocused
+                // hasFocus is true even when a child (e.g. ripple) has focus
+                onFocusChange?.invoke(it.hasFocus)
+            },
         colors = NavigationDrawerItemDefaults.colors(
             selectedContainerColor = if (isFocused) EnigmaPurple.copy(alpha = 0.55f) else EnigmaPurple.copy(alpha = 0.3f),
             selectedIconColor = if (isFocused) Color.White else EnigmaPink,
