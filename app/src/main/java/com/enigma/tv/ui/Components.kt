@@ -52,6 +52,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
@@ -418,14 +419,22 @@ fun TvPosterRow(
     // On TV use a simple horizontal scroll Row — LazyRow interferes with
     // the vertical LazyColumn scroll nesting on Leanback. Each card is
     // individually focusable so D-Pad navigation works naturally.
-    Row(
+    // clipToBounds prevents cards bleeding over the sidebar edge during
+    // the drawer open/close width animation.
+    Box(
         modifier = modifier
             .fillMaxWidth()
-            .horizontalScroll(rememberScrollState())
-            .padding(bottom = 8.dp),
-        horizontalArrangement = Arrangement.spacedBy(20.dp),
-        content = { content() }
-    )
+            .clipToBounds()
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .horizontalScroll(rememberScrollState())
+                .padding(bottom = 8.dp),
+            horizontalArrangement = Arrangement.spacedBy(20.dp),
+            content = { content() }
+        )
+    }
 }
 
 @Composable

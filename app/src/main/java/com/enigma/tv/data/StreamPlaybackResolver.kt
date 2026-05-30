@@ -18,7 +18,7 @@ object StreamPlaybackResolver {
         type: ContentType?,
         season: Int = 1,
         episode: Int = 1
-    ): ResolvedStream? = withTimeoutOrNull(10_000) {
+    ): ResolvedStream? = withTimeoutOrNull(15_000) {
         resolveInternal(context, embedUrl, activity, tmdbId, type, season, episode)
     }
 

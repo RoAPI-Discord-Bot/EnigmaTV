@@ -100,6 +100,7 @@ fun ExoLivePlayer(
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     var playToken by remember { mutableIntStateOf(0) }
+    var retryCount by remember(playUrl) { mutableIntStateOf(0) }
     var stripHeaders by remember { mutableStateOf(false) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
     var hasTextTracks by remember { mutableStateOf(false) }
@@ -157,8 +158,8 @@ fun ExoLivePlayer(
         val dataSourceFactory = DefaultHttpDataSource.Factory()
             .setUserAgent(resolved.userAgent)
             .setAllowCrossProtocolRedirects(true)
-            .setConnectTimeoutMs(5_000)
-            .setReadTimeoutMs(8_000)
+            .setConnectTimeoutMs(8_000)
+            .setReadTimeoutMs(12_000)
             .apply {
                 if (effectiveHeaders.isNotEmpty()) {
                     setDefaultRequestProperties(effectiveHeaders)
@@ -262,8 +263,33 @@ fun ExoLivePlayer(
             }
 
             override fun onPlayerError(error: PlaybackException) {
+                // Classify the error: HTTP 403/401 = truly blocked, anything else = network issue
+                val cause = error.cause
+                val isHttpError = cause is androidx.media3.datasource.HttpDataSource.InvalidResponseCodeException
+                val httpCode = if (isHttpError)
+                    (cause as androidx.media3.datasource.HttpDataSource.InvalidResponseCodeException).responseCode
+                else -1
+
+                val isRealBlock = isHttpError && (httpCode == 403 || httpCode == 401)
+
+                if (!isRealBlock && retryCount < 1) {
+                    // Network/connection error on Fire TV — retry once immediately
+                    retryCount++
+                    playToken++
+                    return
+                }
+
                 onLoadingChange(false)
-                errorMessage = "Stream blocked — try next server"
+                errorMessage = when {
+                    isHttpError && (httpCode == 403 || httpCode == 401) ->
+                        "Stream blocked (HTTP $httpCode) — try next server"
+                    isHttpError && httpCode in 400..499 ->
+                        "Stream unavailable (HTTP $httpCode) — try next server"
+                    isHttpError && httpCode in 500..599 ->
+                        "Server error — try next server"
+                    else ->
+                        "Connection failed — try next server"
+                }
             }
         }
         player.addListener(listener)

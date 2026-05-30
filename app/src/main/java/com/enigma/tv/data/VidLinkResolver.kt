@@ -14,8 +14,8 @@ import java.util.concurrent.TimeUnit
 object VidLinkResolver {
     private val client = OkHttpClient.Builder()
         .followRedirects(true)
-        .connectTimeout(5, TimeUnit.SECONDS)
-        .readTimeout(8, TimeUnit.SECONDS)
+        .connectTimeout(8, TimeUnit.SECONDS)
+        .readTimeout(12, TimeUnit.SECONDS)
         .build()
 
     private val m3u8Regex = Regex("""(https?://[^\s"'\\<>]+\.m3u8[^\s"'\\<>]*)""", RegexOption.IGNORE_CASE)

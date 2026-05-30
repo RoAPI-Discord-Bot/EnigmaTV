@@ -14,8 +14,8 @@ object StreamResolver {
     private val client = OkHttpClient.Builder()
         .followRedirects(true)
         .followSslRedirects(true)
-        .connectTimeout(5, TimeUnit.SECONDS)
-        .readTimeout(7, TimeUnit.SECONDS)
+        .connectTimeout(8, TimeUnit.SECONDS)
+        .readTimeout(12, TimeUnit.SECONDS)
         .build()
 
     private val m3u8Regex = Regex("""(https?://[^\s"'\\<>]+\.m3u8[^\s"'\\<>]*)""", RegexOption.IGNORE_CASE)
