@@ -209,7 +209,13 @@ private fun TvDetailContent(
                 )
                 Spacer(Modifier.height(20.dp))
                 // Rating
-                RatingBadge(score = detail.ratingScore, votes = detail.ratingVotes, accent = accent)
+                Column(verticalArrangement = Arrangement.spacedBy(6.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                    RatingBadge(score = detail.ratingScore, votes = detail.ratingVotes, accent = accent)
+                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        detail.imdbRating?.let { ProviderRatingBadge("IMDB", it, Color(0xFFF5C518)) }
+                        detail.rottenTomatoesRating?.let { ProviderRatingBadge("🍅", it, Color(0xFFFA320A)) }
+                    }
+                }
                 Spacer(Modifier.height(12.dp))
                 // Favorite button — focusable, clearly visible
                 var favFocused by remember { mutableStateOf(false) }
@@ -457,11 +463,13 @@ private fun MobileDetailContent(
             Text(detail.metaLine, color = TextSecondary, fontSize = 13.sp, modifier = Modifier.padding(top = 4.dp))
 
             Row(
-                Modifier.padding(top = 12.dp),
+                Modifier.padding(top = 12.dp).horizontalScroll(rememberScrollState()),
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(12.dp)
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
             ) {
                 RatingBadge(score = detail.ratingScore, votes = detail.ratingVotes, accent = accent)
+                detail.imdbRating?.let { ProviderRatingBadge("IMDB", it, Color(0xFFF5C518)) }
+                detail.rottenTomatoesRating?.let { ProviderRatingBadge("🍅", it, Color(0xFFFA320A)) }
                 detail.contentRating?.let { ContentRatingBadge(it) }
                 detail.releaseLabel?.let {
                     Text(it, color = EnigmaPink, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
@@ -590,6 +598,21 @@ private fun RatingBadge(score: String, votes: String?, accent: Color) {
         votes?.let {
             Text(it, color = TextSecondary, fontSize = 11.sp, modifier = Modifier.padding(start = 10.dp))
         }
+    }
+}
+
+@Composable
+private fun ProviderRatingBadge(label: String, score: String, color: Color) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier
+            .clip(RoundedCornerShape(8.dp))
+            .background(color.copy(alpha = 0.15f))
+            .border(1.dp, color.copy(alpha = 0.5f), RoundedCornerShape(8.dp))
+            .padding(horizontal = 8.dp, vertical = 6.dp)
+    ) {
+        Text(label, color = color, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+        Text(score, color = TextPrimary, fontSize = 13.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(start = 4.dp))
     }
 }
 

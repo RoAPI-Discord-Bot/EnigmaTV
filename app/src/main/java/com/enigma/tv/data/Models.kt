@@ -137,6 +137,10 @@ fun TvContentRatings?.usContentRating(): String? =
         ?.trim()
         ?.takeIf { it.isNotEmpty() }
 
+data class ExternalIds(
+    @SerializedName("imdb_id") val imdbId: String? = null
+)
+
 data class MovieDetailResponse(
     val id: Int,
     val title: String,
@@ -150,7 +154,8 @@ data class MovieDetailResponse(
     val genres: List<Genre> = emptyList(),
     val credits: Credits? = null,
     val videos: VideoResults? = null,
-    @SerializedName("release_dates") val releaseDates: MovieReleaseDates? = null
+    @SerializedName("release_dates") val releaseDates: MovieReleaseDates? = null,
+    @SerializedName("external_ids") val externalIds: ExternalIds? = null
 )
 
 data class TvShowDetail(
@@ -167,7 +172,8 @@ data class TvShowDetail(
     val credits: Credits? = null,
     @SerializedName("number_of_seasons") val numberOfSeasons: Int = 0,
     val videos: VideoResults? = null,
-    @SerializedName("content_ratings") val contentRatings: TvContentRatings? = null
+    @SerializedName("content_ratings") val contentRatings: TvContentRatings? = null,
+    @SerializedName("external_ids") val externalIds: ExternalIds? = null
 )
 
 data class TvSeason(
@@ -264,6 +270,8 @@ data class MediaDetailUi(
     val releaseLabel: String?,
     val ratingScore: String,
     val ratingVotes: String?,
+    val imdbRating: String? = null,
+    val rottenTomatoesRating: String? = null,
     /** US content rating: PG, PG-13, R, TV-PG, TV-14, TV-MA, etc. */
     val contentRating: String? = null,
     val genresText: String,

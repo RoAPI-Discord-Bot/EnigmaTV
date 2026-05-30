@@ -24,6 +24,16 @@ class TmdbRepository {
         .build()
         .create(TmdbApi::class.java)
 
+    private val omdbApi: OmdbApi = Retrofit.Builder()
+        .baseUrl("http://www.omdbapi.com/")
+        .client(
+            OkHttpClient.Builder()
+                .build()
+        )
+        .addConverterFactory(GsonConverterFactory.create())
+        .build()
+        .create(OmdbApi::class.java)
+
     private val key get() = TmdbConfig.API_KEY
 
     private suspend fun <T> safe(block: suspend () -> T, fallback: T): T =
@@ -65,6 +75,9 @@ class TmdbRepository {
                 .take(8)
         }.getOrElse { emptyList() }
     }
+
+    suspend fun omdbRatings(imdbId: String): OmdbResponse? = safe({ omdbApi.getRatings(imdbId) }, null)
+
     suspend fun movieDetail(id: Int) = api.movieDetail(id, key)
 
     suspend fun trendingTv() = api.trendingTv(key).results

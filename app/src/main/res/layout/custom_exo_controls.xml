@@ -111,7 +111,7 @@
                 android:background="?android:attr/selectableItemBackgroundBorderless"
                 android:src="@drawable/ic_play_arrow"
                 android:tint="#FFFFFF"
-                android:visibility="gone"
+                android:visibility="visible"
                 android:focusable="false"
                 android:contentDescription="Play"/>
 
@@ -193,6 +193,17 @@
                 android:layout_height="wrap_content"
                 android:textColor="#FFFFFF"
                 android:textSize="14sp" />
+
+            <ImageButton
+                android:id="@id/exo_subtitle"
+                android:layout_width="48dp"
+                android:layout_height="48dp"
+                android:layout_marginStart="8dp"
+                android:background="?android:attr/selectableItemBackgroundBorderless"
+                android:src="@drawable/ic_cc"
+                android:tint="#FFFFFF"
+                android:focusable="true"
+                android:contentDescription="Captions"/>
         </LinearLayout>
     </LinearLayout>
 

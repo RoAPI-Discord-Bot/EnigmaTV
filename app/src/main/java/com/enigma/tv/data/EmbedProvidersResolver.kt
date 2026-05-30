@@ -55,21 +55,20 @@ object EmbedProvidersResolver {
                         if (r != null) {
                             result = r
                             webViewJob.cancel()
+                        } else {
+                            result = webViewJob.await()
                         }
                     }
                     webViewJob.onAwait { r ->
                         if (r != null) {
                             result = r
                             apiJob.cancel()
+                        } else {
+                            result = apiJob.await()
                         }
                     }
                 }
-                // If the first to finish returned null, wait for the other
-                if (result == null) {
-                    result = if (!apiJob.isCancelled) apiJob.await()
-                             else if (!webViewJob.isCancelled) webViewJob.await()
-                             else null
-                }
+
             } finally {
                 if (apiJob.isActive) apiJob.cancel()
                 if (webViewJob.isActive) webViewJob.cancel()

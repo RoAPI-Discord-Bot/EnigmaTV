@@ -628,6 +628,10 @@ class EnigmaViewModel(application: Application) : AndroidViewModel(application) 
         val d = repo.movieDetail(id)
         val movie = MovieItem(id, d.title, d.posterPath, d.backdropPath, d.releaseDate, d.voteAverage, d.overview)
         val rating = formatRating(d.voteAverage, d.voteCount)
+        val imdbId = d.externalIds?.imdbId
+        val omdb = imdbId?.let { repo.omdbRatings(it) }
+        val rtRating = omdb?.ratings?.find { it.source.contains("Rotten Tomatoes", ignoreCase = true) }?.value
+        
         return MediaDetailUi(
             type = ContentType.MOVIE,
             id = id,
@@ -639,6 +643,8 @@ class EnigmaViewModel(application: Application) : AndroidViewModel(application) 
             releaseLabel = movie.comingSoonLabel(),
             ratingScore = rating.first,
             ratingVotes = rating.second,
+            imdbRating = omdb?.imdbRating,
+            rottenTomatoesRating = rtRating,
             contentRating = d.releaseDates.usContentRating(),
             genresText = d.genres.joinToString(" · ") { it.name },
             cast = d.credits?.cast?.take(15) ?: emptyList(),
@@ -655,6 +661,10 @@ class EnigmaViewModel(application: Application) : AndroidViewModel(application) 
         val season = seasons.first()
         val eps = runCatching { repo.tvSeason(id, season) }.getOrDefault(emptyList())
         val rating = formatRating(d.voteAverage, d.voteCount)
+        val imdbId = d.externalIds?.imdbId
+        val omdb = imdbId?.let { repo.omdbRatings(it) }
+        val rtRating = omdb?.ratings?.find { it.source.contains("Rotten Tomatoes", ignoreCase = true) }?.value
+        
         return MediaDetailUi(
             type = ContentType.TV,
             id = id,
@@ -666,6 +676,8 @@ class EnigmaViewModel(application: Application) : AndroidViewModel(application) 
             releaseLabel = show.comingSoonLabel(),
             ratingScore = rating.first,
             ratingVotes = rating.second,
+            imdbRating = omdb?.imdbRating,
+            rottenTomatoesRating = rtRating,
             contentRating = d.contentRatings.usContentRating(),
             genresText = d.genres.joinToString(" · ") { it.name },
             cast = d.credits?.cast?.take(15) ?: emptyList(),
