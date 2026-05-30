@@ -69,6 +69,53 @@
             android:focusable="true"/>
     </LinearLayout>
 
+    <!-- Center Controls (Play/Pause/Rew/FF) -->
+    <LinearLayout
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="center"
+        android:orientation="horizontal"
+        android:gravity="center"
+        android:padding="24dp"
+        android:background="@drawable/rounded_bg_dark">
+
+        <ImageButton
+            android:id="@id/exo_rew"
+            android:layout_width="64dp"
+            android:layout_height="64dp"
+            android:background="?android:attr/selectableItemBackgroundBorderless"
+            android:src="@drawable/ic_rewind"
+            android:tint="#FFFFFF"
+            android:layout_marginEnd="16dp"
+            android:focusable="true"/>
+
+        <ImageButton
+            android:id="@id/exo_play"
+            android:layout_width="80dp"
+            android:layout_height="80dp"
+            android:background="?android:attr/selectableItemBackgroundBorderless"
+            android:tint="#FFFFFF"
+            android:focusable="true"/>
+
+        <ImageButton
+            android:id="@id/exo_pause"
+            android:layout_width="80dp"
+            android:layout_height="80dp"
+            android:background="?android:attr/selectableItemBackgroundBorderless"
+            android:tint="#FFFFFF"
+            android:focusable="true"/>
+
+        <ImageButton
+            android:id="@id/exo_ffwd"
+            android:layout_width="64dp"
+            android:layout_height="64dp"
+            android:layout_marginStart="16dp"
+            android:background="?android:attr/selectableItemBackgroundBorderless"
+            android:src="@drawable/ic_fast_forward"
+            android:tint="#FFFFFF"
+            android:focusable="true"/>
+    </LinearLayout>
+
     <!-- Bottom Bar (ExoPlayer standard controls) -->
     <LinearLayout
         android:layout_width="match_parent"
@@ -77,30 +124,6 @@
         android:background="@drawable/gradient_bottom_scrim"
         android:orientation="vertical"
         android:padding="16dp">
-
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:gravity="center"
-            android:orientation="horizontal"
-            android:paddingBottom="8dp">
-
-            <ImageButton
-                android:id="@id/exo_play"
-                android:layout_width="48dp"
-                android:layout_height="48dp"
-                android:background="?android:attr/selectableItemBackgroundBorderless"
-                android:tint="#9C27B0"
-                android:focusable="true"/>
-
-            <ImageButton
-                android:id="@id/exo_pause"
-                android:layout_width="48dp"
-                android:layout_height="48dp"
-                android:background="?android:attr/selectableItemBackgroundBorderless"
-                android:tint="#9C27B0"
-                android:focusable="true"/>
-        </LinearLayout>
 
         <LinearLayout
             android:layout_width="match_parent"

@@ -61,6 +61,7 @@ fun EnigmaMediaPlayer(
     if (!visible) return
 
     val context = LocalContext.current
+    val scope = rememberCoroutineScope()
     val activity = remember(context) { context.findActivity() }
     var resolvedStream by remember(embedUrl, resolveToken) { mutableStateOf<ResolvedStream?>(null) }
     var mode by remember(embedUrl, resolveToken) { mutableStateOf(MediaPlayMode.Embed) }
@@ -166,27 +167,32 @@ fun EnigmaMediaPlayer(
                         useExternalChrome = true,
                         onStreamCaptured = { captured ->
                             android.util.Log.d("EnigmaCapture", "Captured stream URL: $captured")
-                            val mgr = android.webkit.CookieManager.getInstance()
-                            val c1 = mgr.getCookie(embedUrl) ?: ""
-                            val c2 = mgr.getCookie(captured) ?: ""
-                            val mergedCookies = (c1.split(";") + c2.split(";"))
-                                .map { it.trim() }
-                                .filter { it.isNotEmpty() }
-                                .distinct()
-                                .joinToString("; ")
-                            
-                            val lowerUrl = captured.lowercase()
-                            val provider = when {
-                                lowerUrl.contains(".m3u8") || lowerUrl.contains("playlist") -> "embed-hls"
-                                lowerUrl.contains(".mp4") -> "embed-mp4"
-                                else -> "embed-hls" // VidLink default is HLS; log will tell us if wrong
+                            scope.launch {
+                                val mgr = android.webkit.CookieManager.getInstance()
+                                val c1 = mgr.getCookie(embedUrl) ?: ""
+                                val c2 = mgr.getCookie(captured) ?: ""
+                                val mergedCookies = (c1.split(";") + c2.split(";"))
+                                    .map { it.trim() }
+                                    .filter { it.isNotEmpty() }
+                                    .distinct()
+                                    .joinToString("; ")
+                                
+                                val lowerUrl = captured.lowercase()
+                                val provider = when {
+                                    lowerUrl.contains(".m3u8") || lowerUrl.contains("playlist") -> "embed-hls"
+                                    lowerUrl.contains(".mp4") -> "embed-mp4"
+                                    else -> "embed-hls" // VidLink default is HLS; log will tell us if wrong
+                                }
+                                android.util.Log.d("EnigmaCapture", "Detected provider: $provider")
+                                val webViewUserAgent = android.webkit.WebSettings.getDefaultUserAgent(context)
+                                
+                                val subtitleUrl = com.enigma.tv.data.StreamResolver.resolveSubtitleUrl(embedUrl)
+                                
+                                resolvedStream = ResolvedStream.fromEmbed(embedUrl, captured, provider, mergedCookies, webViewUserAgent).copy(subtitleUrl = subtitleUrl)
+                                mode = MediaPlayMode.Native
+                                resolvingNative = false
+                                onNativePlayerActive?.invoke(true)
                             }
-                            android.util.Log.d("EnigmaCapture", "Detected provider: $provider")
-                            val webViewUserAgent = android.webkit.WebSettings.getDefaultUserAgent(context)
-                            resolvedStream = ResolvedStream.fromEmbed(embedUrl, captured, provider, mergedCookies, webViewUserAgent)
-                            mode = MediaPlayMode.Native
-                            resolvingNative = false
-                            onNativePlayerActive?.invoke(true)
                         },
                         onPlaybackEnded = if (playingType == ContentType.TV) onPlaybackEnded else null,
                         onPlaybackProgress = onPlaybackPositionMs?.let { cb ->

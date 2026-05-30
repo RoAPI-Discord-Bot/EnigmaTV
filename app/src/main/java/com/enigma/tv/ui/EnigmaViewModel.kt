@@ -745,7 +745,7 @@ class EnigmaViewModel(application: Application) : AndroidViewModel(application) 
         val d = _state.value.detail ?: return
         closeDetail()
         when (d.type) {
-            ContentType.MOVIE -> playMovie(MovieItem(d.id, d.title))
+            ContentType.MOVIE -> playMovie(MovieItem(d.id, d.title), d.posterUrl)
             ContentType.TV -> selectShow(d.id, d.title, d.selectedSeason, d.selectedEpisode)
         }
     }

@@ -208,8 +208,6 @@ private fun ColumnScope.WebViewStreamBody(
                         ViewGroup.LayoutParams.MATCH_PARENT
                     )
                     guard.configureWebView(this, liveTv = liveTv)
-                    settings.userAgentString =
-                        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36"
                     settings.mediaPlaybackRequiresUserGesture = false
                     setTag(TAG_STREAM_URL, url)
                     guard.resetForUrl(url, liveTv = liveTv)
@@ -235,6 +233,13 @@ private fun ColumnScope.WebViewStreamBody(
                     guard.resetForUrl(url, liveTv = liveTv, resumePositionMs = startPositionMs)
                     if (liveTv) LiveWebContent.load(view, url) else view.loadUrl(url)
                 }
+            },
+            onRelease = { view ->
+                EmbedPlayerShield.stopPeriodic()
+                view.loadUrl("about:blank")
+                view.clearHistory()
+                view.removeAllViews()
+                view.destroy()
             },
             modifier = Modifier.fillMaxSize()
         )
