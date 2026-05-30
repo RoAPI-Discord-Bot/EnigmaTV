@@ -83,12 +83,29 @@ class StreamedRepository {
             }
         }
         val now = System.currentTimeMillis()
+        val windowMs = 12 * 3_600_000L  // show games within 12-hour future window
         jobs.awaitAll()
             .flatten()
+            // Drop games more than 12h in the future — they clutter the top
+            .filter { it.dateMs <= now + windowMs }
             .sortedBy { kotlin.math.abs(it.dateMs - now) }
             .distinctBy { it.title.substringBefore(" ·").trim() }
             .map { labelEventSchedule(it) }
-            .sortedByDescending { it.dateMs }
+            // Sort: LIVE NOW first, then upcoming soonest, then recently started
+            .sortedWith(
+                compareByDescending<LiveSportMatch> { m ->
+                    when {
+                        m.dateMs in (now - 4 * 3_600_000L)..now -> 2  // live or just started
+                        m.dateMs > now -> 1                            // upcoming soon
+                        else -> 0                                       // already over
+                    }
+                }.thenBy { m ->
+                    when {
+                        m.dateMs > now -> m.dateMs          // upcoming: soonest first
+                        else -> -m.dateMs                   // past: most recent first
+                    }
+                }
+            )
     }
 
     /** Keep duplicate matchups (today vs tomorrow) but label them clearly in the list. */
