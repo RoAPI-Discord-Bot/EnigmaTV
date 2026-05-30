@@ -64,6 +64,7 @@ fun ProfileAvatarCircle(
     selected: Boolean,
     sizeDp: Int = 88,
     showEditBadge: Boolean = false,
+    showName: Boolean = true,
     onClick: (() -> Unit)? = null
 ) {
     val color = profileAvatarColor(profile.avatarIndex)
@@ -123,16 +124,18 @@ fun ProfileAvatarCircle(
                 }
             }
         }
-        Text(
-            profile.name,
-            color = if (selected) EnigmaPink else TextPrimary,
-            fontSize = 14.sp,
-            fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-            textAlign = TextAlign.Center,
-            modifier = Modifier.padding(top = 10.dp).fillMaxWidth()
-        )
+        if (showName) {
+            Text(
+                profile.name,
+                color = if (selected) EnigmaPink else TextPrimary,
+                fontSize = 14.sp,
+                fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.padding(top = 10.dp).fillMaxWidth()
+            )
+        }
     }
 }
 

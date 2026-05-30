@@ -115,9 +115,9 @@ fun ProfilePickerGate(
     val isTv = layout == ScreenLayout.TV
     val gateLocked = openingProfileId != null
     val avatarSize = when (layout) {
-        ScreenLayout.TV -> 132
-        ScreenLayout.TABLET -> 100
-        ScreenLayout.PHONE -> 88
+        ScreenLayout.TV -> 100
+        ScreenLayout.TABLET -> 96
+        ScreenLayout.PHONE -> 80
     }
     val columns = when (layout) {
         ScreenLayout.TV -> 3
@@ -154,7 +154,7 @@ fun ProfilePickerGate(
                     .statusBarsPadding(),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                Spacer(Modifier.height(if (isTv) 36.dp else 24.dp))
+                Spacer(Modifier.height(24.dp))
                 Image(
                     painter = painterResource(R.drawable.enigma_mark),
                     contentDescription = ENIGMA_TV_BRAND,
@@ -195,8 +195,8 @@ fun ProfilePickerGate(
 
                 if (isTv) {
                     LazyRow(
-                        horizontalArrangement = Arrangement.spacedBy(28.dp, Alignment.CenterHorizontally),
-                        contentPadding = PaddingValues(horizontal = 48.dp, vertical = 16.dp),
+                        horizontalArrangement = Arrangement.spacedBy(24.dp, Alignment.CenterHorizontally),
+                        contentPadding = PaddingValues(horizontal = 24.dp, vertical = 8.dp),
                         modifier = Modifier
                             .fillMaxWidth()
                             .weight(1f),
@@ -448,6 +448,7 @@ private fun ProfilePickerTile(
                 selected = false,
                 sizeDp = sizeDp,
                 showEditBadge = showEditBadge,
+                showName = false,
                 onClick = null
             )
         }

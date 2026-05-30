@@ -93,29 +93,31 @@
             android:focusable="true"
             android:contentDescription="Rewind 10 seconds"/>
 
-        <!-- Play -->
-        <ImageButton
-            android:id="@id/exo_play"
-            android:layout_width="80dp"
-            android:layout_height="80dp"
-            android:background="?android:attr/selectableItemBackgroundBorderless"
-            android:src="@drawable/ic_play_arrow"
-            android:tint="#FFFFFF"
-            android:layout_marginEnd="0dp"
-            android:focusable="true"
-            android:contentDescription="Play"/>
+        <FrameLayout
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content">
+            <!-- Play -->
+            <ImageButton
+                android:id="@id/exo_play"
+                android:layout_width="80dp"
+                android:layout_height="80dp"
+                android:background="?android:attr/selectableItemBackgroundBorderless"
+                android:src="@drawable/ic_play_arrow"
+                android:tint="#FFFFFF"
+                android:focusable="true"
+                android:contentDescription="Play"/>
 
-        <!-- Pause -->
-        <ImageButton
-            android:id="@id/exo_pause"
-            android:layout_width="80dp"
-            android:layout_height="80dp"
-            android:background="?android:attr/selectableItemBackgroundBorderless"
-            android:src="@drawable/ic_pause"
-            android:tint="#FFFFFF"
-            android:layout_marginEnd="0dp"
-            android:focusable="true"
-            android:contentDescription="Pause"/>
+            <!-- Pause -->
+            <ImageButton
+                android:id="@id/exo_pause"
+                android:layout_width="80dp"
+                android:layout_height="80dp"
+                android:background="?android:attr/selectableItemBackgroundBorderless"
+                android:src="@drawable/ic_pause"
+                android:tint="#FFFFFF"
+                android:focusable="true"
+                android:contentDescription="Pause"/>
+        </FrameLayout>
 
         <!-- +10 s -->
         <ImageButton

@@ -209,6 +209,7 @@ private fun ColumnScope.WebViewStreamBody(
                     )
                     guard.configureWebView(this, liveTv = liveTv)
                     settings.mediaPlaybackRequiresUserGesture = false
+                    settings.userAgentString = com.enigma.tv.data.StreamResolver.USER_AGENT
                     setTag(TAG_STREAM_URL, url)
                     guard.resetForUrl(url, liveTv = liveTv)
                     setOnKeyListener { _, keyCode, event ->
