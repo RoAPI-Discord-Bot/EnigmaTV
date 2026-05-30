@@ -127,6 +127,8 @@ fun ExoLivePlayer(
             .build()
         ExoPlayer.Builder(context)
             .setLoadControl(loadControl)
+            .setSeekBackIncrementMs(5_000)
+            .setSeekForwardIncrementMs(5_000)
             .build().apply {
                 playWhenReady = true
                 volume = 1f
@@ -356,10 +358,6 @@ fun ExoLivePlayer(
                                 epBtn?.visibility = View.GONE
                             }
 
-                            // ── 5-second seek increments ─────────────────────────────────
-                            player.seekBackIncrementMs = 5_000
-                            player.seekForwardIncrementMs = 5_000
-
                             // ── Play/Pause overlay: single focusable button over the two
                             //    hidden exo_play / exo_pause views ─────────────────────────
                             val overlay = findViewById<android.view.View>(com.enigma.tv.R.id.btn_play_pause_overlay)
@@ -379,7 +377,7 @@ fun ExoLivePlayer(
                                 }
                                 btn.setOnLongClickListener {
                                     holdJob = scope.launch {
-                                        while (kotlinx.coroutines.isActive) {
+                                        while (isActive) {
                                             val pos = player.currentPosition
                                             val target = (pos + direction * 30_000L).coerceIn(0L, player.duration.coerceAtLeast(0L))
                                             player.seekTo(target)
