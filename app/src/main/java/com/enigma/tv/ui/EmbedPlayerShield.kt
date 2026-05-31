@@ -23,14 +23,34 @@ object EmbedPlayerShield {
     document.createElement = function(tagName) {
       var el = origCreateElement.call(document, tagName);
       if (tagName && tagName.toLowerCase() === 'iframe') {
-        var origSetAttr = el.setAttribute;
-        el.setAttribute = function(name, val) {
-          if (name.toLowerCase() === 'sandbox') return;
-          return origSetAttr.call(el, name, val);
-        };
+        el.removeAttribute('sandbox');
       }
       return el;
     };
+    
+    // Nuke sandbox at the prototype level
+    var origSetAttr = HTMLIFrameElement.prototype.setAttribute;
+    HTMLIFrameElement.prototype.setAttribute = function(name, val) {
+      if (name && name.toLowerCase() === 'sandbox') return;
+      return origSetAttr.call(this, name, val);
+    };
+    
+    var origGetAttr = HTMLIFrameElement.prototype.getAttribute;
+    HTMLIFrameElement.prototype.getAttribute = function(name) {
+      if (name && name.toLowerCase() === 'sandbox') return null;
+      return origGetAttr.call(this, name);
+    };
+
+    var origHasAttr = HTMLIFrameElement.prototype.hasAttribute;
+    HTMLIFrameElement.prototype.hasAttribute = function(name) {
+      if (name && name.toLowerCase() === 'sandbox') return false;
+      return origHasAttr.call(this, name);
+    };
+
+    Object.defineProperty(HTMLIFrameElement.prototype, 'sandbox', {
+      get: function() { return { value: '', length: 0, add: function(){}, remove: function(){}, toggle: function(){}, contains: function(){return false;} }; },
+      set: function(val) {}
+    });
   } catch (e) {}
 
   var AD_HOST_RE = /doubleclick|googlesyndication|popads|propeller|adsterra|exoclick|clickadu|outbrain|taboola|mgid|revcontent|chaturbate|stripchat/i;
