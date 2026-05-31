@@ -115,7 +115,7 @@ fun EnigmaMediaPlayer(
                 onLoadingChange = onLoadingChange,
                 showNextSource = true,
                 onNextSource = onNextSource,
-                onShowEpisodes = onShowEpisodes,
+                onShowEpisodes = { actionDispatcher?.requestShowEpisodes() },
                 tvControls = tvControls,
                 useExternalChrome = useExternalChrome,
                 onPlaybackEnded = onPlaybackEnded,

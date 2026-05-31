@@ -26,10 +26,12 @@ class PlayerActionDispatcher {
     var onTogglePlay: (() -> Unit)? = null
     var onSeekForward: (() -> Unit)? = null
     var onSeekBackward: (() -> Unit)? = null
+    var onShowEpisodesRequest: (() -> Unit)? = null
 
     fun togglePlay() = onTogglePlay?.invoke()
     fun seekForward() = onSeekForward?.invoke()
     fun seekBackward() = onSeekBackward?.invoke()
+    fun requestShowEpisodes() = onShowEpisodesRequest?.invoke()
 }
 
 private const val TAG_STREAM_URL = 0xE71A001

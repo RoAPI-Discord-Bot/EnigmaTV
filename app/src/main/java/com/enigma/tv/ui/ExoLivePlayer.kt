@@ -115,6 +115,7 @@ fun ExoLivePlayer(
     var stripHeaders by remember { mutableStateOf(false) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
     var hasTextTracks by remember { mutableStateOf(false) }
+    var captionsEnabled by remember { mutableStateOf(true) } // ON by default when tracks exist
     var hasReachedReady by remember(playUrl, playToken) { mutableStateOf(false) }
     var didSeekToResume by remember(playUrl, playToken, startPositionMs) { mutableStateOf(false) }
 
@@ -146,6 +147,7 @@ fun ExoLivePlayer(
             trackSelector.buildUponParameters()
                 .setPreferredTextLanguage("en")
                 .setSelectUndeterminedTextLanguage(true)
+                .setPreferredTextRoleFlags(C.ROLE_FLAG_CAPTION or C.ROLE_FLAG_SUBTITLE)
                 // Adaptive quality: allow dropping to lower bitrates when bandwidth is low
                 .setMaxVideoBitrate(Int.MAX_VALUE)
                 .setForceHighestSupportedBitrate(false)
@@ -283,8 +285,20 @@ fun ExoLivePlayer(
             }
 
             override fun onTracksChanged(tracks: Tracks) {
-                hasTextTracks = tracks.groups.any { group ->
+                val hasText = tracks.groups.any { group ->
                     group.type == C.TRACK_TYPE_TEXT && group.length > 0
+                }
+                hasTextTracks = hasText
+                // Auto-enable the first available text track so captions work immediately
+                if (hasText && captionsEnabled) {
+                    val selector = player.trackSelector as? androidx.media3.exoplayer.trackselection.DefaultTrackSelector
+                    selector?.setParameters(
+                        selector.buildUponParameters()
+                            .setPreferredTextLanguage("en")
+                            .setSelectUndeterminedTextLanguage(true)
+                            .setPreferredTextRoleFlags(C.ROLE_FLAG_CAPTION or C.ROLE_FLAG_SUBTITLE)
+                            .setRendererDisabled(C.TRACK_TYPE_TEXT, false)
+                    )
                 }
             }
 
@@ -336,8 +350,21 @@ fun ExoLivePlayer(
         }
     }
 
-    // Show CC button if the stream has embedded text tracks OR if we loaded a sidecar subtitle file
-    val showCcButton = !isLiveBroadcast && (hasTextTracks || sidecarSubtitle != null)
+    // Show CC button when the stream has text tracks (including live) or a sidecar subtitle
+    val showCcButton = hasTextTracks || sidecarSubtitle != null
+
+    // Sync captionsEnabled → text renderer whenever it changes
+    LaunchedEffect(captionsEnabled, hasTextTracks) {
+        if (hasTextTracks) {
+            val selector = player.trackSelector as? androidx.media3.exoplayer.trackselection.DefaultTrackSelector
+            selector?.setParameters(
+                selector.buildUponParameters()
+                    .setRendererDisabled(C.TRACK_TYPE_TEXT, !captionsEnabled)
+                    .setPreferredTextLanguage(if (captionsEnabled) "en" else "")
+                    .setSelectUndeterminedTextLanguage(captionsEnabled)
+            )
+        }
+    }
 
     val videoContent: @Composable () -> Unit = {
             Box(Modifier.fillMaxSize()) {
@@ -425,7 +452,18 @@ fun ExoLivePlayer(
                     },
                     update = { view ->
                         view.player = player
-                        view.setShowSubtitleButton(showCcButton)
+                        // Don't use setShowSubtitleButton — it opens a dialog showing "Unknown"
+                        // Instead we wire our own XML CC button manually
+                        view.setShowSubtitleButton(false)
+                        val ccBtn = view.findViewById<android.view.View>(androidx.media3.ui.R.id.exo_subtitle)
+                        if (showCcButton) {
+                            ccBtn?.visibility = View.VISIBLE
+                            ccBtn?.setOnClickListener {
+                                captionsEnabled = !captionsEnabled
+                            }
+                        } else {
+                            ccBtn?.visibility = View.GONE
+                        }
                         if (useExternalChrome) {
                             view.setControllerVisibilityListener(
                                 PlayerView.ControllerVisibilityListener { visibility ->

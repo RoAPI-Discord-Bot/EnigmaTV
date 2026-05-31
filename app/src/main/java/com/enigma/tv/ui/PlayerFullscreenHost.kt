@@ -97,15 +97,23 @@ fun PlayerFullscreenHost(
     val hasTv = tvControls != null
     val isLivePlayer = subtitle.contains("Live", ignoreCase = true)
     val actionDispatcher = remember { PlayerActionDispatcher() }
+    
+    androidx.compose.runtime.SideEffect {
+        actionDispatcher.onShowEpisodesRequest = {
+            if (hasTv) {
+                chromeVisible = true
+                episodePanelOpen = true
+            }
+        }
+    }
 
     val syncChrome: (Boolean) -> Unit = { visible ->
         chromeVisible = visible
-        if (!visible) episodePanelOpen = false
     }
 
     // Auto-hide chrome after 4 seconds when playing
-    LaunchedEffect(chromeVisible, streamFailed) {
-        if (chromeVisible && !streamFailed && streamPlaying) {
+    LaunchedEffect(chromeVisible, streamFailed, episodePanelOpen) {
+        if (chromeVisible && !streamFailed && streamPlaying && !episodePanelOpen) {
             kotlinx.coroutines.delay(4000)
             chromeVisible = false
         }
@@ -118,10 +126,6 @@ fun PlayerFullscreenHost(
     // Always show chrome while loading or failed so the X button is always reachable
     LaunchedEffect(streamLoading, streamFailed) {
         if (streamLoading || streamFailed) chromeVisible = true
-    }
-
-    LaunchedEffect(chromeVisible) {
-        if (!chromeVisible) episodePanelOpen = false
     }
 
     // Live WebView: keep fullscreen layout stable when toggling chrome (avoids resize/black screen on tap)
@@ -355,7 +359,7 @@ fun PlayerFullscreenHost(
 
             if (hasTv) {
                 TvEpisodePickerPanel(
-                    visible = episodePanelOpen && chromeVisible,
+                    visible = episodePanelOpen,
                     controls = tvControls!!,
                     accent = accent,
                     onDismiss = { episodePanelOpen = false },
