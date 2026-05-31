@@ -141,7 +141,7 @@ fun ExoLivePlayer(
             .setPrioritizeTimeOverSizeThresholds(true)
             .build()
 
-        val trackSelector = androidx.media3.exoplayer.trackselection.DefaultTrackSelector(context, bandwidthMeter)
+        val trackSelector = androidx.media3.exoplayer.trackselection.DefaultTrackSelector(context)
         trackSelector.setParameters(
             trackSelector.buildUponParameters()
                 .setPreferredTextLanguage("en")
