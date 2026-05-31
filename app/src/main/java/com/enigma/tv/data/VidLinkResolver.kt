@@ -77,19 +77,13 @@ object VidLinkResolver {
     }
 
     private suspend fun resolveViaPage(url: String): ResolvedStream? {
-        try {
-            val request = Request.Builder().url(url).headers(okhttp3.Headers.of(headers)).build()
-            client.newCall(request).execute().use { response ->
-                if (!response.isSuccessful) return null
-                val body = response.body?.string() ?: return null
-                parseEncDecResult(body)?.let { parseApiResponse(it) }?.let { (stream, sub) ->
-                    return ResolvedStream.fromEmbed(url, stream, "embed-hls").copy(subtitleUrl = sub)
-                }
-                parseStreamFromBody(body)?.let { (stream, sub) ->
-                    return ResolvedStream.fromEmbed(url, stream, "embed-hls").copy(subtitleUrl = sub)
-                }
-            }
-        } catch (_: Exception) {}
+        val body = get(url) ?: return null
+        parseEncDecResult(body)?.let { parseApiResponse(it) }?.let { (stream, sub) ->
+            return ResolvedStream.fromEmbed(url, stream, "embed-hls").copy(subtitleUrl = sub)
+        }
+        parseStreamFromBody(body)?.let { (stream, sub) ->
+            return ResolvedStream.fromEmbed(url, stream, "embed-hls").copy(subtitleUrl = sub)
+        }
         return null
     }
 
