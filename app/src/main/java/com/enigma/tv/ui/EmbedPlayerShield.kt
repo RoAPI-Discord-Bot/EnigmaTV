@@ -11,10 +11,8 @@ import java.lang.ref.WeakReference
  */
 object EmbedPlayerShield {
 
-    private const val SHIELD_JS = """
+    internal const val SHIELD_JS = """
 (function() {
-  if (window.__enigmaShieldV2) return;
-  window.__enigmaShieldV2 = true;
 
   // Intercept iframe creation to prevent sandbox attributes from ever being applied.
   // This fixes Cloudflare/Turnstile 'please remove sandbox attributes' errors.

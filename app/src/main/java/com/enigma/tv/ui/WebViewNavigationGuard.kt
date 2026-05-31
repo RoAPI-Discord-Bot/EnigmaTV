@@ -8,6 +8,8 @@ import android.webkit.WebResourceRequest
 import android.webkit.WebResourceResponse
 import android.webkit.WebView
 import android.webkit.WebViewClient
+import androidx.webkit.WebViewCompat
+import androidx.webkit.WebViewFeature
 import java.io.ByteArrayInputStream
 
 /**
@@ -118,6 +120,12 @@ class WebViewNavigationGuard(initialUrl: String) {
             }
         }
 
+        // Inject our shield as a document-start script — this is the ONLY way to guarantee
+        // our prototype overrides run before ANY page script (no race condition).
+        if (WebViewFeature.isFeatureSupported(WebViewFeature.DOCUMENT_START_SCRIPT)) {
+            WebViewCompat.addDocumentStartJavaScript(webView, EmbedPlayerShield.SHIELD_JS, setOf("*"))
+        }
+
         webView.webChromeClient = object : WebChromeClient() {
             override fun onProgressChanged(view: WebView?, newProgress: Int) {
                 if (newProgress >= 85) {
@@ -132,9 +140,6 @@ class WebViewNavigationGuard(initialUrl: String) {
         webView.webViewClient = object : WebViewClient() {
             override fun onPageStarted(view: WebView?, url: String?, favicon: android.graphics.Bitmap?) {
                 url?.let { extractHost(it)?.let { registerHost(it) } }
-                // Inject shield immediately at page start so our document.createElement override
-                // intercepts iframe sandbox attributes BEFORE the page's own scripts run.
-                view?.let { EmbedPlayerShield.apply(it) }
                 if (!(liveTvMode && suppressLoadingPulses)) {
                     onPageLoading?.invoke(true)
                 }
