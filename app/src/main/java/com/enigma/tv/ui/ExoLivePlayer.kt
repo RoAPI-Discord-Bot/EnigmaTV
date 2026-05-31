@@ -128,26 +128,33 @@ fun ExoLivePlayer(
     }
 
     val player = remember(playUrl, playToken) {
+        // Adaptive bandwidth meter — picks video quality the connection can actually handle
+        val bandwidthMeter = androidx.media3.exoplayer.upstream.DefaultBandwidthMeter.Builder(context).build()
+
         val loadControl = DefaultLoadControl.Builder()
             .setBufferDurationsMs(
-                /* minBufferMs                     */ 50_000,  // keep 50s ahead while playing
-                /* maxBufferMs                     */ 120_000, // buffer up to 2 min ahead
-                /* bufferForPlaybackMs             */ 1_500,   // start playback very quickly
-                /* bufferForPlaybackAfterRebufferMs*/ 1_500    // after a stall, resume almost instantly
+                /* minBufferMs                     */ 15_000,  // 15s minimum — achievable on any CDN
+                /* maxBufferMs                     */ 60_000,  // try to buffer up to 60s ahead
+                /* bufferForPlaybackMs             */ 1_500,   // start after 1.5s — very fast
+                /* bufferForPlaybackAfterRebufferMs*/ 2_000    // resume after 2s — quick recovery
             )
-            .setPrioritizeTimeOverSizeThresholds(true) // always prefer filling by time, not size
+            .setPrioritizeTimeOverSizeThresholds(true)
             .build()
-            
-        val trackSelector = androidx.media3.exoplayer.trackselection.DefaultTrackSelector(context)
+
+        val trackSelector = androidx.media3.exoplayer.trackselection.DefaultTrackSelector(context, bandwidthMeter)
         trackSelector.setParameters(
             trackSelector.buildUponParameters()
                 .setPreferredTextLanguage("en")
-                .setSelectUndeterminedTextLanguage(true) // helps with "unknown" tracks
+                .setSelectUndeterminedTextLanguage(true)
+                // Adaptive quality: allow dropping to lower bitrates when bandwidth is low
+                .setMaxVideoBitrate(Int.MAX_VALUE)
+                .setForceHighestSupportedBitrate(false)
         )
 
         ExoPlayer.Builder(context)
             .setLoadControl(loadControl)
             .setTrackSelector(trackSelector)
+            .setBandwidthMeter(bandwidthMeter)
             .setSeekBackIncrementMs(5_000)
             .setSeekForwardIncrementMs(5_000)
             .build().apply {
@@ -339,7 +346,8 @@ fun ExoLivePlayer(
         }
     }
 
-    val showCcButton = !isLiveBroadcast && hasTextTracks
+    // Show CC button if the stream has embedded text tracks OR if we loaded a sidecar subtitle file
+    val showCcButton = !isLiveBroadcast && (hasTextTracks || sidecarSubtitle != null)
 
     val videoContent: @Composable () -> Unit = {
             Box(Modifier.fillMaxSize()) {
