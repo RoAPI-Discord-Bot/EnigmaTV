@@ -325,22 +325,12 @@ fun ExoLivePlayer(
             }
         }
         player.addListener(listener)
-        val progressJob = if (!isLiveBroadcast && onPlaybackPositionMs != null) {
-            scope.launch {
-                while (isActive) {
-                    delay(5_000)
-                    if (player.isPlaying || player.currentPosition > 0L) {
-                        onPlaybackPositionMs(player.currentPosition.coerceAtLeast(0L))
-                    }
-                }
-            }
-        } else null
         onDispose {
             if (!isLiveBroadcast) {
+                // Save final position for continue-watching on close
                 onPlaybackPositionMs?.invoke(player.currentPosition.coerceAtLeast(0L))
             }
             loadTimeoutJob.cancel()
-            progressJob?.cancel()
             player.removeListener(listener)
             player.release()
         }
