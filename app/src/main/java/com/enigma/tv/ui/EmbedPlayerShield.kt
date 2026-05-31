@@ -51,6 +51,33 @@ object EmbedPlayerShield {
       get: function() { return { value: '', length: 0, add: function(){}, remove: function(){}, toggle: function(){}, contains: function(){return false;} }; },
       set: function(val) {}
     });
+
+    function stripSandboxRegex(str) {
+      if (typeof str !== 'string') return str;
+      return str.replace(/sandbox=["'][^"']*["']/gi, '').replace(/sandbox\s*>/gi, '>').replace(/sandbox\s+/gi, ' ');
+    }
+
+    var origDocWrite = document.write;
+    document.write = function() {
+      var args = Array.prototype.slice.call(arguments);
+      for (var i = 0; i < args.length; i++) args[i] = stripSandboxRegex(args[i]);
+      return origDocWrite.apply(document, args);
+    };
+
+    var origInsertAdjacentHTML = Element.prototype.insertAdjacentHTML;
+    if (origInsertAdjacentHTML) {
+      Element.prototype.insertAdjacentHTML = function(pos, text) {
+        return origInsertAdjacentHTML.call(this, pos, stripSandboxRegex(text));
+      };
+    }
+
+    var origInnerHTML = Object.getOwnPropertyDescriptor(Element.prototype, 'innerHTML');
+    if (origInnerHTML && origInnerHTML.set) {
+      Object.defineProperty(Element.prototype, 'innerHTML', {
+        get: origInnerHTML.get,
+        set: function(val) { return origInnerHTML.set.call(this, stripSandboxRegex(val)); }
+      });
+    }
   } catch (e) {}
 
   var AD_HOST_RE = /doubleclick|googlesyndication|popads|propeller|adsterra|exoclick|clickadu|outbrain|taboola|mgid|revcontent|chaturbate|stripchat/i;
@@ -169,17 +196,6 @@ object EmbedPlayerShield {
       var nodes = document.querySelectorAll('div, a, iframe, ins, span, section, aside');
       for (var i = 0; i < nodes.length; i++) {
         if (isHijackOverlay(nodes[i])) neuter(nodes[i]);
-      }
-
-      // Also clean up any existing sandbox attributes by cloning and replacing the node
-      var frames = document.querySelectorAll('iframe[sandbox]');
-      for (var i = 0; i < frames.length; i++) {
-        var f = frames[i];
-        var clone = f.cloneNode(true);
-        clone.removeAttribute('sandbox');
-        if (f.parentNode) {
-            f.parentNode.replaceChild(clone, f);
-        }
       }
 
       protectPlayers();
