@@ -54,7 +54,10 @@ object EmbedPlayerShield {
 
     function stripSandboxRegex(str) {
       if (typeof str !== 'string') return str;
-      return str.replace(/sandbox=["'][^"']*["']/gi, '').replace(/sandbox\s*>/gi, '>').replace(/sandbox\s+/gi, ' ');
+      return str.replace(/<iframe[^>]+>/gi, function(match) {
+        return match.replace(/\bsandbox=(["'])[^"']*\1/gi, '')
+                    .replace(/\bsandbox\b/gi, '');
+      });
     }
 
     var origDocWrite = document.write;
