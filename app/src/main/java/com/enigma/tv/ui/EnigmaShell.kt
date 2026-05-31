@@ -502,7 +502,7 @@ private fun EnigmaPlayerOverlay(
                         onPlaybackPositionMs = viewModel::onPlaybackPositionMs,
                         onNativePlayerActive = { isNativePlayerActive = it },
                         startPositionMs = state.playbackPositionMs,
-                        tvControls = null,
+                        tvControls = tvControls,
                         resolveToken = state.playerResolveToken,
                         tmdbId = state.currentMovieId ?: state.currentShowId,
                         playingType = state.playingType,

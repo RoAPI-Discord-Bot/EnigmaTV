@@ -133,10 +133,10 @@ fun ExoLivePlayer(
 
         val loadControl = DefaultLoadControl.Builder()
             .setBufferDurationsMs(
-                /* minBufferMs                     */ 15_000,  // 15s minimum — achievable on any CDN
-                /* maxBufferMs                     */ 60_000,  // try to buffer up to 60s ahead
-                /* bufferForPlaybackMs             */ 1_500,   // start after 1.5s — very fast
-                /* bufferForPlaybackAfterRebufferMs*/ 2_000    // resume after 2s — quick recovery
+                /* minBufferMs                     */ 5_000,   // 5s minimum — resume fast after stalls
+                /* maxBufferMs                     */ 30_000,  // 30s max look-ahead
+                /* bufferForPlaybackMs             */ 1_500,   // start after 1.5s
+                /* bufferForPlaybackAfterRebufferMs*/ 1_000    // resume after just 1s after any stall
             )
             .setPrioritizeTimeOverSizeThresholds(true)
             .build()
@@ -188,8 +188,8 @@ fun ExoLivePlayer(
         val dataSourceFactory = DefaultHttpDataSource.Factory()
             .setUserAgent(resolved.userAgent)
             .setAllowCrossProtocolRedirects(true)
-            .setConnectTimeoutMs(15_000)
-            .setReadTimeoutMs(30_000)
+            .setConnectTimeoutMs(8_000)   // fail fast on slow CDN connect
+            .setReadTimeoutMs(8_000)      // don't wait 30s for a stalled segment — fail and retry
             .apply {
                 if (effectiveHeaders.isNotEmpty()) {
                     setDefaultRequestProperties(effectiveHeaders)

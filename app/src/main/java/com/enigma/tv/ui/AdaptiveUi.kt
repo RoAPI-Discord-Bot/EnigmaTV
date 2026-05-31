@@ -17,8 +17,8 @@ fun rememberScreenLayout(): ScreenLayout {
 
 fun ScreenLayout.posterColumns(): Int = when (this) {
     ScreenLayout.PHONE -> 3
-    ScreenLayout.TABLET -> 4
-    ScreenLayout.TV -> 5
+    ScreenLayout.TABLET -> 5
+    ScreenLayout.TV -> 7
 }
 
 fun ScreenLayout.drawerWidthDp(): Int = when (this) {
@@ -31,8 +31,8 @@ fun ScreenLayout.usePermanentDrawer(): Boolean = this == ScreenLayout.TV
 
 fun ScreenLayout.posterWidthDp(): Int = when (this) {
     ScreenLayout.PHONE -> 148
-    ScreenLayout.TABLET -> 168
-    ScreenLayout.TV -> 154
+    ScreenLayout.TABLET -> 148
+    ScreenLayout.TV -> 118
 }
 
 fun ScreenLayout.contentPaddingDp(): Int = when (this) {

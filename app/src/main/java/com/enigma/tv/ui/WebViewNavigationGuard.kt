@@ -132,6 +132,9 @@ class WebViewNavigationGuard(initialUrl: String) {
         webView.webViewClient = object : WebViewClient() {
             override fun onPageStarted(view: WebView?, url: String?, favicon: android.graphics.Bitmap?) {
                 url?.let { extractHost(it)?.let { registerHost(it) } }
+                // Inject shield immediately at page start so our document.createElement override
+                // intercepts iframe sandbox attributes BEFORE the page's own scripts run.
+                view?.let { EmbedPlayerShield.apply(it) }
                 if (!(liveTvMode && suppressLoadingPulses)) {
                     onPageLoading?.invoke(true)
                 }
