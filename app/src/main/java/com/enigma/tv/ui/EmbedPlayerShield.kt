@@ -151,10 +151,15 @@ object EmbedPlayerShield {
         if (isHijackOverlay(nodes[i])) neuter(nodes[i]);
       }
 
-      // Also clean up any existing sandbox attributes just in case they slipped through innerHTML
+      // Also clean up any existing sandbox attributes by cloning and replacing the node
       var frames = document.querySelectorAll('iframe[sandbox]');
       for (var i = 0; i < frames.length; i++) {
-        frames[i].removeAttribute('sandbox');
+        var f = frames[i];
+        var clone = f.cloneNode(true);
+        clone.removeAttribute('sandbox');
+        if (f.parentNode) {
+            f.parentNode.replaceChild(clone, f);
+        }
       }
 
       protectPlayers();

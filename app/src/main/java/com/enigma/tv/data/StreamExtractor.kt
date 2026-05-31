@@ -122,7 +122,7 @@ class StreamExtractor(private val context: Context) {
                             loadUrl(embedUrl, mapOf("Referer" to refererHeader))
                         }
 
-                        handler.postDelayed({ complete(null) }, 17_000)
+                        handler.postDelayed({ complete(null) }, 12_000)
                     } catch (_: Exception) {
                         complete(null)
                     }
