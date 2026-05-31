@@ -116,7 +116,7 @@ fun EnigmaMediaPlayer(
                 showNextSource = true,
                 onNextSource = onNextSource,
                 onShowEpisodes = onShowEpisodes,
-                tvControls = if (useExternalChrome) null else tvControls,
+                tvControls = tvControls,
                 useExternalChrome = useExternalChrome,
                 onPlaybackEnded = onPlaybackEnded,
                 onPlaybackPositionMs = onPlaybackPositionMs,

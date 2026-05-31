@@ -528,6 +528,7 @@ private fun EnigmaPlayerOverlay(
                         onStreamFailed = viewModel::onPlayerStreamFailed,
                         onPlaybackReady = viewModel::onPlayerPlaybackReady,
                         onLiveWaiting = viewModel::onPlayerLiveWaiting,
+                        onNativePlayerActive = { isNativePlayerActive = it },
                         resolveToken = state.playerResolveToken,
                         useExternalChrome = true,
                         actionDispatcher = dispatcher,

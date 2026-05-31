@@ -45,6 +45,7 @@ fun EnigmaLivePlayer(
     onPlaybackReady: () -> Unit,
     onLiveWaiting: () -> Unit = {},
     onNativeStream: ((String) -> Unit)? = null,
+    onNativePlayerActive: ((Boolean) -> Unit)? = null,
     resolveToken: Int = 0,
     useExternalChrome: Boolean = true,
     actionDispatcher: PlayerActionDispatcher? = null,
@@ -66,6 +67,7 @@ fun EnigmaLivePlayer(
     LaunchedEffect(embedUrl, resolveToken) {
         resolvedStream = null
         mode = LivePlayMode.WebView
+        onNativePlayerActive?.invoke(false)
         val found = withContext(Dispatchers.IO) {
             try {
                 StreamExtractor(context).extractStreamUrl(embedUrl, activity = activity)
@@ -74,6 +76,7 @@ fun EnigmaLivePlayer(
         if (found != null) {
             resolvedStream = found
             mode = LivePlayMode.Native
+            onNativePlayerActive?.invoke(true)
             onLoadingChange(true)
         }
         // If nothing found, WebView is already playing — no action needed

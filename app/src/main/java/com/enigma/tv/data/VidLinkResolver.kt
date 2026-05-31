@@ -141,15 +141,17 @@ object VidLinkResolver {
                         }
                     }
 
-                if (obj.has("subtitles") && obj.get("subtitles").isJsonArray) {
-                    val subs = obj.getAsJsonArray("subtitles")
-                    for (item in subs) {
-                        if (item.isJsonObject) {
-                            val subObj = item.asJsonObject
-                            val lang = subObj.get("language")?.asString ?: subObj.get("lang")?.asString ?: ""
-                            if (lang.contains("en", ignoreCase = true) || lang.contains("english", ignoreCase = true)) {
-                                subUrl = subObj.get("url")?.asString ?: subObj.get("file")?.asString
-                                if (subUrl != null) break
+                listOf("subtitles", "tracks", "captions").forEach { key ->
+                    if (obj.has(key) && obj.get(key).isJsonArray && subUrl == null) {
+                        val subs = obj.getAsJsonArray(key)
+                        for (item in subs) {
+                            if (item.isJsonObject) {
+                                val subObj = item.asJsonObject
+                                val lang = subObj.get("language")?.asString ?: subObj.get("lang")?.asString ?: subObj.get("label")?.asString ?: ""
+                                if (lang.contains("en", ignoreCase = true) || lang.contains("english", ignoreCase = true)) {
+                                    subUrl = subObj.get("url")?.asString ?: subObj.get("file")?.asString
+                                    if (subUrl != null && subUrl!!.contains(".vtt", true)) break
+                                }
                             }
                         }
                     }
