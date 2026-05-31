@@ -16,6 +16,7 @@ import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
 import java.util.concurrent.atomic.AtomicBoolean
+import java.util.concurrent.atomic.AtomicReference
 import kotlin.coroutines.resume
 
 /**
@@ -29,26 +30,29 @@ class StreamExtractor(private val context: Context) {
         referer: String? = null,
         activity: Activity? = null
     ): ResolvedStream? {
-        val url = extractStreamUrlRaw(embedUrl, referer, activity) ?: return null
+        val result = extractStreamUrlAndSubtitle(embedUrl, referer, activity) ?: return null
         val ref = referer ?: ResolvedStream.embedReferer(embedUrl)
         return ResolvedStream(
-            url = url,
+            url = result.first,
             referer = ref,
             origin = ResolvedStream.embedOrigin(embedUrl),
-            provider = "webview"
+            provider = "webview",
+            subtitleUrl = result.second
         )
     }
 
-    suspend fun extractStreamUrlRaw(
+    /** Returns Pair(streamUrl, subtitleUrl?) */
+    suspend fun extractStreamUrlAndSubtitle(
         embedUrl: String,
         referer: String? = null,
         activity: Activity? = null
-    ): String? {
+    ): Pair<String, String?>? {
         val hostActivity = activity ?: return null
         return withTimeoutOrNull(18_000) {
             withContext(Dispatchers.Main) {
                 suspendCancellableCoroutine { cont ->
                     val finished = AtomicBoolean(false)
+                    val capturedSubtitle = AtomicReference<String?>(null)
                     val refererHeader = referer ?: embedUrl
                     val handler = Handler(Looper.getMainLooper())
                     var webView: WebView? = null
@@ -61,7 +65,9 @@ class StreamExtractor(private val context: Context) {
                             safeDestroyWebView(webView, hostContainer)
                             webView = null
                             hostContainer = null
-                            if (cont.isActive) cont.resume(url)
+                            if (cont.isActive) cont.resume(
+                                if (url != null) url to capturedSubtitle.get() else null
+                            )
                         }
                     }
 
@@ -91,7 +97,10 @@ class StreamExtractor(private val context: Context) {
                             }
 
                             addJavascriptInterface(
-                                JsBridge { url -> complete(url) },
+                                JsBridge(
+                                    onStream = { url -> complete(url) },
+                                    onSubtitle = { url -> capturedSubtitle.compareAndSet(null, url) }
+                                ),
                                 "EnigmaStream"
                             )
 
@@ -100,8 +109,12 @@ class StreamExtractor(private val context: Context) {
                                     view: WebView,
                                     request: WebResourceRequest
                                 ): android.webkit.WebResourceResponse? {
-                                    pickStreamUrl(request.url.toString())?.let { found ->
+                                    val reqUrl = request.url.toString()
+                                    pickStreamUrl(reqUrl)?.let { found ->
                                         handler.post { complete(found) }
+                                    }
+                                    pickSubtitleUrl(reqUrl)?.let { sub ->
+                                        capturedSubtitle.compareAndSet(null, sub)
                                     }
                                     return super.shouldInterceptRequest(view, request)
                                 }
@@ -139,6 +152,12 @@ class StreamExtractor(private val context: Context) {
         }
     }
 
+    suspend fun extractStreamUrlRaw(
+        embedUrl: String,
+        referer: String? = null,
+        activity: Activity? = null
+    ): String? = extractStreamUrlAndSubtitle(embedUrl, referer, activity)?.first
+
     private fun safeDestroyWebView(webView: WebView?, container: FrameLayout?) {
         try {
             webView?.stopLoading()
@@ -160,14 +179,37 @@ class StreamExtractor(private val context: Context) {
         return null
     }
 
+    private fun pickSubtitleUrl(url: String): String? {
+        val lower = url.lowercase()
+        if (!lower.startsWith("http")) return null
+        if (!lower.contains(".vtt") && !lower.contains(".srt")) return null
+        // Prefer English subtitle files
+        if (lower.contains("eng") || lower.contains("en-") || lower.contains("/en/") ||
+            lower.contains("english") || lower.contains("-2.vtt") || lower.contains("_en.")) {
+            return cleanUrl(url)
+        }
+        // Accept any subtitle as fallback
+        return cleanUrl(url)
+    }
+
     private fun cleanUrl(url: String): String =
         url.replace("\\/", "/").replace("\\u0026", "&").trim()
 
-    private class JsBridge(private val onFound: (String) -> Unit) {
+    private class JsBridge(
+        private val onStream: (String) -> Unit,
+        private val onSubtitle: (String) -> Unit = {}
+    ) {
         @JavascriptInterface
         fun onStreamFound(url: String) {
             if (url.contains(".m3u8", ignoreCase = true) || url.contains(".mp4", ignoreCase = true)) {
-                onFound(url)
+                onStream(url)
+            }
+        }
+
+        @JavascriptInterface
+        fun onSubtitleFound(url: String) {
+            if (url.contains(".vtt", ignoreCase = true) || url.contains(".srt", ignoreCase = true)) {
+                onSubtitle(url)
             }
         }
     }
@@ -179,24 +221,29 @@ class StreamExtractor(private val context: Context) {
 (function() {
   if (window.__enigmaHooked) return;
   window.__enigmaHooked = true;
-  function notify(u) {
+  function notifyStream(u) {
     if (!u) return;
     var s = String(u);
     if (s.indexOf('.m3u8') >= 0 || s.indexOf('.mp4') >= 0) EnigmaStream.onStreamFound(s);
+  }
+  function notifySub(u) {
+    if (!u) return;
+    var s = String(u);
+    if (s.indexOf('.vtt') >= 0 || s.indexOf('.srt') >= 0) EnigmaStream.onSubtitleFound(s);
   }
   var of = window.fetch;
   if (of) {
     window.fetch = function(input, init) {
       try {
-        if (typeof input === 'string') notify(input);
-        else if (input && input.url) notify(input.url);
+        var url = typeof input === 'string' ? input : (input && input.url ? input.url : null);
+        if (url) { notifyStream(url); notifySub(url); }
       } catch(e) {}
       return of.apply(this, arguments);
     };
   }
   var ox = XMLHttpRequest.prototype.open;
   XMLHttpRequest.prototype.open = function(method, url) {
-    notify(url);
+    try { notifyStream(url); notifySub(url); } catch(e) {}
     return ox.apply(this, arguments);
   };
 })();

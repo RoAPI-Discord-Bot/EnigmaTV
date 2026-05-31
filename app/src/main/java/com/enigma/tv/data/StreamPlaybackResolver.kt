@@ -64,7 +64,7 @@ object StreamPlaybackResolver {
             else null
         } ?: return null
 
-        // Attach subtitles if found, but don't let it stall playback!
+        // Attach subtitles if the extractor didn't already capture one.
         // Give it a strict 4-second timeout. If we don't find it fast, just play the video.
         val subtitleUrl = stream.subtitleUrl ?: kotlinx.coroutines.withTimeoutOrNull(4_000) {
             StreamResolver.resolveSubtitlesForStream(stream.url, embedUrl)
