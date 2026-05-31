@@ -282,5 +282,8 @@ data class MediaDetailUi(
     val episodes: List<TvEpisode> = emptyList(),
     val selectedSeason: Int = 1,
     val selectedEpisode: Int = 1,
-    val isFavorite: Boolean = false
+    val isFavorite: Boolean = false,
+    val resumePositionMs: Long = 0L,
+    val resumeSeason: Int? = null,
+    val resumeEpisode: Int? = null
 )

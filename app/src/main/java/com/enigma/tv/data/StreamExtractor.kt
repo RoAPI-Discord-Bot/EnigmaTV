@@ -53,6 +53,7 @@ class StreamExtractor(private val context: Context) {
                 suspendCancellableCoroutine { cont ->
                     val finished = AtomicBoolean(false)
                     val capturedSubtitle = AtomicReference<String?>(null)
+                    val capturedStream = AtomicReference<String?>(null)
                     val refererHeader = referer ?: embedUrl
                     val handler = Handler(Looper.getMainLooper())
                     var webView: WebView? = null
@@ -111,10 +112,19 @@ class StreamExtractor(private val context: Context) {
                                 ): android.webkit.WebResourceResponse? {
                                     val reqUrl = request.url.toString()
                                     pickStreamUrl(reqUrl)?.let { found ->
-                                        handler.post { complete(found) }
+                                        if (capturedStream.compareAndSet(null, found)) {
+                                            if (capturedSubtitle.get() != null) {
+                                                handler.post { complete(found) }
+                                            } else {
+                                                handler.postDelayed({ complete(capturedStream.get()) }, 1800)
+                                            }
+                                        }
                                     }
                                     pickSubtitleUrl(reqUrl)?.let { sub ->
-                                        capturedSubtitle.compareAndSet(null, sub)
+                                        if (capturedSubtitle.compareAndSet(null, sub)) {
+                                            val stream = capturedStream.get()
+                                            if (stream != null) handler.post { complete(stream) }
+                                        }
                                     }
                                     return super.shouldInterceptRequest(view, request)
                                 }

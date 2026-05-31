@@ -117,7 +117,6 @@ fun ExoLivePlayer(
     var hasTextTracks by remember { mutableStateOf(false) }
     var captionsEnabled by remember { mutableStateOf(true) } // ON by default when tracks exist
     var hasReachedReady by remember(playUrl, playToken) { mutableStateOf(false) }
-    var didSeekToResume by remember(playUrl, playToken, startPositionMs) { mutableStateOf(false) }
 
     val sidecarSubtitle = remember(playUrl, playToken, resolved.subtitleUrl) {
         resolved.subtitleUrl?.takeIf { StreamResolver.isValidSubtitleUrl(it) }
@@ -167,17 +166,9 @@ fun ExoLivePlayer(
 
     val effectiveHeaders = if (stripHeaders) emptyMap() else playbackHeaders
 
-    LaunchedEffect(startPositionMs, hasReachedReady, playUrl, playToken) {
-        if (!isLiveBroadcast && hasReachedReady && !didSeekToResume && startPositionMs >= 3_000L) {
-            player.seekTo(startPositionMs)
-            didSeekToResume = true
-        }
-    }
-
     DisposableEffect(playUrl, playToken, effectiveHeaders, sidecarSubtitle) {
         errorMessage = null
         hasReachedReady = false
-        didSeekToResume = false
         onLoadingChange(true)
         var prepared = false
         val loadTimeoutJob = scope.launch {
@@ -267,10 +258,6 @@ fun ExoLivePlayer(
                         hasReachedReady = true
                         onLoadingChange(false)
                         errorMessage = null
-                        if (!isLiveBroadcast && !didSeekToResume && startPositionMs > 0L) {
-                            player.seekTo(startPositionMs)
-                            didSeekToResume = true
-                        }
                     }
                     Player.STATE_BUFFERING -> {
                         // Never show loading spinner during mid-play rebuffer — just

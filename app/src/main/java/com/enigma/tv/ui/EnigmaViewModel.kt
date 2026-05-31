@@ -613,9 +613,10 @@ class EnigmaViewModel(application: Application) : AndroidViewModel(application) 
             _state.update { it.copy(showDetail = true, detailLoading = true, detail = null) }
             try {
                 val fav = _state.value.favorites.any { it.id == id && it.type == type }
+                val cw = _state.value.continueWatching.find { it.id == id && it.type == type }
                 val detail = when (type) {
-                    ContentType.MOVIE -> buildMovieDetail(id, fav)
-                    ContentType.TV -> buildTvDetail(id, fav)
+                    ContentType.MOVIE -> buildMovieDetail(id, fav, cw)
+                    ContentType.TV -> buildTvDetail(id, fav, cw)
                 }
                 _state.update { it.copy(detailLoading = false, detail = detail) }
             } catch (e: Exception) {
@@ -624,7 +625,7 @@ class EnigmaViewModel(application: Application) : AndroidViewModel(application) 
         }
     }
 
-    private suspend fun buildMovieDetail(id: Int, isFavorite: Boolean): MediaDetailUi {
+    private suspend fun buildMovieDetail(id: Int, isFavorite: Boolean, cw: ContinueWatchingEntry?): MediaDetailUi {
         val d = repo.movieDetail(id)
         val movie = MovieItem(id, d.title, d.posterPath, d.backdropPath, d.releaseDate, d.voteAverage, d.overview)
         val rating = formatRating(d.voteAverage, d.voteCount)
@@ -650,11 +651,12 @@ class EnigmaViewModel(application: Application) : AndroidViewModel(application) 
             cast = d.credits?.cast?.take(15) ?: emptyList(),
             trailers = mapTrailers(d.videos),
             isPlayable = movie.canStream(),
-            isFavorite = isFavorite
+            isFavorite = isFavorite,
+            resumePositionMs = cw?.positionMs ?: 0L
         )
     }
 
-    private suspend fun buildTvDetail(id: Int, isFavorite: Boolean): MediaDetailUi {
+    private suspend fun buildTvDetail(id: Int, isFavorite: Boolean, cw: ContinueWatchingEntry?): MediaDetailUi {
         val d = repo.tvDetail(id)
         val show = TvItem(id, d.name, posterPath = d.posterPath, backdropPath = d.backdropPath, firstAirDate = d.firstAirDate, voteAverage = d.voteAverage, overview = d.overview)
         val seasons = d.seasons.filter { it.seasonNumber > 0 }.map { it.seasonNumber }.ifEmpty { listOf(1) }
@@ -685,9 +687,12 @@ class EnigmaViewModel(application: Application) : AndroidViewModel(application) 
             isPlayable = show.canStream(),
             seasons = seasons,
             episodes = eps,
-            selectedSeason = season,
-            selectedEpisode = eps.firstOrNull()?.episodeNumber ?: 1,
-            isFavorite = isFavorite
+            selectedSeason = cw?.season ?: season,
+            selectedEpisode = cw?.episode ?: eps.firstOrNull()?.episodeNumber ?: 1,
+            isFavorite = isFavorite,
+            resumePositionMs = cw?.positionMs ?: 0L,
+            resumeSeason = cw?.season,
+            resumeEpisode = cw?.episode
         )
     }
 
@@ -757,8 +762,13 @@ class EnigmaViewModel(application: Application) : AndroidViewModel(application) 
         val d = _state.value.detail ?: return
         closeDetail()
         when (d.type) {
-            ContentType.MOVIE -> playMovie(MovieItem(d.id, d.title), d.posterUrl)
-            ContentType.TV -> selectShow(d.id, d.title, d.selectedSeason, d.selectedEpisode)
+            ContentType.MOVIE -> {
+                playMovie(MovieItem(d.id, d.title), d.posterUrl, startPositionMs = d.resumePositionMs)
+            }
+            ContentType.TV -> {
+                val pos = if (d.selectedSeason == d.resumeSeason && d.selectedEpisode == d.resumeEpisode) d.resumePositionMs else 0L
+                selectShow(d.id, d.title, d.selectedSeason, d.selectedEpisode, startPositionMs = pos)
+            }
         }
     }
 

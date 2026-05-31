@@ -57,8 +57,20 @@ object EmbedProvidersResolver {
             try {
                 select<Unit> {
                     apiJob.onAwait { r ->
-                        if (r != null) { result = r; webViewJob.cancel() }
-                        else           { result = webViewJob.await() }
+                        if (r != null) {
+                            result = r
+                            if (r.subtitleUrl == null) {
+                                // API doesn't provide subtitles directly. Give the WebView a few seconds
+                                // to catch the subtitles before we cancel it and play without them.
+                                val webResult = kotlinx.coroutines.withTimeoutOrNull(3500) { webViewJob.await() }
+                                if (webResult?.subtitleUrl != null) {
+                                    result = r.copy(subtitleUrl = webResult.subtitleUrl)
+                                }
+                            }
+                            webViewJob.cancel()
+                        } else {
+                            result = webViewJob.await()
+                        }
                     }
                     webViewJob.onAwait { r ->
                         if (r != null) { result = r; apiJob.cancel() }

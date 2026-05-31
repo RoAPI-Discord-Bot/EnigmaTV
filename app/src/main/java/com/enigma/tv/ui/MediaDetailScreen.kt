@@ -300,8 +300,12 @@ private fun TvDetailContent(
                     ) {
                         Icon(Icons.Default.PlayArrow, contentDescription = null, modifier = Modifier.size(30.dp))
                         Text(
-                            if (detail.type == ContentType.TV) "Play S${detail.selectedSeason}E${detail.selectedEpisode}"
-                            else "Play Now",
+                            when {
+                                detail.resumePositionMs > 0 && detail.type == ContentType.TV -> "Resume S${detail.selectedSeason}E${detail.selectedEpisode}"
+                                detail.resumePositionMs > 0 && detail.type == ContentType.MOVIE -> "Resume Movie"
+                                detail.type == ContentType.TV -> "Play S${detail.selectedSeason}E${detail.selectedEpisode}"
+                                else -> "Play Now"
+                            },
                             modifier = Modifier.padding(start = 10.dp),
                             fontSize = 18.sp,
                             fontWeight = FontWeight.Bold
@@ -548,7 +552,12 @@ private fun MobileDetailContent(
                 ) {
                     Icon(Icons.Default.PlayArrow, contentDescription = null, modifier = Modifier.size(28.dp))
                     Text(
-                        if (detail.type == ContentType.TV) "Play S${detail.selectedSeason}E${detail.selectedEpisode}" else "Play Now",
+                        when {
+                            detail.resumePositionMs > 0 && detail.type == ContentType.TV -> "Resume S${detail.selectedSeason}E${detail.selectedEpisode}"
+                            detail.resumePositionMs > 0 && detail.type == ContentType.MOVIE -> "Resume Movie"
+                            detail.type == ContentType.TV -> "Play S${detail.selectedSeason}E${detail.selectedEpisode}"
+                            else -> "Play Now"
+                        },
                         modifier = Modifier.padding(start = 10.dp),
                         fontSize = 17.sp,
                         fontWeight = FontWeight.Bold
