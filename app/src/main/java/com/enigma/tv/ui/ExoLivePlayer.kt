@@ -130,16 +130,24 @@ fun ExoLivePlayer(
     val player = remember(playUrl, playToken) {
         val loadControl = DefaultLoadControl.Builder()
             .setBufferDurationsMs(
-                /* minBufferMs                     */ 45_000,  // keep 45s ahead while playing
+                /* minBufferMs                     */ 50_000,  // keep 50s ahead while playing
                 /* maxBufferMs                     */ 120_000, // buffer up to 2 min ahead
-                /* bufferForPlaybackMs             */ 2_500,   // start playback after 2.5s
-                /* bufferForPlaybackAfterRebufferMs*/ 2_500    // after a stall, resume after just 2.5s
+                /* bufferForPlaybackMs             */ 1_500,   // start playback very quickly
+                /* bufferForPlaybackAfterRebufferMs*/ 1_500    // after a stall, resume almost instantly
             )
-            .setTargetBufferBytes(32 * 1024 * 1024) // 32 MB — grab big chunks at once
             .setPrioritizeTimeOverSizeThresholds(true) // always prefer filling by time, not size
             .build()
+            
+        val trackSelector = androidx.media3.exoplayer.trackselection.DefaultTrackSelector(context)
+        trackSelector.setParameters(
+            trackSelector.buildUponParameters()
+                .setPreferredTextLanguage("en")
+                .setSelectUndeterminedTextLanguage(true) // helps with "unknown" tracks
+        )
+
         ExoPlayer.Builder(context)
             .setLoadControl(loadControl)
+            .setTrackSelector(trackSelector)
             .setSeekBackIncrementMs(5_000)
             .setSeekForwardIncrementMs(5_000)
             .build().apply {

@@ -58,7 +58,9 @@ object VidLinkResolver {
             }
         }
         for (apiUrl in paths) {
-            parseApiResponse(get(apiUrl))?.let { return ResolvedStream.vidLink(it) }
+            parseApiResponse(get(apiUrl))?.let { (stream, sub) -> 
+                return ResolvedStream.vidLink(stream).copy(subtitleUrl = sub) 
+            }
         }
         return null
     }
@@ -74,8 +76,20 @@ object VidLinkResolver {
         return null
     }
 
-    private fun resolveViaPage(pageUrl: String): ResolvedStream? {
-        parseStreamFromBody(get(pageUrl))?.let { return ResolvedStream.vidLink(it) }
+    private suspend fun resolveViaPage(url: String): ResolvedStream? {
+        try {
+            val request = Request.Builder().url(url).headers(okhttp3.Headers.of(headers)).build()
+            client.newCall(request).execute().use { response ->
+                if (!response.isSuccessful) return null
+                val body = response.body?.string() ?: return null
+                parseEncDecResult(body)?.let { parseApiResponse(it) }?.let { (stream, sub) ->
+                    return ResolvedStream.fromEmbed(url, stream, "embed-hls").copy(subtitleUrl = sub)
+                }
+                parseStreamFromBody(body)?.let { (stream, sub) ->
+                    return ResolvedStream.fromEmbed(url, stream, "embed-hls").copy(subtitleUrl = sub)
+                }
+            }
+        } catch (_: Exception) {}
         return null
     }
 
@@ -90,7 +104,7 @@ object VidLinkResolver {
         null
     }
 
-    private fun parseApiResponse(body: String?): String? = parseStreamFromBody(body)
+    private fun parseApiResponse(body: String?): Pair<String, String?>? = parseStreamFromBody(body)
 
     private fun parseEncDecResult(body: String?): String? {
         if (body.isNullOrBlank()) return null
@@ -107,10 +121,10 @@ object VidLinkResolver {
         }
     }
 
-    private fun parseStreamFromBody(body: String?): String? {
+    private fun parseStreamFromBody(body: String?): Pair<String, String?>? {
         if (body.isNullOrBlank()) return null
-        pickUrl(m3u8Regex.find(body)?.groupValues?.get(1))?.let { return it }
-        pickUrl(mp4Regex.find(body)?.groupValues?.get(1))?.let { return it }
+        pickUrl(m3u8Regex.find(body)?.groupValues?.get(1))?.let { return it to null }
+        pickUrl(mp4Regex.find(body)?.groupValues?.get(1))?.let { return it to null }
         return try {
             val el = JsonParser.parseString(body)
             findUrlInJson(el)
@@ -119,16 +133,36 @@ object VidLinkResolver {
         }
     }
 
-    private fun findUrlInJson(el: JsonElement): String? {
+    private fun findUrlInJson(el: JsonElement): Pair<String, String?>? {
         when {
             el.isJsonObject -> {
                 val obj = el.asJsonObject
+                var streamUrl: String? = null
+                var subUrl: String? = null
+
                 listOf("url", "stream", "file", "hls", "source", "src", "link", "m3u8", "playlist")
                     .forEach { key ->
-                        if (obj.has(key)) {
-                            pickUrl(jsonPrimitiveUrl(obj.get(key)))?.let { return it }
+                        if (obj.has(key) && streamUrl == null) {
+                            streamUrl = pickUrl(jsonPrimitiveUrl(obj.get(key)))
                         }
                     }
+
+                if (obj.has("subtitles") && obj.get("subtitles").isJsonArray) {
+                    val subs = obj.getAsJsonArray("subtitles")
+                    for (item in subs) {
+                        if (item.isJsonObject) {
+                            val subObj = item.asJsonObject
+                            val lang = subObj.get("language")?.asString ?: subObj.get("lang")?.asString ?: ""
+                            if (lang.contains("en", ignoreCase = true) || lang.contains("english", ignoreCase = true)) {
+                                subUrl = subObj.get("url")?.asString ?: subObj.get("file")?.asString
+                                if (subUrl != null) break
+                            }
+                        }
+                    }
+                }
+
+                if (streamUrl != null) return streamUrl to subUrl
+
                 obj.entrySet().forEach { (_, v) ->
                     findUrlInJson(v)?.let { return it }
                 }
@@ -136,7 +170,7 @@ object VidLinkResolver {
             el.isJsonArray -> el.asJsonArray.forEach { item ->
                 findUrlInJson(item)?.let { return it }
             }
-            el.isJsonPrimitive -> pickUrl(jsonPrimitiveUrl(el))?.let { return it }
+            el.isJsonPrimitive -> pickUrl(jsonPrimitiveUrl(el))?.let { return it to null }
         }
         return null
     }

@@ -326,10 +326,12 @@ class WebViewNavigationGuard(initialUrl: String) {
                     onStreamFailed?.invoke()
                     return@post
                 }
+                if (liveTvMode && (ok || isJsonWall)) {
+                    webView.post { hideRawTextOverlay(webView) }
+                }
                 if (ok) {
                     suppressLoadingPulses = true
                     streamPlaying = true
-                    if (liveTvMode) webView.post { hideRawTextOverlay(webView) }
                 }
                 if (liveTvMode && isJsonWall) {
                     onPlaybackProbe?.invoke(false)

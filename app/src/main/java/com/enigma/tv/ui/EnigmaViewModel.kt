@@ -988,6 +988,30 @@ class EnigmaViewModel(application: Application) : AndroidViewModel(application) 
         val idx = pickerIndex ?: _state.value.sourceIndex
         val pickerSize = _state.value.liveStreamPicker.size.coerceAtLeast(1)
 
+        // Block player from opening if the event hasn't started yet.
+        // Prevents ugly HTML/JSON error pages from showing in WebView.
+        if (isPreLiveEvent()) {
+            val delta = _state.value.playerLiveEventStartMs - System.currentTimeMillis()
+            val mins = (delta / 60_000L).coerceAtLeast(1)
+            val hours = mins / 60
+            val remMins = mins % 60
+            val timeLabel = if (hours > 0) "${hours}h ${remMins}m" else "${mins}m"
+            _state.update {
+                it.copy(
+                    playerVisible = true,
+                    playerHls = false,
+                    playerLiveTv = false,
+                    playerLoading = false,
+                    playerStreamFailed = true,
+                    playerLiveHint = "Broadcast begins in $timeLabel",
+                    playerTitle = title,
+                    sourceLabel = "Live · $label",
+                    error = null
+                )
+            }
+            return
+        }
+
         // Build the best direct embed player URL without server-side resolution.
         // Server-side fetching of streamed.pk embed pages fails because they require
         // JS execution in a real browser to deliver the stream. Going directly to the
