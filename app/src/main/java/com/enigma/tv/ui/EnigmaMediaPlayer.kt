@@ -168,38 +168,40 @@ fun EnigmaMediaPlayer(
                         liveTv = false,
                         useExternalChrome = true,
                         onStreamCaptured = { captured, capturedSubtitleUrl ->
-                            android.util.Log.d("EnigmaCapture", "Captured stream URL: $captured | subtitle: $capturedSubtitleUrl")
-                            scope.launch {
-                                val mgr = android.webkit.CookieManager.getInstance()
-                                val c1 = mgr.getCookie(embedUrl) ?: ""
-                                val c2 = mgr.getCookie(captured) ?: ""
-                                val mergedCookies = (c1.split(";") + c2.split(";"))
-                                    .map { it.trim() }
-                                    .filter { it.isNotEmpty() }
-                                    .distinct()
-                                    .joinToString("; ")
-                                
-                                val lowerUrl = captured.lowercase()
-                                val provider = when {
-                                    lowerUrl.contains(".m3u8") || lowerUrl.contains("playlist") -> "embed-hls"
-                                    lowerUrl.contains(".mp4") -> "embed-mp4"
-                                    else -> "embed-hls"
-                                }
-                                android.util.Log.d("EnigmaCapture", "Detected provider: $provider")
-                                val webViewUserAgent = android.webkit.WebSettings.getDefaultUserAgent(context)
-                                
-                                // Use subtitle captured by the visible WebView directly (most reliable path)
-                                // Fall back to HLS manifest parsing if the WebView didn't intercept a .vtt
-                                val subtitleUrl = capturedSubtitleUrl
-                                    ?: kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
-                                        com.enigma.tv.data.StreamResolver.resolveSubtitleFromHls(captured)
+                            if (mode != MediaPlayMode.Native) {
+                                android.util.Log.d("EnigmaCapture", "Captured stream URL: $captured | subtitle: $capturedSubtitleUrl")
+                                scope.launch {
+                                    val mgr = android.webkit.CookieManager.getInstance()
+                                    val c1 = mgr.getCookie(embedUrl) ?: ""
+                                    val c2 = mgr.getCookie(captured) ?: ""
+                                    val mergedCookies = (c1.split(";") + c2.split(";"))
+                                        .map { it.trim() }
+                                        .filter { it.isNotEmpty() }
+                                        .distinct()
+                                        .joinToString("; ")
+                                    
+                                    val lowerUrl = captured.lowercase()
+                                    val provider = when {
+                                        lowerUrl.contains(".m3u8") || lowerUrl.contains("playlist") -> "embed-hls"
+                                        lowerUrl.contains(".mp4") -> "embed-mp4"
+                                        else -> "embed-hls"
                                     }
-                                android.util.Log.d("EnigmaCapture", "Final subtitle URL: $subtitleUrl")
-                                
-                                resolvedStream = com.enigma.tv.data.ResolvedStream.fromEmbed(embedUrl, captured, provider, mergedCookies, webViewUserAgent).copy(subtitleUrl = subtitleUrl)
-                                mode = MediaPlayMode.Native
-                                resolvingNative = false
-                                onNativePlayerActive?.invoke(true)
+                                    android.util.Log.d("EnigmaCapture", "Detected provider: $provider")
+                                    val webViewUserAgent = android.webkit.WebSettings.getDefaultUserAgent(context)
+                                    
+                                    // Use subtitle captured by the visible WebView directly (most reliable path)
+                                    // Fall back to HLS manifest parsing if the WebView didn't intercept a .vtt
+                                    val subtitleUrl = capturedSubtitleUrl
+                                        ?: kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                                            com.enigma.tv.data.StreamResolver.resolveSubtitleFromHls(captured)
+                                        }
+                                    android.util.Log.d("EnigmaCapture", "Final subtitle URL: $subtitleUrl")
+                                    
+                                    resolvedStream = com.enigma.tv.data.ResolvedStream.fromEmbed(embedUrl, captured, provider, mergedCookies, webViewUserAgent).copy(subtitleUrl = subtitleUrl)
+                                    mode = MediaPlayMode.Native
+                                    resolvingNative = false
+                                    onNativePlayerActive?.invoke(true)
+                                }
                             }
                         },
                         onPlaybackEnded = if (playingType == ContentType.TV) onPlaybackEnded else null,
