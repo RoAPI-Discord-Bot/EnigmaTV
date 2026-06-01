@@ -82,18 +82,39 @@ object EmbedProvidersResolver {
                 if (webViewJob.isActive) webViewJob.cancel()
             }
 
-            // ── Round 2: Try remaining embed sources sequentially ────────────────────
-            if (result == null && activity != null) {
-                Log.d(TAG, "[$tmdbId] Round1 failed — trying ${embedUrls.size - 1} fallback sources")
-                for (i in 1 until embedUrls.size) {
-                    val (srcName, fallbackUrl) = embedUrls[i]
-                    Log.d(TAG, "[$tmdbId] Fallback[$i] $srcName: $fallbackUrl")
-                    result = StreamExtractor(context).extractStreamUrl(fallbackUrl, activity = activity)
-                    if (result != null) {
-                        Log.d(TAG, "[$tmdbId] Fallback[$i] $srcName: SUCCESS")
-                        break
+            // ── Round 2: Try remaining embed sources in parallel ────────────────────
+            if (result == null && activity != null && embedUrls.size > 1) {
+                Log.d(TAG, "[$tmdbId] Round1 failed — trying ${embedUrls.size - 1} fallback sources in parallel")
+                
+                result = kotlinx.coroutines.coroutineScope {
+                    val fallbacks = embedUrls.drop(1)
+                    val channel = kotlinx.coroutines.channels.Channel<ResolvedStream?>(fallbacks.size)
+                    
+                    val jobs = fallbacks.map { (srcName, fallbackUrl) ->
+                        launch {
+                            val res = kotlinx.coroutines.withTimeoutOrNull(8000) {
+                                StreamExtractor(context).extractStreamUrl(fallbackUrl, activity = activity)
+                            }
+                            if (res != null) {
+                                Log.d(TAG, "[$tmdbId] Fallback $srcName: SUCCESS")
+                            } else {
+                                Log.d(TAG, "[$tmdbId] Fallback $srcName: failed")
+                            }
+                            channel.send(res)
+                        }
                     }
-                    Log.d(TAG, "[$tmdbId] Fallback[$i] $srcName: failed")
+                    
+                    var found: ResolvedStream? = null
+                    for (i in fallbacks.indices) {
+                        val res = channel.receive()
+                        if (res != null) {
+                            found = res
+                            break
+                        }
+                    }
+                    // Cancel all remaining jobs once we have a winner (or if all failed)
+                    jobs.forEach { it.cancel() }
+                    found
                 }
             }
 

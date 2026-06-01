@@ -23,6 +23,12 @@ import com.enigma.tv.data.ContentType
 import com.enigma.tv.data.ResolvedStream
 import com.enigma.tv.data.StreamPlaybackResolver
 import com.enigma.tv.ui.theme.BgDark
+import com.enigma.tv.ui.theme.TextPrimary
+import com.enigma.tv.ui.theme.TextSecondary
+import androidx.compose.ui.Alignment
+import androidx.compose.material3.Text
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.sp
 import com.enigma.tv.util.findActivity
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -68,10 +74,12 @@ fun EnigmaMediaPlayer(
     var resolvedStream by remember(embedUrl, resolveToken) { mutableStateOf<ResolvedStream?>(null) }
     var mode by remember(embedUrl, resolveToken) { mutableStateOf(MediaPlayMode.Embed) }
     var resolvingNative by remember(embedUrl, resolveToken) { mutableStateOf(true) }
+    var streamFailed by remember(embedUrl, resolveToken) { mutableStateOf(false) }
 
     // Start in Embed mode immediately — WebView loads while we probe for a native stream
     LaunchedEffect(embedUrl, resolveToken, activity, tmdbId, playingType) {
         resolvingNative = true
+        streamFailed = false
         resolvedStream = null
         mode = MediaPlayMode.Embed
         onNativePlayerActive?.invoke(false)
@@ -96,6 +104,10 @@ fun EnigmaMediaPlayer(
             onLoadingChange(true)
             mode = MediaPlayMode.Native
             onNativePlayerActive?.invoke(true)
+        } else {
+            // All API and fallback sources failed.
+            // Do not auto-skip; instead show an error so the user knows this title has no stream.
+            streamFailed = true
         }
     }
 
@@ -148,70 +160,91 @@ fun EnigmaMediaPlayer(
                                 trackColor = Color.White.copy(alpha = 0.12f)
                             )
                         }
-                    }
-                    WebViewPlayer(
-                        visible = true,
-                        title = title,
-                        url = embedUrl,
-                        accent = accent,
-                        sourceLabel = sourceLabel,
-                        posterUrl = posterUrl,
-                        streamLoading = false, // never block WebView with a spinner
-                        onClose = onClose,
-                        onNextSource = onNextSource,
-                        // Suppress WebView's loading callbacks — it renders transparently.
-                        // We already cleared loading above; don't let it re-raise the overlay.
-                        onLoadingChange = { /* WebView renders like a browser — no spinner */ },
-                        onPlaybackReady = { /* no-op: WebView is already visible */ },
-                        onStreamFailed = { onLoadingChange(false) },
-                        tvControls = null,
-                        liveTv = false,
-                        useExternalChrome = true,
-                        onStreamCaptured = { captured, capturedSubtitleUrl ->
-                            if (mode != MediaPlayMode.Native) {
-                                android.util.Log.d("EnigmaCapture", "Captured stream URL: $captured | subtitle: $capturedSubtitleUrl")
-                                scope.launch {
-                                    val mgr = android.webkit.CookieManager.getInstance()
-                                    val c1 = mgr.getCookie(embedUrl) ?: ""
-                                    val c2 = mgr.getCookie(captured) ?: ""
-                                    val mergedCookies = (c1.split(";") + c2.split(";"))
-                                        .map { it.trim() }
-                                        .filter { it.isNotEmpty() }
-                                        .distinct()
-                                        .joinToString("; ")
-                                    
-                                    val lowerUrl = captured.lowercase()
-                                    val provider = when {
-                                        lowerUrl.contains(".m3u8") || lowerUrl.contains("playlist") -> "embed-hls"
-                                        lowerUrl.contains(".mp4") -> "embed-mp4"
-                                        else -> "embed-hls"
-                                    }
-                                    android.util.Log.d("EnigmaCapture", "Detected provider: $provider")
-                                    val webViewUserAgent = android.webkit.WebSettings.getDefaultUserAgent(context)
-                                    
-                                    // Use subtitle captured by the visible WebView directly (most reliable path)
-                                    // Fall back to HLS manifest parsing if the WebView didn't intercept a .vtt
-                                    val subtitleUrl = capturedSubtitleUrl
-                                        ?: kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
-                                            com.enigma.tv.data.StreamResolver.resolveSubtitleFromHls(captured)
-                                        }
-                                    android.util.Log.d("EnigmaCapture", "Final subtitle URL: $subtitleUrl")
-                                    
-                                    resolvedStream = com.enigma.tv.data.ResolvedStream.fromEmbed(embedUrl, captured, provider, mergedCookies, webViewUserAgent).copy(subtitleUrl = subtitleUrl)
-                                    mode = MediaPlayMode.Native
-                                    resolvingNative = false
-                                    onNativePlayerActive?.invoke(true)
-                                }
+                                   if (streamFailed) {
+                        Box(
+                            modifier = Modifier.fillMaxSize(),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                Text(
+                                    "Stream unavailable",
+                                    color = TextPrimary,
+                                    fontSize = 18.sp,
+                                    fontWeight = FontWeight.SemiBold
+                                )
+                                Text(
+                                    "We couldn't find a playable stream for this title.",
+                                    color = TextSecondary,
+                                    fontSize = 14.sp,
+                                    modifier = Modifier.padding(top = 8.dp)
+                                )
                             }
-                        },
-                        onPlaybackEnded = if (playingType == ContentType.TV) onPlaybackEnded else null,
-                        onPlaybackProgress = onPlaybackPositionMs?.let { cb ->
-                            { ms: Long -> cb(ms) }
-                        },
-                        startPositionMs = startPositionMs,
-                        actionDispatcher = actionDispatcher,
-                        modifier = Modifier.fillMaxSize()
-                    )
+                        }
+                    } else {
+                        WebViewPlayer(
+                            visible = true,
+                            title = title,
+                            url = embedUrl,
+                            accent = accent,
+                            sourceLabel = sourceLabel,
+                            posterUrl = posterUrl,
+                            streamLoading = false, // never block WebView with a spinner
+                            onClose = onClose,
+                            onNextSource = onNextSource,
+                            // Suppress WebView's loading callbacks — it renders transparently.
+                            // We already cleared loading above; don't let it re-raise the overlay.
+                            onLoadingChange = { /* WebView renders like a browser — no spinner */ },
+                            onPlaybackReady = { /* no-op: WebView is already visible */ },
+                            onStreamFailed = { onLoadingChange(false) },
+                            tvControls = null,
+                            liveTv = false,
+                            useExternalChrome = true,
+                            onStreamCaptured = { captured, capturedSubtitleUrl ->
+                                if (mode != MediaPlayMode.Native) {
+                                    android.util.Log.d("EnigmaCapture", "Captured stream URL: $captured | subtitle: $capturedSubtitleUrl")
+                                    scope.launch {
+                                        val mgr = android.webkit.CookieManager.getInstance()
+                                        val c1 = mgr.getCookie(embedUrl) ?: ""
+                                        val c2 = mgr.getCookie(captured) ?: ""
+                                        val mergedCookies = (c1.split(";") + c2.split(";"))
+                                            .map { it.trim() }
+                                            .filter { it.isNotEmpty() }
+                                            .distinct()
+                                            .joinToString("; ")
+                                        
+                                        val lowerUrl = captured.lowercase()
+                                        val provider = when {
+                                            lowerUrl.contains(".m3u8") || lowerUrl.contains("playlist") -> "embed-hls"
+                                            lowerUrl.contains(".mp4") -> "embed-mp4"
+                                            else -> "embed-hls"
+                                        }
+                                        android.util.Log.d("EnigmaCapture", "Detected provider: $provider")
+                                        val webViewUserAgent = android.webkit.WebSettings.getDefaultUserAgent(context)
+                                        
+                                        // Use subtitle captured by the visible WebView directly (most reliable path)
+                                        // Fall back to HLS manifest parsing if the WebView didn't intercept a .vtt
+                                        val subtitleUrl = capturedSubtitleUrl
+                                            ?: kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                                                com.enigma.tv.data.StreamResolver.resolveSubtitleFromHls(captured)
+                                            }
+                                        android.util.Log.d("EnigmaCapture", "Final subtitle URL: $subtitleUrl")
+                                        
+                                        resolvedStream = com.enigma.tv.data.ResolvedStream.fromEmbed(embedUrl, captured, provider, mergedCookies, webViewUserAgent).copy(subtitleUrl = subtitleUrl)
+                                        mode = MediaPlayMode.Native
+                                        resolvingNative = false
+                                        onNativePlayerActive?.invoke(true)
+                                    }
+                                }
+                            },
+                            onPlaybackEnded = if (playingType == ContentType.TV) onPlaybackEnded else null,
+                            onPlaybackProgress = onPlaybackPositionMs?.let { cb ->
+                                { ms: Long -> cb(ms) }
+                            },
+                            startPositionMs = startPositionMs,
+                            actionDispatcher = actionDispatcher,
+                            modifier = Modifier.fillMaxSize()
+                        )
+                    }
                 }
                 if (useExternalChrome) {
                     Box(Modifier.fillMaxSize()) { embedColumn() }

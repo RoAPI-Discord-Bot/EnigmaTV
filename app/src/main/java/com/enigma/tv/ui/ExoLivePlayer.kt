@@ -199,6 +199,21 @@ fun ExoLivePlayer(
                             .build()
                     )
                 }
+                val mainMimeType = when {
+                    resolved.provider == "embed-hls" ||
+                    playUrl.contains(".m3u8", ignoreCase = true) ||
+                    playUrl.contains("playlist", ignoreCase = true) -> MimeTypes.APPLICATION_M3U8
+                    
+                    resolved.provider == "embed-mp4" ||
+                    playUrl.contains(".mp4", ignoreCase = true) -> MimeTypes.VIDEO_MP4
+                    
+                    else -> null
+                }
+                
+                if (mainMimeType != null) {
+                    itemBuilder.setMimeType(mainMimeType)
+                }
+                
                 sidecarSubtitle?.let { sub ->
                     val subUri = android.net.Uri.parse(sub)
                     val mime = when {
@@ -217,27 +232,11 @@ fun ExoLivePlayer(
                     )
                 }
                 val mediaItem = itemBuilder.build()
-                // Provider tag is set by EnigmaMediaPlayer based on actual URL content.
-                // embed-hls = captured HLS/m3u8, embed-mp4 = captured direct mp4
-                val mediaSource: MediaSource = when {
-                    resolved.provider == "embed-hls" ||
-                    playUrl.contains(".m3u8", ignoreCase = true) ||
-                    playUrl.contains("playlist", ignoreCase = true) -> {
-                        android.util.Log.d("EnigmaPlayer", "Using HlsMediaSource for: $playUrl")
-                        HlsMediaSource.Factory(dataSourceFactory).createMediaSource(mediaItem)
-                    }
-                    resolved.provider == "embed-mp4" ||
-                    playUrl.contains(".mp4", ignoreCase = true) -> {
-                        android.util.Log.d("EnigmaPlayer", "Using ProgressiveMediaSource for: $playUrl")
-                        androidx.media3.exoplayer.source.ProgressiveMediaSource.Factory(dataSourceFactory)
-                            .createMediaSource(mediaItem)
-                    }
-                    else -> {
-                        // Auto-detect from Content-Type header
-                        android.util.Log.d("EnigmaPlayer", "Using DefaultMediaSourceFactory for: $playUrl")
-                        DefaultMediaSourceFactory(dataSourceFactory).createMediaSource(mediaItem)
-                    }
-                }
+                
+                // Use DefaultMediaSourceFactory because it automatically merges sidecar SubtitleConfigurations 
+                // into a MergingMediaSource. HlsMediaSource/ProgressiveMediaSource ignore them!
+                android.util.Log.d("EnigmaPlayer", "Using DefaultMediaSourceFactory for: $playUrl")
+                val mediaSource = DefaultMediaSourceFactory(dataSourceFactory).createMediaSource(mediaItem)
                 val startMs = if (isLiveBroadcast) C.TIME_UNSET else startPositionMs.coerceAtLeast(0L)
                 player.setMediaSource(mediaSource, startMs)
                 player.prepare()
