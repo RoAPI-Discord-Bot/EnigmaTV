@@ -25,10 +25,15 @@ class WebViewNavigationGuard(initialUrl: String) {
     private var streamPlaying = false
     private var resumeTargetMs: Long = 0L
     private var didSeekResume = false
+    private var capturedStreamUrl: String? = null
+    private var capturedSubtitleUrl: String? = null
+    private val streamHandler = android.os.Handler(android.os.Looper.getMainLooper())
+    private var streamNotifyPending = false
 
     var onBlocked: ((String) -> Unit)? = null
     var onPageLoading: ((Boolean) -> Unit)? = null
-    var onStreamUrl: ((String) -> Unit)? = null
+    /** Callback receives (streamUrl, subtitleUrl?) */
+    var onStreamUrl: ((String, String?) -> Unit)? = null
     var onPlaybackProbe: ((Boolean) -> Unit)? = null
     var onLiveWaiting: (() -> Unit)? = null
     var onPlaybackProgress: ((Long) -> Unit)? = null
@@ -47,6 +52,10 @@ class WebViewNavigationGuard(initialUrl: String) {
         streamPlaying = false
         resumeTargetMs = resumePositionMs.coerceAtLeast(0L)
         didSeekResume = false
+        capturedStreamUrl = null
+        capturedSubtitleUrl = null
+        streamNotifyPending = false
+        streamHandler.removeCallbacksAndMessages(null)
         sessionHosts.clear()
         extractHost(url)?.let { registerHost(it) }
         STREAM_EMBED_ROOTS.forEach { registerHost(it) }
@@ -190,6 +199,7 @@ class WebViewNavigationGuard(initialUrl: String) {
                 if (request.isForMainFrame) return null
                 val url = request.url.toString()
                 captureStreamUrl(url)
+                captureSubtitleUrl(url)
                 return if (shouldBlockSubresource(url)) emptyResponse() else null
             }
         }
@@ -244,35 +254,66 @@ class WebViewNavigationGuard(initialUrl: String) {
         if (!lower.startsWith("http")) return
         if (lower.contains("thumbnail") || lower.contains("preview") || lower.contains("sprite")) return
         if (lower.contains(".m3u8") || (lower.contains(".mp4") && !lower.contains("poster"))) {
-            android.os.Handler(android.os.Looper.getMainLooper()).post {
-                onStreamUrl?.invoke(url)
+            if (capturedStreamUrl == null) {
+                capturedStreamUrl = url
+                if (!streamNotifyPending) {
+                    streamNotifyPending = true
+                    // Wait 1.5 s so the parallel .vtt request can be intercepted first
+                    streamHandler.postDelayed({
+                        onStreamUrl?.invoke(capturedStreamUrl ?: url, capturedSubtitleUrl)
+                        streamNotifyPending = false
+                    }, 1500)
+                }
+            }
+        }
+    }
+
+    private fun captureSubtitleUrl(url: String) {
+        val lower = url.lowercase()
+        if (!lower.startsWith("http")) return
+        if (!lower.contains(".vtt") && !lower.contains(".srt")) return
+        if (lower.contains("sprite") || lower.contains("thumbnail")) return
+        if (capturedSubtitleUrl == null) {
+            capturedSubtitleUrl = url
+            // If stream already captured and notify is still pending, fire immediately now
+            if (capturedStreamUrl != null && streamNotifyPending) {
+                streamHandler.removeCallbacksAndMessages(null)
+                streamNotifyPending = false
+                streamHandler.post {
+                    onStreamUrl?.invoke(capturedStreamUrl!!, capturedSubtitleUrl)
+                }
             }
         }
     }
 
     private fun scheduleResumeAttempts(webView: WebView) {
+        // Use streamHandler (not webView.postDelayed) so we can cancel these on reset/destroy
         listOf(800L, 2000L, 3500L, 5500L, 8000L, 12_000L, 18_000L, 26_000L).forEach { delayMs ->
-            webView.postDelayed({ trySeekResume(webView) }, delayMs)
+            streamHandler.postDelayed({ trySeekResume(webView) }, delayMs)
         }
     }
 
     private fun trySeekResume(webView: WebView) {
         if (didSeekResume || resumeTargetMs < 3_000L) return
         val sec = resumeTargetMs / 1000.0
-        webView.evaluateJavascript(
-            """
-            (function(){
-              try {
-                var v = document.querySelector('video');
-                if (!v) return 'wait';
-                if (v.readyState < 1) return 'wait';
-                if (Math.abs(v.currentTime - $sec) > 2) v.currentTime = $sec;
-                return 'ok';
-              } catch(e) { return 'wait'; }
-            })();
-            """.trimIndent()
-        ) { raw ->
-            if (raw?.contains("ok") == true) didSeekResume = true
+        try {
+            webView.evaluateJavascript(
+                """
+                (function(){
+                  try {
+                    var v = document.querySelector('video');
+                    if (!v) return 'wait';
+                    if (v.readyState < 1) return 'wait';
+                    if (Math.abs(v.currentTime - $sec) > 2) v.currentTime = $sec;
+                    return 'ok';
+                  } catch(e) { return 'wait'; }
+                })();
+                """.trimIndent()
+            ) { raw ->
+                if (raw?.contains("ok") == true) didSeekResume = true
+            }
+        } catch (_: Exception) {
+            // WebView was destroyed before this postDelayed callback fired — ignore
         }
     }
 

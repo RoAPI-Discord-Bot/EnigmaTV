@@ -53,7 +53,7 @@ fun WebViewPlayer(
     posterUrl: String? = null,
     useExternalChrome: Boolean = false,
     actionDispatcher: PlayerActionDispatcher? = null,
-    onStreamCaptured: ((String) -> Unit)? = null,
+    onStreamCaptured: ((String, String?) -> Unit)? = null,
     onStreamFailed: (() -> Unit)? = null,
     onPlaybackReady: (() -> Unit)? = null,
     onLiveWaiting: (() -> Unit)? = null,

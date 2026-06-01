@@ -123,4 +123,39 @@ object StreamResolver {
 
     const val USER_AGENT =
         "Mozilla/5.0 (Linux; Android 10) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36"
+
+    suspend fun resolveSubtitleFromHls(masterUrl: String): String? = withContext(Dispatchers.IO) {
+        if (!masterUrl.contains(".m3u8", ignoreCase = true)) return@withContext null
+        try {
+            val request = Request.Builder()
+                .url(masterUrl)
+                .header("User-Agent", USER_AGENT)
+                .build()
+            client.newCall(request).execute().use { response ->
+                if (!response.isSuccessful) return@withContext null
+                val playlist = response.body?.string() ?: return@withContext null
+                
+                // Look for: #EXT-X-MEDIA:TYPE=SUBTITLES...URI="sub.vtt"
+                val subLine = playlist.lines().firstOrNull { 
+                    it.startsWith("#EXT-X-MEDIA:TYPE=SUBTITLES", ignoreCase = true) && 
+                    (it.contains("eng", ignoreCase = true) || it.contains("en", ignoreCase = true) || !it.contains("LANGUAGE"))
+                } ?: playlist.lines().firstOrNull { 
+                    it.startsWith("#EXT-X-MEDIA:TYPE=SUBTITLES", ignoreCase = true)
+                }
+                
+                if (subLine != null) {
+                    val uriRegex = Regex("""URI="([^"]+)"""")
+                    val uri = uriRegex.find(subLine)?.groupValues?.get(1)
+                    if (uri != null) {
+                        if (uri.startsWith("http")) return@withContext uri
+                        val basePath = masterUrl.substringBeforeLast("/")
+                        return@withContext "$basePath/$uri"
+                    }
+                }
+                null
+            }
+        } catch (_: Exception) {
+            null
+        }
+    }
 }
