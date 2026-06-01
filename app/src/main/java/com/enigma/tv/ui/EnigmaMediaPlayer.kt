@@ -160,7 +160,8 @@ fun EnigmaMediaPlayer(
                                 trackColor = Color.White.copy(alpha = 0.12f)
                             )
                         }
-                                   if (streamFailed) {
+                    }
+                    if (streamFailed) {
                         Box(
                             modifier = Modifier.fillMaxSize(),
                             contentAlignment = Alignment.Center
