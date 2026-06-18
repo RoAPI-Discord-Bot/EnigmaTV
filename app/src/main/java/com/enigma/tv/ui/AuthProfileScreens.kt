@@ -44,6 +44,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.enigma.tv.data.ViewerProfile
@@ -276,7 +278,8 @@ private fun TvSignInForm(
             onValueChange = { name = it },
             label = { Text("Display name") },
             modifier = Modifier.fillMaxWidth(),
-            singleLine = true
+            singleLine = true,
+            keyboardOptions = KeyboardOptions(autoCorrectEnabled = false)
         )
         Spacer(Modifier.height(12.dp))
     }
@@ -285,7 +288,8 @@ private fun TvSignInForm(
         onValueChange = { mail = it },
         label = { Text("Email") },
         modifier = Modifier.fillMaxWidth(),
-        singleLine = true
+        singleLine = true,
+        keyboardOptions = KeyboardOptions(autoCorrectEnabled = false)
     )
     Spacer(Modifier.height(12.dp))
     OutlinedTextField(
@@ -294,6 +298,10 @@ private fun TvSignInForm(
         label = { Text("Password") },
         modifier = Modifier.fillMaxWidth(),
         singleLine = true,
+        keyboardOptions = KeyboardOptions(
+            autoCorrectEnabled = false,
+            keyboardType = KeyboardType.Password
+        ),
         visualTransformation = if (showPassword) VisualTransformation.None else PasswordVisualTransformation(),
         trailingIcon = {
             IconButton(onClick = { showPassword = !showPassword }) {
@@ -417,10 +425,10 @@ private fun MobileProfileScreen(
             }
             Spacer(Modifier.height(12.dp))
             if (mode == "signup") {
-                OutlinedTextField(value = name, onValueChange = { name = it }, label = { Text("Display name") }, modifier = Modifier.fillMaxWidth(), singleLine = true)
+                OutlinedTextField(value = name, onValueChange = { name = it }, label = { Text("Display name") }, modifier = Modifier.fillMaxWidth(), singleLine = true, keyboardOptions = KeyboardOptions(autoCorrectEnabled = false))
                 Spacer(Modifier.height(8.dp))
             }
-            OutlinedTextField(value = mail, onValueChange = { mail = it }, label = { Text("Email") }, modifier = Modifier.fillMaxWidth(), singleLine = true)
+            OutlinedTextField(value = mail, onValueChange = { mail = it }, label = { Text("Email") }, modifier = Modifier.fillMaxWidth(), singleLine = true, keyboardOptions = KeyboardOptions(autoCorrectEnabled = false))
             Spacer(Modifier.height(8.dp))
             OutlinedTextField(
                 value = pass,
@@ -428,6 +436,7 @@ private fun MobileProfileScreen(
                 label = { Text("Password") },
                 modifier = Modifier.fillMaxWidth(),
                 singleLine = true,
+                keyboardOptions = KeyboardOptions(autoCorrectEnabled = false, keyboardType = KeyboardType.Password),
                 visualTransformation = if (showPassword) VisualTransformation.None else PasswordVisualTransformation(),
                 trailingIcon = {
                     IconButton(onClick = { showPassword = !showPassword }) {

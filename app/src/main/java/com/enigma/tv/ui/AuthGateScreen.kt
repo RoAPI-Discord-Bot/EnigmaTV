@@ -28,6 +28,8 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -159,6 +161,10 @@ fun AuthGateScreen(
                         .onFocusChanged { passwordFocused = it.isFocused }
                         .background(if (passwordFocused) Color.White.copy(alpha = 0.08f) else Color.Transparent, RoundedCornerShape(10.dp)),
                     singleLine = true,
+                    keyboardOptions = KeyboardOptions(
+                        autoCorrectEnabled = false,
+                        keyboardType = KeyboardType.Password
+                    ),
                     visualTransformation = if (showPassword) VisualTransformation.None else PasswordVisualTransformation(),
                     trailingIcon = {
                         IconButton(onClick = { showPassword = !showPassword }) {
@@ -240,6 +246,7 @@ private fun AuthField(value: String, onValueChange: (String) -> Unit, label: Str
             .onFocusChanged { isFocused = it.isFocused }
             .background(if (isFocused) Color.White.copy(alpha = 0.08f) else Color.Transparent, RoundedCornerShape(10.dp)),
         singleLine = true,
+        keyboardOptions = KeyboardOptions(autoCorrectEnabled = false),
         colors = authFieldColors(),
         shape = RoundedCornerShape(10.dp)
     )
