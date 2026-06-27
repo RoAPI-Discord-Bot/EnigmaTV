@@ -416,7 +416,7 @@ fun PlaybackControlsRow(
     var playFocused by remember { mutableStateOf(false) }
     var forwardFocused by remember { mutableStateOf(false) }
 
-    val playFocusRequester = remember { androidx.compose.ui.focus.FocusRequester() }
+    val playFocusRequester = remember { FocusRequester() }
     LaunchedEffect(Unit) {
         if (isTvLayout) {
             runCatching { playFocusRequester.requestFocus() }
@@ -460,7 +460,7 @@ fun PlaybackControlsRow(
             },
             modifier = Modifier
                 .size(playSize)
-                .androidx.compose.ui.focus.focusRequester(playFocusRequester)
+                .focusRequester(playFocusRequester)
                 .onFocusChanged { playFocused = it.isFocused }
                 .background(
                     if (playFocused) Color.White else accent,
