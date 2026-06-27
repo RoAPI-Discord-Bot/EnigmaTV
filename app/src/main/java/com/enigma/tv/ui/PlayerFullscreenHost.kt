@@ -143,8 +143,10 @@ fun PlayerFullscreenHost(
     }
 
     val rootFocusRequester = remember { FocusRequester() }
-    LaunchedEffect(Unit) {
-        runCatching { rootFocusRequester.requestFocus() }
+    LaunchedEffect(chromeVisible, isNativePlayerActive) {
+        if (!chromeVisible && !isNativePlayerActive) {
+            runCatching { rootFocusRequester.requestFocus() }
+        }
     }
 
     CompositionLocalProvider(LocalPlayerChromeSync provides syncChrome) {
@@ -153,7 +155,7 @@ fun PlayerFullscreenHost(
                 .fillMaxSize()
                 .background(BgDark)
                 .focusRequester(rootFocusRequester)
-                .focusable()
+                .then(if (!isNativePlayerActive && !chromeVisible) Modifier.focusable() else Modifier)
                 .clickable(
                     interactionSource = remember { MutableInteractionSource() },
                     indication = null
@@ -414,6 +416,13 @@ fun PlaybackControlsRow(
     var playFocused by remember { mutableStateOf(false) }
     var forwardFocused by remember { mutableStateOf(false) }
 
+    val playFocusRequester = remember { androidx.compose.ui.focus.FocusRequester() }
+    LaunchedEffect(Unit) {
+        if (isTvLayout) {
+            runCatching { playFocusRequester.requestFocus() }
+        }
+    }
+
     Row(
         modifier = Modifier.fillMaxWidth().padding(top = 16.dp, bottom = 8.dp),
         horizontalArrangement = Arrangement.Center,
@@ -451,6 +460,7 @@ fun PlaybackControlsRow(
             },
             modifier = Modifier
                 .size(playSize)
+                .androidx.compose.ui.focus.focusRequester(playFocusRequester)
                 .onFocusChanged { playFocused = it.isFocused }
                 .background(
                     if (playFocused) Color.White else accent,

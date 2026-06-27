@@ -364,6 +364,9 @@ fun ExoLivePlayer(
                             )
                             this.player = player
                             useController = true
+                            isFocusable = true
+                            isFocusableInTouchMode = true
+                            requestFocus()
                             controllerShowTimeoutMs = 5000
                             controllerHideOnTouch = true
                             setShowNextButton(false)
