@@ -133,6 +133,7 @@ fun EnigmaMediaPlayer(
                 onPlaybackEnded = onPlaybackEnded,
                 onPlaybackPositionMs = onPlaybackPositionMs,
                 startPositionMs = startPositionMs,
+                actionDispatcher = actionDispatcher,
                 modifier = Modifier.fillMaxSize()
             )
             MediaPlayMode.Embed -> {

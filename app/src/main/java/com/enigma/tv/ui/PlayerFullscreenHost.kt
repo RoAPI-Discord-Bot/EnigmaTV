@@ -35,6 +35,7 @@ import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.FastForward
 import androidx.compose.material.icons.filled.FastRewind
+import androidx.compose.material.icons.filled.Replay
 import androidx.compose.material.icons.filled.PlayCircle
 import androidx.compose.material.icons.filled.PauseCircle
 import androidx.compose.material3.Button
@@ -412,6 +413,7 @@ fun PlaybackControlsRow(
     isTvLayout: Boolean
 ) {
     var isPlaying by remember { mutableStateOf(true) }
+    var restartFocused by remember { mutableStateOf(false) }
     var rewindFocused by remember { mutableStateOf(false) }
     var playFocused by remember { mutableStateOf(false) }
     var forwardFocused by remember { mutableStateOf(false) }
@@ -430,6 +432,26 @@ fun PlaybackControlsRow(
     ) {
         val sideSize = if (isTvLayout) 52.dp else 40.dp
         val sideIconSize = if (isTvLayout) 28.dp else 22.dp
+
+        // Restart
+        IconButton(
+            onClick = { actionDispatcher.restart() },
+            modifier = Modifier
+                .size(sideSize)
+                .onFocusChanged { restartFocused = it.isFocused }
+                .background(
+                    if (restartFocused) Color.White.copy(alpha = 0.28f) else Color.White.copy(alpha = 0.10f),
+                    RoundedCornerShape(percent = 50)
+                )
+                .then(
+                    if (restartFocused) Modifier.border(2.dp, Color.White, RoundedCornerShape(percent = 50))
+                    else Modifier
+                )
+        ) {
+            Icon(Icons.Default.Replay, contentDescription = "Restart", tint = TextPrimary, modifier = Modifier.size(sideIconSize))
+        }
+
+        Spacer(modifier = Modifier.width(if (isTvLayout) 32.dp else 20.dp))
 
         // Rewind
         IconButton(

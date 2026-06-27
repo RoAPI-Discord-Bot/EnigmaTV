@@ -26,11 +26,13 @@ class PlayerActionDispatcher {
     var onTogglePlay: (() -> Unit)? = null
     var onSeekForward: (() -> Unit)? = null
     var onSeekBackward: (() -> Unit)? = null
+    var onRestart: (() -> Unit)? = null
     var onShowEpisodesRequest: (() -> Unit)? = null
 
     fun togglePlay() = onTogglePlay?.invoke()
     fun seekForward() = onSeekForward?.invoke()
     fun seekBackward() = onSeekBackward?.invoke()
+    fun restart() = onRestart?.invoke()
     fun requestShowEpisodes() = onShowEpisodesRequest?.invoke()
 }
 
@@ -184,11 +186,17 @@ private fun ColumnScope.WebViewStreamBody(
                     "document.querySelectorAll('video').forEach(v => v.currentTime = Math.max(0, v.currentTime - 10));", null
                 )
             }
+            actionDispatcher.onRestart = {
+                webViewRef?.evaluateJavascript(
+                    "document.querySelectorAll('video').forEach(v => { v.currentTime = 0; v.play(); });", null
+                )
+            }
         }
         onDispose {
             actionDispatcher?.onTogglePlay = null
             actionDispatcher?.onSeekForward = null
             actionDispatcher?.onSeekBackward = null
+            actionDispatcher?.onRestart = null
         }
     }
 

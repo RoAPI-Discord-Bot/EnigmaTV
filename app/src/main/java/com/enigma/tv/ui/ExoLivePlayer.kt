@@ -76,6 +76,7 @@ fun ExoLivePlayer(
     onPlaybackEnded: (() -> Unit)? = null,
     onPlaybackPositionMs: ((Long) -> Unit)? = null,
     startPositionMs: Long = 0L,
+    actionDispatcher: PlayerActionDispatcher? = null,
     modifier: Modifier = Modifier.fillMaxSize()
 ) {
     if (!visible) return
@@ -162,6 +163,30 @@ fun ExoLivePlayer(
                 playWhenReady = true
                 volume = 1f
             }
+    }
+
+    DisposableEffect(actionDispatcher, player) {
+        if (actionDispatcher != null) {
+            actionDispatcher.onTogglePlay = {
+                if (player.isPlaying) player.pause() else player.play()
+            }
+            actionDispatcher.onSeekForward = {
+                player.seekTo(player.currentPosition + 10_000)
+            }
+            actionDispatcher.onSeekBackward = {
+                player.seekTo(player.currentPosition - 10_000)
+            }
+            actionDispatcher.onRestart = {
+                player.seekTo(0)
+                player.play()
+            }
+        }
+        onDispose {
+            actionDispatcher?.onTogglePlay = null
+            actionDispatcher?.onSeekForward = null
+            actionDispatcher?.onSeekBackward = null
+            actionDispatcher?.onRestart = null
+        }
     }
 
     val effectiveHeaders = if (stripHeaders) emptyMap() else playbackHeaders
