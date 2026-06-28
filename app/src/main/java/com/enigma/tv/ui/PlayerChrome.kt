@@ -132,11 +132,11 @@ fun PlayerChrome(
                 }
             }
             if (showEpisodesButton && onShowEpisodes != null) {
-                IconButton(onClick = onShowEpisodes, modifier = Modifier.size(if (isTvLayout) 48.dp else 44.dp)) {
+                IconButton(onClick = onShowEpisodes, modifier = Modifier.size(if (isTvLayout) 48.dp else 44.dp).focusable()) {
                     Icon(Icons.Default.List, contentDescription = "Episodes", tint = accent)
                 }
             }
-            IconButton(onClick = onClose, modifier = Modifier.size(if (isTvLayout) 52.dp else 48.dp)) {
+            IconButton(onClick = onClose, modifier = Modifier.size(if (isTvLayout) 52.dp else 48.dp).focusable()) {
                 Icon(Icons.Default.Close, contentDescription = "Close", tint = TextPrimary)
             }
         }

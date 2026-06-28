@@ -156,6 +156,7 @@ fun PlayerFullscreenHost(
     androidx.compose.runtime.SideEffect {
         RemoteKeyRouter.handler = { keyCode ->
             when (keyCode) {
+                // Media keys ALWAYS work directly — no chrome needed
                 android.view.KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE,
                 android.view.KeyEvent.KEYCODE_MEDIA_PLAY,
                 android.view.KeyEvent.KEYCODE_MEDIA_PAUSE -> {
@@ -167,16 +168,19 @@ fun PlayerFullscreenHost(
                 android.view.KeyEvent.KEYCODE_MEDIA_REWIND -> {
                     actionDispatcher.seekBackward(); true
                 }
-                android.view.KeyEvent.KEYCODE_DPAD_CENTER -> {
-                    if (isNativePlayerActive) actionDispatcher.togglePlay()
-                    else chromeVisible = !chromeVisible
-                    true
-                }
-                android.view.KeyEvent.KEYCODE_DPAD_RIGHT -> {
-                    if (isNativePlayerActive) { actionDispatcher.seekForward(); true } else false
-                }
+                // DPAD: if chrome hidden → show it and consume.
+                // If chrome visible → return false so Compose focus moves between buttons.
+                android.view.KeyEvent.KEYCODE_DPAD_CENTER,
+                android.view.KeyEvent.KEYCODE_DPAD_UP,
+                android.view.KeyEvent.KEYCODE_DPAD_DOWN,
+                android.view.KeyEvent.KEYCODE_DPAD_RIGHT,
                 android.view.KeyEvent.KEYCODE_DPAD_LEFT -> {
-                    if (isNativePlayerActive) { actionDispatcher.seekBackward(); true } else false
+                    if (!chromeVisible) {
+                        chromeVisible = true
+                        true  // consumed — just open chrome
+                    } else {
+                        false // let Compose focus system handle it
+                    }
                 }
                 else -> false
             }
@@ -380,36 +384,55 @@ fun PlayerFullscreenHost(
                 }
             }
 
-            if (!isNativePlayerActive) {
-                AnimatedVisibility(
-                    visible = chromeVisible && !streamLoading,
-                    enter = slideInVertically { -it } + fadeIn(),
-                    exit = slideOutVertically { -it } + fadeOut(),
+            AnimatedVisibility(
+                visible = chromeVisible && !streamLoading,
+                enter = slideInVertically { -it } + fadeIn(),
+                exit = slideOutVertically { -it } + fadeOut(),
+                modifier = Modifier
+                    .align(Alignment.TopCenter)
+                    .clickable(
+                        interactionSource = remember { MutableInteractionSource() },
+                        indication = null
+                    ) { /* keep chrome open while interacting */ }
+            ) {
+                Column(Modifier.fillMaxWidth()) {
+                    PlayerChrome(
+                        title = title,
+                        subtitle = subtitle,
+                        posterUrl = posterUrl,
+                        accent = accent,
+                        onClose = onClose,
+                        showBack = false,
+                        showNextSource = showNextSource && !streamFailed,
+                        onNextSource = onNextSource,
+                        showEpisodesButton = hasTv,
+                        onShowEpisodes = if (hasTv) {
+                            { episodePanelOpen = !episodePanelOpen }
+                        } else null,
+                        isTvLayout = layout == ScreenLayout.TV,
+                        isLive = subtitle.contains("Live", ignoreCase = true)
+                    )
+                }
+            }
+
+            // Bottom playback controls — shown for native player when chrome is visible
+            AnimatedVisibility(
+                visible = chromeVisible && isNativePlayerActive && !streamLoading,
+                enter = slideInVertically { it } + fadeIn(),
+                exit = slideOutVertically { it } + fadeOut(),
+                modifier = Modifier.align(Alignment.BottomCenter)
+            ) {
+                androidx.compose.foundation.layout.Box(
                     modifier = Modifier
-                        .align(Alignment.TopCenter)
-                        .clickable(
-                            interactionSource = remember { MutableInteractionSource() },
-                            indication = null
-                        ) { /* keep chrome open while interacting */ }
+                        .fillMaxWidth()
+                        .background(Color.Black.copy(alpha = 0.82f))
+                        .padding(bottom = 16.dp)
                 ) {
-                    Column(Modifier.fillMaxWidth()) {
-                        PlayerChrome(
-                            title = title,
-                            subtitle = subtitle,
-                            posterUrl = posterUrl,
-                            accent = accent,
-                            onClose = onClose,
-                            showBack = false,
-                            showNextSource = showNextSource && !streamFailed,
-                            onNextSource = onNextSource,
-                            showEpisodesButton = hasTv,
-                            onShowEpisodes = if (hasTv) {
-                                { episodePanelOpen = !episodePanelOpen }
-                            } else null,
-                            isTvLayout = layout == ScreenLayout.TV,
-                            isLive = subtitle.contains("Live", ignoreCase = true)
-                        )
-                    }
+                    PlaybackControlsRow(
+                        actionDispatcher = actionDispatcher,
+                        accent = accent,
+                        isTvLayout = layout == ScreenLayout.TV
+                    )
                 }
             }
 
@@ -481,6 +504,7 @@ fun PlaybackControlsRow(
             onClick = { actionDispatcher.restart() },
             modifier = Modifier
                 .size(sideSize)
+                .focusable()
                 .onFocusChanged { restartFocused = it.isFocused }
                 .background(
                     if (restartFocused) Color.White.copy(alpha = 0.28f) else Color.White.copy(alpha = 0.10f),
@@ -501,6 +525,7 @@ fun PlaybackControlsRow(
             onClick = { actionDispatcher.seekBackward() },
             modifier = Modifier
                 .size(sideSize)
+                .focusable()
                 .onFocusChanged { rewindFocused = it.isFocused }
                 .background(
                     if (rewindFocused) Color.White.copy(alpha = 0.28f) else Color.White.copy(alpha = 0.10f),
@@ -551,6 +576,7 @@ fun PlaybackControlsRow(
             onClick = { actionDispatcher.seekForward() },
             modifier = Modifier
                 .size(sideSize)
+                .focusable()
                 .onFocusChanged { forwardFocused = it.isFocused }
                 .background(
                     if (forwardFocused) Color.White.copy(alpha = 0.28f) else Color.White.copy(alpha = 0.10f),
