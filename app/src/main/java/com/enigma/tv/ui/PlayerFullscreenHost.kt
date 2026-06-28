@@ -150,6 +150,40 @@ fun PlayerFullscreenHost(
         }
     }
 
+    // ── Register Activity-level key handler so remote keys are ALWAYS caught ──
+    // SideEffect re-registers after every recompose so the lambda always closes
+    // over fresh chromeVisible / isNativePlayerActive state.
+    androidx.compose.runtime.SideEffect {
+        RemoteKeyRouter.handler = { keyCode ->
+            when (keyCode) {
+                android.view.KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE,
+                android.view.KeyEvent.KEYCODE_MEDIA_PLAY,
+                android.view.KeyEvent.KEYCODE_MEDIA_PAUSE -> {
+                    actionDispatcher.togglePlay(); true
+                }
+                android.view.KeyEvent.KEYCODE_MEDIA_FAST_FORWARD -> {
+                    actionDispatcher.seekForward(); true
+                }
+                android.view.KeyEvent.KEYCODE_MEDIA_REWIND -> {
+                    actionDispatcher.seekBackward(); true
+                }
+                android.view.KeyEvent.KEYCODE_DPAD_CENTER -> {
+                    if (isNativePlayerActive) actionDispatcher.togglePlay()
+                    else chromeVisible = !chromeVisible
+                    true
+                }
+                android.view.KeyEvent.KEYCODE_DPAD_RIGHT -> {
+                    if (isNativePlayerActive) { actionDispatcher.seekForward(); true } else false
+                }
+                android.view.KeyEvent.KEYCODE_DPAD_LEFT -> {
+                    if (isNativePlayerActive) { actionDispatcher.seekBackward(); true } else false
+                }
+                else -> false
+            }
+        }
+    }
+    DisposableEffect(Unit) { onDispose { RemoteKeyRouter.handler = null } }
+
     CompositionLocalProvider(LocalPlayerChromeSync provides syncChrome) {
         Box(
             Modifier
@@ -165,7 +199,6 @@ fun PlayerFullscreenHost(
                     chromeVisible = !chromeVisible
                 }
                 .onKeyEvent { event ->
-                    if (isNativePlayerActive) return@onKeyEvent false
                     if (event.type == KeyEventType.KeyDown) {
                         when (event.key.nativeKeyCode) {
                             KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE,
@@ -174,32 +207,42 @@ fun PlayerFullscreenHost(
                                 actionDispatcher.togglePlay()
                                 true
                             }
-                            KeyEvent.KEYCODE_MEDIA_FAST_FORWARD -> {
-                                actionDispatcher.seekForward()
-                                true
+                            KeyEvent.KEYCODE_MEDIA_FAST_FORWARD,
+                            KeyEvent.KEYCODE_DPAD_RIGHT -> {
+                                if (isNativePlayerActive) {
+                                    actionDispatcher.seekForward()
+                                    true
+                                } else if (!chromeVisible) {
+                                    chromeVisible = true
+                                    true
+                                } else false
                             }
-                            KeyEvent.KEYCODE_MEDIA_REWIND -> {
-                                actionDispatcher.seekBackward()
-                                true
+                            KeyEvent.KEYCODE_MEDIA_REWIND,
+                            KeyEvent.KEYCODE_DPAD_LEFT -> {
+                                if (isNativePlayerActive) {
+                                    actionDispatcher.seekBackward()
+                                    true
+                                } else if (!chromeVisible) {
+                                    chromeVisible = true
+                                    true
+                                } else false
                             }
                             KeyEvent.KEYCODE_DPAD_CENTER -> {
-                                if (!chromeVisible) {
+                                if (isNativePlayerActive) {
+                                    actionDispatcher.togglePlay()
+                                } else if (!chromeVisible) {
                                     chromeVisible = true
                                 } else {
                                     actionDispatcher.togglePlay()
                                 }
                                 true
                             }
-                            KeyEvent.KEYCODE_DPAD_RIGHT,
-                            KeyEvent.KEYCODE_DPAD_LEFT,
                             KeyEvent.KEYCODE_DPAD_UP,
                             KeyEvent.KEYCODE_DPAD_DOWN -> {
                                 if (!chromeVisible) {
                                     chromeVisible = true
-                                    true // Consumed to open chrome
-                                } else {
-                                    false // Let focus move naturally to chrome buttons
-                                }
+                                    true
+                                } else false
                             }
                             else -> false
                         }

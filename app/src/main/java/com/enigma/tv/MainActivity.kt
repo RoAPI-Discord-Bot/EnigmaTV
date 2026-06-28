@@ -1,10 +1,12 @@
 package com.enigma.tv
 
 import android.os.Bundle
+import android.view.KeyEvent
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import com.enigma.tv.ui.EnigmaShell
+import com.enigma.tv.ui.RemoteKeyRouter
 import com.enigma.tv.ui.theme.EnigmaTVTheme
 
 import android.content.Context
@@ -44,5 +46,10 @@ class MainActivity : ComponentActivity() {
                 }
             }
         }
+    }
+
+    override fun onKeyDown(keyCode: Int, event: KeyEvent?): Boolean {
+        if (RemoteKeyRouter.dispatch(keyCode)) return true
+        return super.onKeyDown(keyCode, event)
     }
 }

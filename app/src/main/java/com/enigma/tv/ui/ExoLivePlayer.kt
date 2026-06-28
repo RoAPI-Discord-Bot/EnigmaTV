@@ -388,80 +388,9 @@ fun ExoLivePlayer(
                                 ViewGroup.LayoutParams.MATCH_PARENT
                             )
                             this.player = player
-                            useController = true
-                            isFocusable = true
-                            isFocusableInTouchMode = true
-                            requestFocus()
-                            controllerShowTimeoutMs = 5000
-                            controllerHideOnTouch = true
-                            setShowNextButton(false)
-                            setShowPreviousButton(false)
-                            
-                            findViewById<android.widget.TextView>(com.enigma.tv.R.id.tv_enigma_title)?.text = title
-                            findViewById<android.widget.TextView>(com.enigma.tv.R.id.tv_enigma_subtitle)?.text = sourceLabel
-                            
-                            findViewById<android.view.View>(com.enigma.tv.R.id.btn_enigma_close)?.setOnClickListener { onClose() }
-                            
-                            val nextBtn = findViewById<android.view.View>(com.enigma.tv.R.id.btn_enigma_next)
-                            if (showNextSource) {
-                                nextBtn?.visibility = View.VISIBLE
-                                nextBtn?.setOnClickListener { onNextSource?.invoke() }
-                            } else {
-                                nextBtn?.visibility = View.GONE
-                            }
-                            
-                            val epBtn = findViewById<android.view.View>(com.enigma.tv.R.id.btn_enigma_episodes)
-                            if (tvControls != null) {
-                                epBtn?.visibility = View.VISIBLE
-                                epBtn?.setOnClickListener { onShowEpisodes?.invoke() }
-                            } else {
-                                epBtn?.visibility = View.GONE
-                            }
-
-                            // ── Hold-to-accelerate on rewind / fast-forward ───────────────
-                            // Tap = 5 s, hold = jumps 30 s every 500 ms while held
-                            fun attachHoldSeek(btnId: Int, direction: Int) {
-                                val btn = findViewById<android.view.View>(btnId) ?: return
-                                var holdJob: kotlinx.coroutines.Job? = null
-                                btn.setOnClickListener {
-                                    val pos = player.currentPosition
-                                    val target = (pos + direction * 5_000L).coerceIn(0L, player.duration.coerceAtLeast(0L))
-                                    player.seekTo(target)
-                                }
-                                btn.setOnLongClickListener {
-                                    holdJob = scope.launch {
-                                        while (isActive) {
-                                            val pos = player.currentPosition
-                                            val target = (pos + direction * 30_000L).coerceIn(0L, player.duration.coerceAtLeast(0L))
-                                            player.seekTo(target)
-                                            delay(500)
-                                        }
-                                    }
-                                    true
-                                }
-                                btn.setOnTouchListener { _, event ->
-                                    if (event.action == android.view.MotionEvent.ACTION_UP ||
-                                        event.action == android.view.MotionEvent.ACTION_CANCEL) {
-                                        holdJob?.cancel()
-                                        holdJob = null
-                                    }
-                                    false
-                                }
-                            }
-                            // Use Media3's resource IDs for rew/ffwd so the layout IDs match
-                            attachHoldSeek(androidx.media3.ui.R.id.exo_rew, -1)
-                            attachHoldSeek(androidx.media3.ui.R.id.exo_ffwd, +1)
-
-                            if (useExternalChrome) {
-                                setControllerVisibilityListener(
-                                    PlayerView.ControllerVisibilityListener { visibility ->
-                                        syncChrome(visibility == View.VISIBLE)
-                                    }
-                                )
-                            }
-                            if (isLiveBroadcast) {
-                                post { hideVodTimeline(this) }
-                            }
+                            useController = false  // We handle controls externally
+                            isFocusable = false    // Don't steal focus from Compose
+                            isFocusableInTouchMode = false
                         }
                     },
                     update = { view ->
