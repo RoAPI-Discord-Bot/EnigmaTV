@@ -545,8 +545,7 @@ private fun EnigmaPlayerOverlay(
                 }
             }
         }
-    }
-}
+        }
     }
 }
 
