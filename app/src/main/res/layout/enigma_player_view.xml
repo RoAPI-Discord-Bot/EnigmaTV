@@ -7,4 +7,5 @@
     android:layout_height="match_parent"
     app:controller_layout_id="@layout/custom_exo_controls"
     app:show_timeout="5000"
+    app:resize_mode="fit"
     app:hide_on_touch="true" />

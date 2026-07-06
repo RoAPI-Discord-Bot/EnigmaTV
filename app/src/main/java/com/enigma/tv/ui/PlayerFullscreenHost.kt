@@ -385,7 +385,7 @@ fun PlayerFullscreenHost(
             }
 
             AnimatedVisibility(
-                visible = chromeVisible && !streamLoading,
+                visible = chromeVisible && !streamLoading && !isNativePlayerActive,
                 enter = slideInVertically { -it } + fadeIn(),
                 exit = slideOutVertically { -it } + fadeOut(),
                 modifier = Modifier

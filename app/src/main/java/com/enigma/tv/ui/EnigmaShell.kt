@@ -501,7 +501,7 @@ private fun EnigmaPlayerOverlay(
             onNextEpisode = { viewModel.playAdjacentEpisode(forward = true) },
             hasPrevEpisode = viewModel.hasAdjacentEpisode(forward = false),
             hasNextEpisode = viewModel.hasAdjacentEpisode(forward = true),
-            isNativePlayerActive = isNativePlayerActive
+            isNativePlayerActive = isNativePlayerActive || state.playerHls
         ) { dispatcher ->
             when {
                 state.playerHls -> ExoLivePlayer(
