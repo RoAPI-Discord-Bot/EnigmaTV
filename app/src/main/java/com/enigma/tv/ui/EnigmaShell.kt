@@ -453,32 +453,29 @@ private fun EnigmaPlayerOverlay(
 ) {
     if (!state.playerVisible) return
 
-    androidx.compose.ui.zIndex.ZIndex(100f) {
-        androidx.compose.foundation.layout.Box(
-            modifier = androidx.compose.ui.Modifier.fillMaxSize()
-        ) {
-            androidx.activity.compose.BackHandler { viewModel.closePlayer() }
-        val accent = if (state.playerAccentMovie) MovieAccent else TvAccent
-        val tvControls = if (
-            state.playingType == ContentType.TV &&
-            state.seasons.isNotEmpty()
-        ) {
-            TvPlayerControls(
-                seasons = state.seasons,
-                episodes = state.episodes,
-                selectedSeason = state.selectedSeason,
-                selectedEpisode = state.selectedEpisode,
-                onSeasonChange = { viewModel.onSeasonChange(it) },
-                onEpisodeChange = { viewModel.onEpisodeChange(it) }
-            )
-        } else null
+    androidx.activity.compose.BackHandler { viewModel.closePlayer() }
 
-        val showNext = state.playingType != null || state.playerLiveTv || state.playerHls
-        Box(
-            Modifier
-                .fillMaxSize()
-                .background(BgDark)
-        ) {
+    val accent = if (state.playerAccentMovie) MovieAccent else TvAccent
+    val tvControls = if (
+        state.playingType == ContentType.TV &&
+        state.seasons.isNotEmpty()
+    ) {
+        TvPlayerControls(
+            seasons = state.seasons,
+            episodes = state.episodes,
+            selectedSeason = state.selectedSeason,
+            selectedEpisode = state.selectedEpisode,
+            onSeasonChange = { viewModel.onSeasonChange(it) },
+            onEpisodeChange = { viewModel.onEpisodeChange(it) }
+        )
+    } else null
+
+    val showNext = state.playingType != null || state.playerLiveTv || state.playerHls
+    Box(
+        Modifier
+            .fillMaxSize()
+            .background(BgDark)
+    ) {
         var isNativePlayerActive by remember { mutableStateOf(false) }
 
         PlayerFullscreenHost(
@@ -568,8 +565,6 @@ private fun EnigmaPlayerOverlay(
                     )
                 }
             }
-        }
-        }
         }
     }
 }
