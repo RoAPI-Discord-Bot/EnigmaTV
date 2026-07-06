@@ -435,6 +435,7 @@ fun EnigmaShell(viewModel: EnigmaViewModel = viewModel()) {
                 isTv = layout.usePermanentDrawer(),
                 onClose = { viewModel.closeDetail() },
                 onPlay = { viewModel.playFromDetail() },
+                onRestart = { viewModel.playFromDetail(restart = true) },
                 onToggleFavorite = { viewModel.toggleDetailFavorite() },
                 onSeasonChange = { viewModel.detailSeasonChange(it) },
                 onEpisodeSelect = { viewModel.detailEpisodeSelect(it) }

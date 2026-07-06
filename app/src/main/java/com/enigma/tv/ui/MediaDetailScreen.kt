@@ -81,6 +81,7 @@ fun MediaDetailOverlay(
     isTv: Boolean = false,
     onClose: () -> Unit,
     onPlay: () -> Unit,
+    onRestart: () -> Unit,
     onToggleFavorite: () -> Unit,
     onSeasonChange: (Int) -> Unit,
     onEpisodeSelect: (Int) -> Unit
@@ -284,32 +285,52 @@ private fun TvDetailContent(
                 // Play button — large, prominent, auto-focused
                 var playFocused by remember { mutableStateOf(false) }
                 if (detail.isPlayable) {
-                    Button(
-                        onClick = onPlay,
-                        modifier = Modifier
-                            .fillMaxWidth(0.7f)
-                            .height(56.dp)
-                            .focusRequester(playFocusRequester)
-                            .onFocusChanged { playFocused = it.isFocused }
-                            .then(
-                                if (playFocused) Modifier.border(3.dp, Color.White, RoundedCornerShape(12.dp))
-                                else Modifier
-                            ),
-                        colors = ButtonDefaults.buttonColors(containerColor = accent),
-                        shape = RoundedCornerShape(12.dp)
-                    ) {
-                        Icon(Icons.Default.PlayArrow, contentDescription = null, modifier = Modifier.size(30.dp))
-                        Text(
-                            when {
-                                detail.resumePositionMs > 0 && detail.type == ContentType.TV -> "Resume S${detail.selectedSeason}E${detail.selectedEpisode}"
-                                detail.resumePositionMs > 0 && detail.type == ContentType.MOVIE -> "Resume Movie"
-                                detail.type == ContentType.TV -> "Play S${detail.selectedSeason}E${detail.selectedEpisode}"
-                                else -> "Play Now"
-                            },
-                            modifier = Modifier.padding(start = 10.dp),
-                            fontSize = 18.sp,
-                            fontWeight = FontWeight.Bold
-                        )
+                    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                        Button(
+                            onClick = onPlay,
+                            modifier = Modifier
+                                .weight(if (detail.resumePositionMs > 0) 1f else 0.7f, fill = false)
+                                .height(56.dp)
+                                .focusRequester(playFocusRequester)
+                                .onFocusChanged { playFocused = it.isFocused }
+                                .then(
+                                    if (playFocused) Modifier.border(3.dp, Color.White, RoundedCornerShape(12.dp))
+                                    else Modifier
+                                ),
+                            colors = ButtonDefaults.buttonColors(containerColor = accent),
+                            shape = RoundedCornerShape(12.dp)
+                        ) {
+                            Icon(Icons.Default.PlayArrow, contentDescription = null, modifier = Modifier.size(30.dp))
+                            Text(
+                                when {
+                                    detail.resumePositionMs > 0 && detail.type == ContentType.TV -> "Resume S${detail.selectedSeason}E${detail.selectedEpisode}"
+                                    detail.resumePositionMs > 0 && detail.type == ContentType.MOVIE -> "Resume Movie"
+                                    detail.type == ContentType.TV -> "Play S${detail.selectedSeason}E${detail.selectedEpisode}"
+                                    else -> "Play Now"
+                                },
+                                modifier = Modifier.padding(start = 10.dp),
+                                fontSize = 18.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                        
+                        if (detail.resumePositionMs > 0) {
+                            var restartFocused by remember { mutableStateOf(false) }
+                            Button(
+                                onClick = onRestart,
+                                modifier = Modifier
+                                    .height(56.dp)
+                                    .onFocusChanged { restartFocused = it.isFocused }
+                                    .then(
+                                        if (restartFocused) Modifier.border(3.dp, Color.White, RoundedCornerShape(12.dp))
+                                        else Modifier
+                                    ),
+                                colors = ButtonDefaults.buttonColors(containerColor = Color.White.copy(alpha = 0.15f)),
+                                shape = RoundedCornerShape(12.dp)
+                            ) {
+                                Text("Restart", fontSize = 18.sp, fontWeight = FontWeight.SemiBold)
+                            }
+                        }
                     }
                 } else {
                     Text(
@@ -544,24 +565,37 @@ private fun MobileDetailContent(
             Modifier.fillMaxWidth().background(BgDark.copy(alpha = 0.95f)).padding(16.dp)
         ) {
             if (detail.isPlayable) {
-                Button(
-                    onClick = onPlay,
-                    modifier = Modifier.fillMaxWidth().heightIn(min = 52.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = accent),
-                    shape = RoundedCornerShape(10.dp)
-                ) {
-                    Icon(Icons.Default.PlayArrow, contentDescription = null, modifier = Modifier.size(28.dp))
-                    Text(
-                        when {
-                            detail.resumePositionMs > 0 && detail.type == ContentType.TV -> "Resume S${detail.selectedSeason}E${detail.selectedEpisode}"
-                            detail.resumePositionMs > 0 && detail.type == ContentType.MOVIE -> "Resume Movie"
-                            detail.type == ContentType.TV -> "Play S${detail.selectedSeason}E${detail.selectedEpisode}"
-                            else -> "Play Now"
-                        },
-                        modifier = Modifier.padding(start = 10.dp),
-                        fontSize = 17.sp,
-                        fontWeight = FontWeight.Bold
-                    )
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Button(
+                        onClick = onPlay,
+                        modifier = Modifier.weight(1f).heightIn(min = 52.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = accent),
+                        shape = RoundedCornerShape(10.dp)
+                    ) {
+                        Icon(Icons.Default.PlayArrow, contentDescription = null, modifier = Modifier.size(28.dp))
+                        Text(
+                            when {
+                                detail.resumePositionMs > 0 && detail.type == ContentType.TV -> "Resume S${detail.selectedSeason}E${detail.selectedEpisode}"
+                                detail.resumePositionMs > 0 && detail.type == ContentType.MOVIE -> "Resume Movie"
+                                detail.type == ContentType.TV -> "Play S${detail.selectedSeason}E${detail.selectedEpisode}"
+                                else -> "Play Now"
+                            },
+                            modifier = Modifier.padding(start = 10.dp),
+                            fontSize = 17.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+
+                    if (detail.resumePositionMs > 0) {
+                        Button(
+                            onClick = onRestart,
+                            modifier = Modifier.heightIn(min = 52.dp),
+                            colors = ButtonDefaults.buttonColors(containerColor = Color.White.copy(alpha = 0.15f)),
+                            shape = RoundedCornerShape(10.dp)
+                        ) {
+                            Text("Restart", fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
+                        }
+                    }
                 }
             } else {
                 Column {

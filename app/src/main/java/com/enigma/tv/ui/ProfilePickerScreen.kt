@@ -199,7 +199,7 @@ fun ProfilePickerGate(
                         contentPadding = PaddingValues(horizontal = 24.dp, vertical = 8.dp),
                         modifier = Modifier
                             .fillMaxWidth()
-                            .weight(1f),
+                            .weight(1f, fill = false),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         items(distinctProfiles, key = { it.id }) { profile ->

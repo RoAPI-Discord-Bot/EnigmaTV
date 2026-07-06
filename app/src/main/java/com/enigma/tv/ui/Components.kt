@@ -387,18 +387,31 @@ fun PosterCard(
                         )
                     )
             ) {
-                // Title at the very bottom of the gradient
-                Text(
-                    text = title,
-                    color = Color.White,
-                    fontSize = if (isTv) 13.sp else 11.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis,
+                Column(
                     modifier = Modifier
                         .align(Alignment.BottomStart)
                         .padding(horizontal = 8.dp, vertical = 6.dp)
-                )
+                ) {
+                    Text(
+                        text = title,
+                        color = Color.White,
+                        fontSize = if (isTv) 13.sp else 11.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                    if (subtitle != null) {
+                        Text(
+                            text = subtitle,
+                            color = accent,
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.padding(top = 2.dp)
+                        )
+                    }
+                }
             }
 
             if (onFavoriteClick != null) {
@@ -432,21 +445,6 @@ fun PosterCard(
                             RoundedCornerShape(4.dp)
                         )
                         .padding(horizontal = 6.dp, vertical = 3.dp)
-                )
-            }
-
-            if (subtitle != null) {
-                Text(
-                    text = subtitle,
-                    color = accent,
-                    fontSize = 10.sp,
-                    modifier = Modifier
-                        .align(Alignment.BottomCenter)
-                        .fillMaxWidth()
-                        .background(Color.Black.copy(alpha = 0.7f))
-                        .padding(4.dp),
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
                 )
             }
         }

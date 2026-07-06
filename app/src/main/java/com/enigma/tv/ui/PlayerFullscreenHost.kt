@@ -211,8 +211,7 @@ fun PlayerFullscreenHost(
                                 actionDispatcher.togglePlay()
                                 true
                             }
-                            KeyEvent.KEYCODE_MEDIA_FAST_FORWARD,
-                            KeyEvent.KEYCODE_DPAD_RIGHT -> {
+                            KeyEvent.KEYCODE_MEDIA_FAST_FORWARD -> {
                                 if (isNativePlayerActive) {
                                     actionDispatcher.seekForward()
                                     true
@@ -221,8 +220,7 @@ fun PlayerFullscreenHost(
                                     true
                                 } else false
                             }
-                            KeyEvent.KEYCODE_MEDIA_REWIND,
-                            KeyEvent.KEYCODE_DPAD_LEFT -> {
+                            KeyEvent.KEYCODE_MEDIA_REWIND -> {
                                 if (isNativePlayerActive) {
                                     actionDispatcher.seekBackward()
                                     true

@@ -777,15 +777,15 @@ class EnigmaViewModel(application: Application) : AndroidViewModel(application) 
         }
     }
 
-    fun playFromDetail() {
+    fun playFromDetail(restart: Boolean = false) {
         val d = _state.value.detail ?: return
         closeDetail()
         when (d.type) {
             ContentType.MOVIE -> {
-                playMovie(MovieItem(d.id, d.title), d.posterUrl, startPositionMs = d.resumePositionMs)
+                playMovie(MovieItem(d.id, d.title), d.posterUrl, startPositionMs = if (restart) 0L else d.resumePositionMs)
             }
             ContentType.TV -> {
-                val pos = if (d.selectedSeason == d.resumeSeason && d.selectedEpisode == d.resumeEpisode) d.resumePositionMs else 0L
+                val pos = if (restart) 0L else if (d.selectedSeason == d.resumeSeason && d.selectedEpisode == d.resumeEpisode) d.resumePositionMs else 0L
                 selectShow(d.id, d.title, d.selectedSeason, d.selectedEpisode, startPositionMs = pos)
             }
         }

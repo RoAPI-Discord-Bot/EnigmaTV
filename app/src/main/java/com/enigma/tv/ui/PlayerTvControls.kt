@@ -72,6 +72,10 @@ fun TvEpisodePickerPanel(
             modifier = Modifier
                 .fillMaxWidth()
                 .navigationBarsPadding()
+                .clickable(
+                    interactionSource = remember { MutableInteractionSource() },
+                    indication = null
+                ) {}
                 .background(Color.Black.copy(alpha = 0.95f), RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp))
                 .padding(horizontal = 24.dp, vertical = 16.dp)
         ) {
@@ -108,6 +112,7 @@ fun TvEpisodePickerPanel(
                                 .fillMaxWidth()
                                 .clip(RoundedCornerShape(8.dp))
                                 .background(if (focused) accent.copy(alpha = 0.8f) else if (selected) accent.copy(alpha = 0.35f) else Color.White.copy(alpha = 0.06f))
+                                .focusable()
                                 .clickable { controls.onSeasonChange(s) }
                                 .onFocusChanged { focused = it.isFocused }
                                 .padding(horizontal = 16.dp, vertical = 14.dp),
@@ -138,6 +143,7 @@ fun TvEpisodePickerPanel(
                                 .fillMaxWidth()
                                 .clip(RoundedCornerShape(8.dp))
                                 .background(if (focused) accent.copy(alpha = 0.8f) else if (selected) accent.copy(alpha = 0.35f) else Color.White.copy(alpha = 0.06f))
+                                .focusable()
                                 .clickable {
                                     controls.onEpisodeChange(num)
                                     onDismiss()

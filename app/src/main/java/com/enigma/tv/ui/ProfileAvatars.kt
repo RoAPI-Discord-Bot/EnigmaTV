@@ -88,7 +88,7 @@ fun ProfileAvatarCircle(
         Box(
             modifier = Modifier
                 .aspectRatio(1f)
-                .size(sizeDp.dp)
+                .requiredSize(sizeDp.dp)
                 .clip(CircleShape)
                 .background(color)
                 .then(
