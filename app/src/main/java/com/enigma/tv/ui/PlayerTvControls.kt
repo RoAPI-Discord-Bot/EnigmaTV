@@ -22,6 +22,7 @@ import androidx.compose.material.icons.filled.Close
 import androidx.compose.foundation.focusable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.input.key.onKeyEvent
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.size
@@ -74,6 +75,14 @@ fun TvEpisodePickerPanel(
             modifier = Modifier
                 .fillMaxWidth()
                 .navigationBarsPadding()
+                .onKeyEvent { 
+                    val k = it.nativeKeyEvent.keyCode
+                    if (k == android.view.KeyEvent.KEYCODE_DPAD_CENTER || k == android.view.KeyEvent.KEYCODE_DPAD_UP || k == android.view.KeyEvent.KEYCODE_DPAD_DOWN || k == android.view.KeyEvent.KEYCODE_DPAD_LEFT || k == android.view.KeyEvent.KEYCODE_DPAD_RIGHT) {
+                        true
+                    } else {
+                        false
+                    }
+                }
                 // Consume ALL pointer events — nothing leaks through to the video
                 .pointerInput(Unit) { detectTapGestures { /* swallow */ } }
                 .clickable(

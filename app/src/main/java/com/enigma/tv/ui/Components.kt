@@ -448,14 +448,14 @@ fun PosterCard(
                                 modifier = Modifier.padding(top = 3.dp, bottom = 2.dp)
                             )
                         }
-                        androidx.compose.material3.LinearProgressIndicator(
-                            progress = { progress },
+                        androidx.compose.material.LinearProgressIndicator(
+                            progress = progress,
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .height(3.dp)
                                 .clip(RoundedCornerShape(2.dp)),
                             color = accent,
-                            trackColor = Color.White.copy(alpha = 0.25f),
+                            backgroundColor = Color.White.copy(alpha = 0.25f),
                         )
                     }
                 }

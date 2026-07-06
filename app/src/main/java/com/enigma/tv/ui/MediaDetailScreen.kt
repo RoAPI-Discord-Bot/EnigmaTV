@@ -169,13 +169,13 @@ private fun TvDetailContent(
         runCatching { playFocusRequester.requestFocus() }
     }
 
-    Box(Modifier.fillMaxSize()) {
+    Box(Modifier.fillMaxSize().background(Color.Black)) {
         // Full-bleed backdrop
         if (detail.backdropUrl != null) {
             AsyncImage(
                 model = detail.backdropUrl,
                 contentDescription = null,
-                modifier = Modifier.fillMaxSize(),
+                modifier = Modifier.fillMaxSize().alpha(0.75f),
                 contentScale = ContentScale.Crop
             )
             Box(
@@ -183,85 +183,33 @@ private fun TvDetailContent(
                     .fillMaxSize()
                     .background(
                         Brush.horizontalGradient(
-                            listOf(BgDark, BgDark.copy(alpha = 0.85f), BgDark.copy(alpha = 0.4f))
+                            colors = listOf(BgDark, BgDark.copy(alpha = 0.85f), Color.Transparent),
+                            startX = 0f,
+                            endX = 1800f
                         )
                     )
             )
             Box(
                 Modifier
                     .fillMaxSize()
-                    .background(BgDark.copy(alpha = 0.55f))
+                    .background(
+                        Brush.verticalGradient(
+                            colors = listOf(Color.Transparent, BgDark),
+                            startY = 600f
+                        )
+                    )
             )
+        } else {
+            Box(Modifier.fillMaxSize().background(BgDark))
         }
 
         Row(
             Modifier
                 .fillMaxSize()
                 .statusBarsPadding()
-                .padding(horizontal = 48.dp, vertical = 32.dp),
-            horizontalArrangement = Arrangement.spacedBy(40.dp)
+                .padding(horizontal = 56.dp, vertical = 40.dp)
         ) {
-            // ── LEFT: Poster ──────────────────────────────────────────────
-            Column(
-                Modifier.width(220.dp),
-                horizontalAlignment = Alignment.CenterHorizontally
-            ) {
-                AsyncImage(
-                    model = detail.posterUrl,
-                    contentDescription = detail.title,
-                    modifier = Modifier
-                        .width(220.dp)
-                        .height(330.dp)
-                        .clip(RoundedCornerShape(16.dp))
-                        .background(Color.DarkGray),
-                    contentScale = ContentScale.Crop
-                )
-                Spacer(Modifier.height(20.dp))
-                // Rating
-                Column(verticalArrangement = Arrangement.spacedBy(6.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                    RatingBadge(score = detail.ratingScore, votes = detail.ratingVotes, accent = accent)
-                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                        detail.imdbRating?.let { ProviderRatingBadge("IMDB", it, Color(0xFFF5C518)) }
-                        detail.rottenTomatoesRating?.let { ProviderRatingBadge("🍅", it, Color(0xFFFA320A)) }
-                    }
-                }
-                Spacer(Modifier.height(12.dp))
-                // Favorite button — focusable, clearly visible
-                var favFocused by remember { mutableStateOf(false) }
-                Row(
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(10.dp))
-                        .background(
-                            if (favFocused) EnigmaPurple.copy(alpha = 0.4f)
-                            else Color.White.copy(alpha = 0.08f)
-                        )
-                        .border(
-                            if (favFocused) 2.dp else 0.dp,
-                            if (favFocused) Color.White else Color.Transparent,
-                            RoundedCornerShape(10.dp)
-                        )
-                        .clickable { onToggleFavorite() }
-                        .onFocusChanged { favFocused = it.isFocused }
-                        .padding(horizontal = 16.dp, vertical = 10.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    Icon(
-                        if (detail.isFavorite) Icons.Filled.Favorite else Icons.Outlined.FavoriteBorder,
-                        contentDescription = "Favorite",
-                        tint = if (detail.isFavorite) EnigmaPink else TextPrimary,
-                        modifier = Modifier.size(22.dp)
-                    )
-                    Text(
-                        if (detail.isFavorite) "Saved" else "Add to List",
-                        color = TextPrimary,
-                        fontSize = 14.sp
-                    )
-                }
-            }
-
-            // ── RIGHT: Scrollable info panel ──────────────────────────────
-            Column(Modifier.weight(1f)) {
+            Column(Modifier.weight(0.65f).fillMaxHeight()) {
                 // Back button row
                 var backFocused by remember { mutableStateOf(false) }
                 Row(
@@ -271,177 +219,202 @@ private fun TvDetailContent(
                         .border(if (backFocused) 2.dp else 0.dp, if (backFocused) Color.White else Color.Transparent, RoundedCornerShape(8.dp))
                         .clickable { onClose() }
                         .onFocusChanged { backFocused = it.isFocused }
-                        .padding(horizontal = 12.dp, vertical = 6.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        .padding(horizontal = 8.dp, vertical = 4.dp)
+                        .padding(bottom = 12.dp),
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Icon(Icons.Default.ArrowBack, contentDescription = "Back", tint = TextPrimary, modifier = Modifier.size(20.dp))
-                    Text("Back", color = TextPrimary, fontSize = 14.sp)
+                    Icon(Icons.Default.ArrowBack, contentDescription = "Back", tint = TextPrimary, modifier = Modifier.size(24.dp))
                 }
-                Spacer(Modifier.height(16.dp))
 
-                // Title + meta
-                Text(detail.title, color = TextPrimary, fontSize = 32.sp, fontWeight = FontWeight.Black)
-                Text(detail.metaLine, color = TextSecondary, fontSize = 15.sp, modifier = Modifier.padding(top = 4.dp))
-                Spacer(Modifier.height(8.dp))
-                Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
-                    detail.contentRating?.let { ContentRatingBadge(it) }
-                    Text(detail.genresText, color = TextSecondary, fontSize = 13.sp)
-                }
-                Spacer(Modifier.height(20.dp))
-
-                // Play button — large, prominent, auto-focused
-                var playFocused by remember { mutableStateOf(false) }
-                if (detail.isPlayable) {
-                    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                        Button(
-                            onClick = onPlay,
-                            modifier = Modifier
-                                .weight(if (detail.resumePositionMs > 0) 1f else 0.7f, fill = false)
-                                .height(56.dp)
-                                .focusRequester(playFocusRequester)
-                                .onFocusChanged { playFocused = it.isFocused }
-                                .then(
-                                    if (playFocused) Modifier.border(3.dp, Color.White, RoundedCornerShape(12.dp))
-                                    else Modifier
-                                ),
-                            colors = ButtonDefaults.buttonColors(containerColor = accent),
-                            shape = RoundedCornerShape(12.dp)
-                        ) {
-                            Icon(Icons.Default.PlayArrow, contentDescription = null, modifier = Modifier.size(30.dp))
-                            Text(
-                                when {
-                                    detail.resumePositionMs > 0 && detail.type == ContentType.TV -> "Resume S${detail.selectedSeason}E${detail.selectedEpisode}"
-                                    detail.resumePositionMs > 0 && detail.type == ContentType.MOVIE -> "Resume Movie"
-                                    detail.type == ContentType.TV -> "Play S${detail.selectedSeason}E${detail.selectedEpisode}"
-                                    else -> "Play Now"
-                                },
-                                modifier = Modifier.padding(start = 10.dp),
-                                fontSize = 18.sp,
-                                fontWeight = FontWeight.Bold
-                            )
-                        }
+                LazyColumn(
+                    modifier = Modifier.fillMaxSize(),
+                    verticalArrangement = Arrangement.spacedBy(24.dp),
+                    contentPadding = PaddingValues(bottom = 40.dp)
+                ) {
+                    item {
+                        // Title + meta
+                        Text(detail.title, color = TextPrimary, fontSize = 48.sp, fontWeight = FontWeight.Black, lineHeight = 54.sp)
+                        Text(detail.metaLine, color = TextSecondary, fontSize = 16.sp, modifier = Modifier.padding(top = 8.dp))
                         
-                        if (detail.resumePositionMs > 0) {
-                            var restartFocused by remember { mutableStateOf(false) }
-                            Button(
-                                onClick = onRestart,
-                                modifier = Modifier
-                                    .height(56.dp)
-                                    .onFocusChanged { restartFocused = it.isFocused }
-                                    .then(
-                                        if (restartFocused) Modifier.border(3.dp, Color.White, RoundedCornerShape(12.dp))
-                                        else Modifier
-                                    ),
-                                colors = ButtonDefaults.buttonColors(containerColor = Color.White.copy(alpha = 0.15f)),
-                                shape = RoundedCornerShape(12.dp)
-                            ) {
-                                Text("Restart", fontSize = 18.sp, fontWeight = FontWeight.SemiBold)
-                            }
-                            var removeFocused by remember { mutableStateOf(false) }
-                            IconButton(
-                                onClick = {
-                                    onRemoveFromHistory()
-                                    onClose()
-                                },
-                                modifier = Modifier
-                                    .height(56.dp)
-                                    .onFocusChanged { removeFocused = it.isFocused }
-                                    .then(
-                                        if (removeFocused) Modifier.border(3.dp, EnigmaPink, RoundedCornerShape(12.dp))
-                                        else Modifier
-                                    )
-                                    .background(Color.White.copy(alpha = 0.15f), RoundedCornerShape(12.dp))
-                            ) {
-                                Icon(Icons.Default.Delete, contentDescription = "Remove from history", tint = EnigmaPink)
-                            }
+                        Spacer(Modifier.height(12.dp))
+                        Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
+                            RatingBadge(score = detail.ratingScore, votes = detail.ratingVotes, accent = accent)
+                            detail.imdbRating?.let { ProviderRatingBadge("IMDB", it, Color(0xFFF5C518)) }
+                            detail.rottenTomatoesRating?.let { ProviderRatingBadge("🍅", it, Color(0xFFFA320A)) }
+                            detail.contentRating?.let { ContentRatingBadge(it) }
+                            Text(detail.genresText, color = TextSecondary, fontSize = 14.sp, modifier = Modifier.padding(start = 8.dp))
                         }
                     }
-                } else {
-                    Text(
-                        detail.releaseLabel ?: "Coming soon",
-                        color = EnigmaPink,
-                        fontSize = 16.sp,
-                        fontWeight = FontWeight.SemiBold
-                    )
-                }
 
-                Spacer(Modifier.height(24.dp))
-
-                // Scrollable content below (overview, seasons, episodes, cast)
-                LazyColumn(
-                    modifier = Modifier.weight(1f),
-                    verticalArrangement = Arrangement.spacedBy(20.dp),
-                    contentPadding = PaddingValues(bottom = 32.dp)
-                ) {
-                    // Overview
                     item {
+                        // Overview
                         Text(
                             detail.overview.ifBlank { "No description available." },
-                            color = TextPrimary.copy(alpha = 0.9f),
-                            fontSize = 16.sp,
-                            lineHeight = 24.sp
+                            color = TextPrimary.copy(alpha = 0.85f),
+                            fontSize = 17.sp,
+                            lineHeight = 26.sp,
+                            maxLines = 4,
+                            overflow = TextOverflow.Ellipsis
                         )
+                    }
+
+                    item {
+                        // Action Buttons Row (Prime style)
+                        Row(
+                            horizontalArrangement = Arrangement.spacedBy(16.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.padding(top = 8.dp)
+                        ) {
+                            // Large Play Button
+                            var playFocused by remember { mutableStateOf(false) }
+                            val playText = when {
+                                detail.resumePositionMs > 0 && detail.type == ContentType.TV -> "Resume S${detail.selectedSeason}E${detail.selectedEpisode}"
+                                detail.resumePositionMs > 0 && detail.type == ContentType.MOVIE -> "Resume Movie"
+                                detail.type == ContentType.TV -> "Play S${detail.selectedSeason}E${detail.selectedEpisode}"
+                                else -> "Play Now"
+                            }
+                            
+                            Button(
+                                onClick = onPlay,
+                                modifier = Modifier
+                                    .height(64.dp)
+                                    .focusRequester(playFocusRequester)
+                                    .onFocusChanged { playFocused = it.isFocused }
+                                    .then(
+                                        if (playFocused) Modifier.border(3.dp, Color.White, RoundedCornerShape(32.dp))
+                                        else Modifier
+                                    ),
+                                colors = ButtonDefaults.buttonColors(containerColor = Color.White),
+                                shape = RoundedCornerShape(32.dp),
+                                contentPadding = PaddingValues(horizontal = 24.dp)
+                            ) {
+                                Icon(Icons.Default.PlayArrow, contentDescription = null, tint = Color.Black, modifier = Modifier.size(36.dp))
+                                Text(
+                                    playText,
+                                    color = Color.Black,
+                                    modifier = Modifier.padding(start = 12.dp, end = 8.dp),
+                                    fontSize = 18.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+                            
+                            // Favorite Button (Small Circle)
+                            var favFocused by remember { mutableStateOf(false) }
+                            IconButton(
+                                onClick = onToggleFavorite,
+                                modifier = Modifier
+                                    .size(64.dp)
+                                    .onFocusChanged { favFocused = it.isFocused }
+                                    .then(
+                                        if (favFocused) Modifier.border(3.dp, Color.White, RoundedCornerShape(32.dp))
+                                        else Modifier
+                                    )
+                                    .background(Color.White.copy(alpha = 0.2f), RoundedCornerShape(32.dp))
+                            ) {
+                                Icon(
+                                    if (detail.isFavorite) Icons.Filled.Favorite else Icons.Outlined.FavoriteBorder,
+                                    contentDescription = "Favorite",
+                                    tint = if (detail.isFavorite) EnigmaPink else Color.White,
+                                    modifier = Modifier.size(28.dp)
+                                )
+                            }
+
+                            // Restart Button
+                            if (detail.resumePositionMs > 0) {
+                                var restartFocused by remember { mutableStateOf(false) }
+                                IconButton(
+                                    onClick = onRestart,
+                                    modifier = Modifier
+                                        .size(64.dp)
+                                        .onFocusChanged { restartFocused = it.isFocused }
+                                        .then(
+                                            if (restartFocused) Modifier.border(3.dp, Color.White, RoundedCornerShape(32.dp))
+                                            else Modifier
+                                        )
+                                        .background(Color.White.copy(alpha = 0.2f), RoundedCornerShape(32.dp))
+                                ) {
+                                    Icon(Icons.Default.PlayCircle, contentDescription = "Restart", tint = Color.White, modifier = Modifier.size(28.dp))
+                                }
+                                
+                                // Delete History Button
+                                var removeFocused by remember { mutableStateOf(false) }
+                                IconButton(
+                                    onClick = {
+                                        onRemoveFromHistory()
+                                        onClose()
+                                    },
+                                    modifier = Modifier
+                                        .size(64.dp)
+                                        .onFocusChanged { removeFocused = it.isFocused }
+                                        .then(
+                                            if (removeFocused) Modifier.border(3.dp, EnigmaPink, RoundedCornerShape(32.dp))
+                                            else Modifier
+                                        )
+                                        .background(Color.White.copy(alpha = 0.2f), RoundedCornerShape(32.dp))
+                                ) {
+                                    Icon(Icons.Default.Delete, contentDescription = "Remove from history", tint = EnigmaPink, modifier = Modifier.size(28.dp))
+                                }
+                            }
+                        }
                     }
 
                     // TV: Season picker + episodes
                     if (detail.type == ContentType.TV && detail.seasons.isNotEmpty()) {
                         item {
-                            Text("Season", color = TextSecondary, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
-                            Spacer(Modifier.height(8.dp))
+                            Spacer(Modifier.height(16.dp))
                             LazyRow(
-                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                horizontalArrangement = Arrangement.spacedBy(12.dp)
                             ) {
                                 items(detail.seasons) { s ->
                                     var chipFocused by remember { mutableStateOf(false) }
                                     FilterChip(
                                         selected = s == detail.selectedSeason,
                                         onClick = { onSeasonChange(s) },
-                                        label = { Text("S$s", fontWeight = FontWeight.Bold) },
+                                        label = { Text("Season $s", fontWeight = FontWeight.Bold, fontSize = 16.sp, modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)) },
                                         modifier = Modifier
                                             .onFocusChanged { chipFocused = it.isFocused }
                                             .then(
-                                                if (chipFocused) Modifier.border(2.dp, Color.White, RoundedCornerShape(8.dp))
+                                                if (chipFocused) Modifier.border(2.dp, Color.White, RoundedCornerShape(12.dp))
                                                 else Modifier
                                             ),
                                         colors = FilterChipDefaults.filterChipColors(
-                                            selectedContainerColor = accent,
-                                            selectedLabelColor = Color.White
-                                        )
+                                            selectedContainerColor = accent.copy(alpha = 0.5f),
+                                            selectedLabelColor = Color.White,
+                                            containerColor = Color.White.copy(alpha = 0.1f)
+                                        ),
+                                        shape = RoundedCornerShape(12.dp)
                                     )
                                 }
                             }
-                        }
-                        item {
-                            Text("Episodes", color = TextPrimary, fontWeight = FontWeight.SemiBold, fontSize = 18.sp)
                         }
                         items(detail.episodes) { ep ->
                             TvEpisodeRow(ep, ep.episodeNumber == detail.selectedEpisode, onEpisodeSelect)
                         }
                     }
 
-                    // Cast
+                    // Cast & Crew
                     if (detail.cast.isNotEmpty()) {
                         item {
-                            Text("Cast", color = TextPrimary, fontWeight = FontWeight.SemiBold, fontSize = 18.sp)
-                            Spacer(Modifier.height(10.dp))
-                            LazyRow(horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+                            Spacer(Modifier.height(24.dp))
+                            Text("Cast", color = TextPrimary, fontWeight = FontWeight.Bold, fontSize = 20.sp)
+                            Spacer(Modifier.height(12.dp))
+                            LazyRow(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
                                 items(detail.cast.take(12)) { member ->
                                     Column(
                                         horizontalAlignment = Alignment.CenterHorizontally,
-                                        modifier = Modifier.width(80.dp)
+                                        modifier = Modifier.width(90.dp)
                                     ) {
                                         AsyncImage(
                                             model = member.photoUrl,
                                             contentDescription = member.name,
                                             modifier = Modifier
-                                                .size(72.dp)
-                                                .clip(RoundedCornerShape(10.dp))
+                                                .size(80.dp)
+                                                .clip(RoundedCornerShape(40.dp))
                                                 .background(Color.DarkGray),
                                             contentScale = ContentScale.Crop
                                         )
-                                        Spacer(Modifier.height(6.dp))
-                                        Text(member.name, color = TextPrimary, fontSize = 11.sp, maxLines = 2)
+                                        Spacer(Modifier.height(8.dp))
+                                        Text(member.name, color = TextPrimary, fontSize = 13.sp, maxLines = 2, textAlign = androidx.compose.ui.text.style.TextAlign.Center)
                                     }
                                 }
                             }
@@ -449,6 +422,9 @@ private fun TvDetailContent(
                     }
                 }
             }
+            
+            // Spacer for Right Side (Allows backdrop character/art to be visible)
+            Spacer(Modifier.weight(0.35f))
         }
     }
 }
@@ -736,26 +712,27 @@ private fun TvEpisodeRow(ep: TvEpisode, selected: Boolean, onSelect: (Int) -> Un
             .clip(RoundedCornerShape(10.dp))
             .background(
                 when {
-                    focused -> EnigmaPurple.copy(alpha = 0.45f)
-                    selected -> EnigmaPurple.copy(alpha = 0.25f)
+                    focused -> Color.White.copy(alpha = 0.9f)
+                    selected -> EnigmaPurple.copy(alpha = 0.35f)
                     else -> Color.White.copy(alpha = 0.05f)
                 }
             )
             .border(
-                if (focused) 2.dp else 0.dp,
+                if (focused) 3.dp else 0.dp,
                 if (focused) Color.White else Color.Transparent,
                 RoundedCornerShape(10.dp)
             )
+            .focusable()
             .clickable { onSelect(ep.episodeNumber) }
             .onFocusChanged { focused = it.isFocused }
             .padding(14.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Text("${ep.episodeNumber}.", color = EnigmaPink, fontWeight = FontWeight.Bold, modifier = Modifier.width(32.dp), fontSize = 15.sp)
+        Text("${ep.episodeNumber}.", color = if (focused) Color.Black else EnigmaPink, fontWeight = FontWeight.Bold, modifier = Modifier.width(32.dp), fontSize = 15.sp)
         Column(Modifier.weight(1f)) {
-            Text(ep.name, color = TextPrimary, fontSize = 14.sp, fontWeight = FontWeight.Medium)
+            Text(ep.name, color = if (focused) Color.Black else TextPrimary, fontSize = 14.sp, fontWeight = FontWeight.Medium)
             ep.overview?.takeIf { it.isNotBlank() }?.let {
-                Text(it, color = TextSecondary, fontSize = 12.sp, maxLines = 2)
+                Text(it, color = if (focused) Color.DarkGray else TextSecondary, fontSize = 12.sp, maxLines = 2)
             }
         }
     }

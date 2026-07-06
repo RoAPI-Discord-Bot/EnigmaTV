@@ -400,14 +400,28 @@ fun ExoLivePlayer(
                     update = { view ->
                         view.player = player
                         view.controllerShowTimeoutMs = 4000
+                        view.setOnKeyListener { _, keyCode, event ->
+                            if (event.action == android.view.KeyEvent.ACTION_DOWN && keyCode == android.view.KeyEvent.KEYCODE_DPAD_CENTER) {
+                                if (!view.isControllerFullyVisible) {
+                                    player.playWhenReady = !player.playWhenReady
+                                    view.showController()
+                                    return@setOnKeyListener true
+                                }
+                            }
+                            false
+                        }
                         // CC button
                         view.setShowSubtitleButton(false)
                         val ccBtn = view.findViewById<android.view.View>(androidx.media3.ui.R.id.exo_subtitle)
+                        ccBtn?.visibility = android.view.View.VISIBLE
                         if (showCcButton) {
-                            ccBtn?.visibility = View.VISIBLE
+                            ccBtn?.alpha = 1.0f
                             ccBtn?.setOnClickListener { captionsEnabled = !captionsEnabled }
                         } else {
-                            ccBtn?.visibility = View.GONE
+                            ccBtn?.alpha = 0.5f
+                            ccBtn?.setOnClickListener {
+                                android.widget.Toast.makeText(context, "No captions available", android.widget.Toast.LENGTH_SHORT).show()
+                            }
                         }
                         // Close button
                         view.findViewById<android.view.View>(com.enigma.tv.R.id.btn_enigma_close)
