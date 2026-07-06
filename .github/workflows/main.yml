@@ -32,7 +32,7 @@ jobs:
 
       - name: Decode Keystore
         run: |
-          echo "\${{ secrets.KEYSTORE_BASE64 }}" | tr -d '\n\r ' | base64 --decode > app/keystore.jks
+          echo "\${{ secrets.KEYSTORE_BASE64 }}" | tr -d '\n\r ' | base64 -d -i > app/keystore.jks
 
       - name: Build release APK
         env:
