@@ -30,19 +30,17 @@ jobs:
       - name: Write local.properties
         run: echo "sdk.dir=\${ANDROID_SDK_ROOT}" >> local.properties
 
-      - name: Build release APK
-        run: gradle assembleRelease --stacktrace --no-daemon
+      - name: Decode Keystore
+        run: |
+          echo "\${{ secrets.KEYSTORE_BASE64 }}" | base64 --decode > app/keystore.jks
 
-      - name: Sign APK
-        uses: r0adkll/sign-android-release@v1
-        id: sign_app
-        with:
-          releaseDirectory: app/build/outputs/apk/release
-          signingKeyBase64: \${{ secrets.KEYSTORE_BASE64 }}
-          alias: \${{ secrets.KEY_ALIAS }}
-          keyStorePassword: \${{ secrets.KEY_STORE_PASSWORD }}
-          keyPassword: \${{ secrets.KEY_PASSWORD }}
-          buildToolsVersion: 34.0.0
+      - name: Build release APK
+        env:
+          KEYSTORE_PATH: keystore.jks
+          KEYSTORE_PASSWORD: \${{ secrets.KEY_STORE_PASSWORD }}
+          KEY_ALIAS: \${{ secrets.KEY_ALIAS }}
+          KEY_PASSWORD: \${{ secrets.KEY_PASSWORD }}
+        run: gradle assembleRelease --stacktrace --no-daemon
 
       - name: Extract Version Name
         id: version
@@ -55,14 +53,14 @@ jobs:
         with:
           tag_name: v\${{ env.VERSION_NAME }}
           name: EnigmaTV v\${{ env.VERSION_NAME }}
-          files: \${{steps.sign_app.outputs.signedReleaseFile}}
+          files: app/build/outputs/apk/release/app-release.apk
           draft: false
           prerelease: false
 
       - name: Upload APK (Fallback to GoFile)
         if: failure()
         run: |
-          APK_PATH="\${{steps.sign_app.outputs.signedReleaseFile}}"
+          APK_PATH="app/build/outputs/apk/release/app-release.apk"
           echo "GitHub storage failed or full. Uploading $APK_PATH to GoFile..."
           
           # 1. Get an available server to upload to
