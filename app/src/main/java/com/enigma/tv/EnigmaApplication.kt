@@ -25,4 +25,29 @@ class EnigmaApplication : Application() {
             }
         }.start()
     }
+    companion object {
+        private var downloadManager: androidx.media3.exoplayer.offline.DownloadManager? = null
+
+        @androidx.annotation.OptIn(androidx.media3.common.util.UnstableApi::class)
+        @Synchronized
+        fun getDownloadManager(context: Context): androidx.media3.exoplayer.offline.DownloadManager {
+            if (downloadManager == null) {
+                val databaseProvider = androidx.media3.database.StandaloneDatabaseProvider(context)
+                val cache = androidx.media3.datasource.cache.SimpleCache(
+                    java.io.File(context.filesDir, "downloads"),
+                    androidx.media3.datasource.cache.NoOpCacheEvictor(),
+                    databaseProvider
+                )
+                val factory = androidx.media3.datasource.DefaultHttpDataSource.Factory()
+                downloadManager = androidx.media3.exoplayer.offline.DownloadManager(
+                    context,
+                    databaseProvider,
+                    cache,
+                    factory,
+                    java.util.concurrent.Executors.newFixedThreadPool(6)
+                )
+            }
+            return downloadManager!!
+        }
+    }
 }

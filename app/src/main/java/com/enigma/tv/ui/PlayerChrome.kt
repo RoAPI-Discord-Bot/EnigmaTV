@@ -137,6 +137,18 @@ fun PlayerChrome(
                     Icon(Icons.Default.List, contentDescription = "Episodes", tint = accent)
                 }
             }
+            
+            // Watch Party indicator
+            val partyVm: WatchPartyViewModel = androidx.lifecycle.viewmodel.compose.viewModel()
+            val partyState by partyVm.state.collectAsState()
+            if (partyState.isActive) {
+                WatchPartyButton(
+                    partyState = partyState,
+                    onShowDialog = { partyVm.showDialog() },
+                    modifier = Modifier.size(if (isTvLayout) 48.dp else 44.dp).focusable()
+                )
+            }
+
             IconButton(onClick = onClose, modifier = Modifier.size(if (isTvLayout) 52.dp else 48.dp).focusable()) {
                 Icon(Icons.Default.Close, contentDescription = "Close", tint = TextPrimary)
             }

@@ -89,29 +89,61 @@ class TmdbRepository {
     suspend fun tvDetail(id: Int) = api.tvDetail(id, key)
     suspend fun tvSeason(id: Int, season: Int) = api.tvSeason(id, season, key).episodes
 
+    suspend fun discoverMoviesByGenre(genreId: Int) = safe(
+        { api.discoverMoviesByGenre(key, genreId).results.take(15) },
+        emptyList<MovieItem>()
+    )
+    suspend fun discoverTvByGenre(genreId: Int) = safe(
+        { api.discoverTvByGenre(key, genreId).results.take(15) },
+        emptyList<TvItem>()
+    )
+
+    // TMDB Genre IDs reference
+    object Genre {
+        const val ACTION = 28; const val ACTION_TV = 10759
+        const val SCIFI = 878; const val SCIFI_TV = 10765
+        const val COMEDY = 35
+        const val HORROR = 27
+        const val DRAMA = 18
+        const val ANIMATION = 16
+        const val DOCUMENTARY = 99
+        const val THRILLER = 53
+    }
+
     suspend fun buildHomeRows(): List<HomeRow> = supervisorScope {
         val inTheaters = async { safe({ nowPlayingMovies().take(15) }, emptyList<MovieItem>()) }
         val upcoming = async { safe({ upcomingMovies().take(15) }, emptyList<MovieItem>()) }
         val topMovies = async { safe({ topRatedMovies().take(15) }, emptyList<MovieItem>()) }
         val trendMovies = async { safe({ trendingMovies().take(15) }, emptyList<MovieItem>()) }
-        val popMovies = async { safe({ popularMovies().take(15) }, emptyList<MovieItem>()) }
-        val recentMovies = async { safe({ recentlyAddedMovies() }, emptyList<MovieItem>()) }
         val trendTv = async { safe({ trendingTv().take(15) }, emptyList<TvItem>()) }
         val popTv = async { safe({ popularTv().take(15) }, emptyList<TvItem>()) }
         val onAir = async { safe({ onTheAirTv().take(15) }, emptyList<TvItem>()) }
         val topTv = async { safe({ topRatedTv().take(15) }, emptyList<TvItem>()) }
         val airingToday = async { safe({ airingTodayTv().take(15) }, emptyList<TvItem>()) }
+        // Smart genre collections
+        val actionMovies = async { discoverMoviesByGenre(Genre.ACTION) }
+        val scifiMovies = async { discoverMoviesByGenre(Genre.SCIFI) }
+        val horrorMovies = async { discoverMoviesByGenre(Genre.HORROR) }
+        val comedyMovies = async { discoverMoviesByGenre(Genre.COMEDY) }
+        val actionTv = async { discoverTvByGenre(Genre.ACTION_TV) }
+        val scifiTv = async { discoverTvByGenre(Genre.SCIFI_TV) }
+        val animeTv = async { discoverTvByGenre(Genre.ANIMATION) }
 
         listOf(
             HomeRow.Movies("🎬 In Theaters", inTheaters.await()),
             HomeRow.Movies("🆕 Upcoming", upcoming.await()),
-            HomeRow.Movies("⭐ Top Rated Movies", topMovies.await()),
-            HomeRow.Movies("🔥 Trending Movies", trendMovies.await()),
-            HomeRow.Movies("🌟 Popular Movies", popMovies.await()),
-            HomeRow.Movies("📥 Recently Added", recentMovies.await()),
             HomeRow.TvShows("📺 Trending TV", trendTv.await()),
-            HomeRow.TvShows("🌟 Popular TV", popTv.await()),
+            HomeRow.Movies("🔥 Trending Movies", trendMovies.await()),
             HomeRow.TvShows("📡 On The Air", onAir.await()),
+            HomeRow.Movies("💥 Action & Adventure", actionMovies.await()),
+            HomeRow.TvShows("⚔️ Action TV", actionTv.await()),
+            HomeRow.Movies("🚀 Sci-Fi", scifiMovies.await()),
+            HomeRow.TvShows("🌌 Sci-Fi & Fantasy TV", scifiTv.await()),
+            HomeRow.Movies("😱 Horror", horrorMovies.await()),
+            HomeRow.Movies("😂 Comedy", comedyMovies.await()),
+            HomeRow.TvShows("🎌 Animation", animeTv.await()),
+            HomeRow.TvShows("🌟 Popular TV", popTv.await()),
+            HomeRow.Movies("⭐ Top Rated Movies", topMovies.await()),
             HomeRow.TvShows("⭐ Top Rated TV", topTv.await()),
             HomeRow.TvShows("📅 Airing Today", airingToday.await())
         )

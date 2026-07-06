@@ -234,6 +234,12 @@ fun EnigmaShell(viewModel: EnigmaViewModel = viewModel()) {
             current = state.section,
             layout = layout,
             isExpanded = if (layout == ScreenLayout.TV) isTvDrawerFocused else true,
+            profiles = state.profiles,
+            activeProfileId = state.activeProfileId,
+            onSwitchProfileQuick = { profileId ->
+                viewModel.switchProfile(profileId)
+                if (!layout.usePermanentDrawer()) scope.launch { drawerState.close() }
+            },
             onSelect = { section ->
                 viewModel.setSection(section)
                 if (!layout.usePermanentDrawer()) scope.launch { drawerState.close() }
@@ -593,6 +599,9 @@ private fun EnigmaDrawerContent(
     current: NavSection,
     layout: ScreenLayout,
     isExpanded: Boolean,
+    profiles: List<ViewerProfile> = emptyList(),
+    activeProfileId: String? = null,
+    onSwitchProfileQuick: (String) -> Unit = {},
     onSelect: (NavSection) -> Unit,
     onSwitchProfile: () -> Unit,
     onAnyItemFocused: ((Boolean) -> Unit)? = null
@@ -618,7 +627,52 @@ private fun EnigmaDrawerContent(
                 fontSize = 12.sp,
                 modifier = Modifier.padding(horizontal = 28.dp)
             )
-            Spacer(Modifier.height(20.dp))
+            if (profiles.size > 1) {
+                Spacer(Modifier.height(14.dp))
+                HorizontalDivider(color = Color.White.copy(alpha = 0.08f))
+                Spacer(Modifier.height(10.dp))
+                Text(
+                    text = "SWITCH PROFILE",
+                    color = TextSecondary,
+                    fontSize = 10.sp,
+                    fontWeight = FontWeight.Bold,
+                    letterSpacing = 1.5.sp,
+                    modifier = Modifier.padding(horizontal = 28.dp, vertical = 4.dp)
+                )
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 20.dp, vertical = 4.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    profiles.take(5).forEach { profile ->
+                        val isActive = profile.id == activeProfileId
+                        Box(
+                            modifier = Modifier
+                                .size(42.dp)
+                                .clip(CircleShape)
+                                .background(
+                                    if (isActive) EnigmaPurple else Color.White.copy(alpha = 0.12f)
+                                )
+                                .border(
+                                    width = if (isActive) 2.dp else 0.dp,
+                                    color = if (isActive) EnigmaPink else Color.Transparent,
+                                    shape = CircleShape
+                                )
+                                .clickable(enabled = !isActive) { onSwitchProfileQuick(profile.id) },
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = profile.name.take(1).uppercase(),
+                                color = Color.White,
+                                fontSize = 15.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                    }
+                }
+            }
+            Spacer(Modifier.height(12.dp))
             HorizontalDivider(color = Color.White.copy(alpha = 0.08f))
             Spacer(Modifier.height(12.dp))
         } else {

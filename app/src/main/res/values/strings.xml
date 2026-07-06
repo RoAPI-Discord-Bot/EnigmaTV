@@ -1,6 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">EnigmaTV</string>
+    <string name="download_channel_name">Downloads</string>
+    <string name="download_channel_description">Background downloads for EnigmaTV</string>
     <string name="brand_name">ENIGMATV</string>
     <string name="search_movies_hint">Search movies on EnigmaTV…</string>
     <string name="search_tv_hint">Search TV on EnigmaTV…</string>

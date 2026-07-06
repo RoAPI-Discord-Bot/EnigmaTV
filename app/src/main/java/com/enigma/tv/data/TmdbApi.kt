@@ -81,4 +81,18 @@ interface TmdbApi {
         @Path("season") season: Int,
         @Query("api_key") apiKey: String
     ): TvSeasonDetail
+
+    @GET("discover/movie")
+    suspend fun discoverMoviesByGenre(
+        @Query("api_key") apiKey: String,
+        @Query("with_genres") genreId: Int,
+        @Query("sort_by") sortBy: String = "popularity.desc"
+    ): TmdbPage<MovieItem>
+
+    @GET("discover/tv")
+    suspend fun discoverTvByGenre(
+        @Query("api_key") apiKey: String,
+        @Query("with_genres") genreId: Int,
+        @Query("sort_by") sortBy: String = "popularity.desc"
+    ): TmdbPage<TvItem>
 }

@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Text
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -33,6 +34,14 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
+import androidx.compose.foundation.gestures.detectVerticalDragGestures
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.input.pointer.PointerInputChange
+import androidx.compose.ui.layout.onSizeChanged
+import android.content.ContentResolver
+import android.provider.Settings
+import android.media.AudioManager
 import androidx.media3.common.C
 import androidx.media3.common.MediaItem
 import androidx.media3.common.MimeTypes
@@ -119,6 +128,18 @@ fun ExoLivePlayer(
     var hasTextTracks by remember { mutableStateOf(false) }
     var captionsEnabled by remember { mutableStateOf(true) } // ON by default when tracks exist
     var hasReachedReady by remember(playUrl, playToken) { mutableStateOf(false) }
+    var bingeCountdown by remember(playUrl, playToken) { mutableStateOf<Int?>(null) }
+    
+    // Gesture state
+    var gestureLabel by remember { mutableStateOf<String?>(null) }
+    var gestureIcon by remember { mutableStateOf("") }
+    var playerWidthPx by remember { mutableIntStateOf(1) }
+    var playerHeightPx by remember { mutableIntStateOf(1) }
+    val audioManager = remember { context.getSystemService(android.content.Context.AUDIO_SERVICE) as AudioManager }
+
+    // Watch Party integration
+    val partyVm: WatchPartyViewModel = androidx.lifecycle.viewmodel.compose.viewModel()
+    val partyState by partyVm.state.collectAsState()
 
     val sidecarSubtitle = remember(playUrl, playToken, resolved.subtitleUrl) {
         resolved.subtitleUrl?.takeIf { StreamResolver.isValidSubtitleUrl(it) }
@@ -154,10 +175,22 @@ fun ExoLivePlayer(
                 .setForceHighestSupportedBitrate(true)
         )
 
+        // Intelligent Quality Selection & Buffering (V3 Feature)
+        val bandwidthMeter = androidx.media3.exoplayer.upstream.DefaultBandwidthMeter.Builder(context).build()
+        val loadControl = androidx.media3.exoplayer.DefaultLoadControl.Builder()
+            .setBufferDurationsMs(
+                32000, // min buffer
+                120000, // max buffer (aggressive)
+                2500, // buffer for playback
+                5000  // buffer for playback after rebuffer
+            )
+            .setPrioritizeTimeOverSizeThresholds(true)
+            .build()
+
         ExoPlayer.Builder(context)
-            .setLoadControl(loadControl)
             .setTrackSelector(trackSelector)
             .setBandwidthMeter(bandwidthMeter)
+            .setLoadControl(loadControl)
             .setSeekBackIncrementMs(5_000)
             .setSeekForwardIncrementMs(5_000)
             .build().apply {
@@ -291,7 +324,13 @@ fun ExoLivePlayer(
                     }
                     Player.STATE_ENDED -> {
                         onLoadingChange(false)
-                        if (!isLiveBroadcast) onPlaybackEnded?.invoke()
+                        if (!isLiveBroadcast) {
+                            if (tvControls != null && onPlaybackEnded != null) {
+                                bingeCountdown = 10
+                            } else {
+                                onPlaybackEnded?.invoke()
+                            }
+                        }
                     }
                 }
             }
@@ -381,8 +420,94 @@ fun ExoLivePlayer(
         }
     }
 
+    LaunchedEffect(bingeCountdown) {
+        if (bingeCountdown != null && bingeCountdown!! > 0) {
+            delay(1000L)
+            bingeCountdown = bingeCountdown!! - 1
+        } else if (bingeCountdown == 0) {
+            bingeCountdown = null
+            onPlaybackEnded?.invoke()
+        }
+    }
+
+    // Watch Party Sync loop
+    LaunchedEffect(partyState.isActive, partyState.isHost) {
+        if (!partyState.isActive) return@LaunchedEffect
+        while (true) {
+            if (hasReachedReady) {
+                if (partyState.isHost) {
+                    // Host broadcasts state every 2 seconds
+                    partyVm.broadcastState(player.currentPosition, player.isPlaying)
+                } else {
+                    // Guest checks for drift
+                    val hostPos = partyState.syncPositionMs
+                    val myPos = player.currentPosition
+                    if (hostPos > 0 && kotlin.math.abs(hostPos - myPos) > 5000L) { // 5-second loose sync window
+                        player.seekTo(hostPos)
+                    }
+                    if (partyState.syncIsPlaying && !player.isPlaying) player.play()
+                    if (!partyState.syncIsPlaying && player.isPlaying) player.pause()
+                }
+            }
+            delay(2000L) // check/broadcast every 2s
+        }
+    }
+
     val videoContent: @Composable () -> Unit = {
-            Box(Modifier.fillMaxSize()) {
+            Box(
+                Modifier
+                    .fillMaxSize()
+                    .onSizeChanged { playerWidthPx = it.width; playerHeightPx = it.height }
+                    .pointerInput(tvControls) {
+                        if (tvControls != null) return@pointerInput // TV uses D-pad, not gestures
+                        var totalDx = 0f
+                        var totalDy = 0f
+                        var edgeSide = 0 // -1 left, 1 right, 0 horizontal seek
+                        detectHorizontalDragGestures(
+                            onDragStart = { offset ->
+                                totalDx = 0f
+                                val leftEdge = playerWidthPx * 0.2f
+                                val rightEdge = playerWidthPx * 0.8f
+                                edgeSide = when {
+                                    offset.x < leftEdge -> -1
+                                    offset.x > rightEdge -> 1
+                                    else -> 0
+                                }
+                            },
+                            onDragEnd = { gestureLabel = null },
+                            onDragCancel = { gestureLabel = null },
+                            onHorizontalDrag = { _: PointerInputChange, dragAmount: Float ->
+                                totalDx += dragAmount
+                                val seekSeconds = (totalDx / playerWidthPx * 90).toInt()
+                                if (edgeSide == 0 && hasReachedReady) {
+                                    val icon = if (seekSeconds > 0) "⏩" else "⏪"
+                                    gestureLabel = "$icon ${kotlin.math.abs(seekSeconds)}s"
+                                    gestureIcon = icon
+                                } else if (edgeSide == -1) {
+                                    // Left edge: brightness
+                                    try {
+                                        val cr = context.contentResolver
+                                        val cur = Settings.System.getInt(cr, Settings.System.SCREEN_BRIGHTNESS, 128)
+                                        val newBrightness = (cur + (dragAmount * -0.5f)).toInt().coerceIn(10, 255)
+                                        Settings.System.putInt(cr, Settings.System.SCREEN_BRIGHTNESS, newBrightness)
+                                        val pct = (newBrightness / 255f * 100).toInt()
+                                        gestureLabel = "☀️ $pct%"
+                                    } catch (_: Exception) {}
+                                } else if (edgeSide == 1) {
+                                    // Right edge: volume
+                                    if (dragAmount < -3f) audioManager.adjustStreamVolume(
+                                        AudioManager.STREAM_MUSIC, AudioManager.ADJUST_RAISE, 0
+                                    ) else if (dragAmount > 3f) audioManager.adjustStreamVolume(
+                                        AudioManager.STREAM_MUSIC, AudioManager.ADJUST_LOWER, 0
+                                    )
+                                    val maxVol = audioManager.getStreamMaxVolume(AudioManager.STREAM_MUSIC)
+                                    val curVol = audioManager.getStreamVolume(AudioManager.STREAM_MUSIC)
+                                    gestureLabel = "🔊 ${(curVol * 100 / maxVol)}%"
+                                }
+                            }
+                        )
+                    }
+            ) {
                 AndroidView(
                     factory = { ctx ->
                         val view = android.view.LayoutInflater.from(ctx).inflate(com.enigma.tv.R.layout.enigma_player_view, null) as PlayerView
@@ -486,6 +611,58 @@ fun ExoLivePlayer(
                             colors = ButtonDefaults.buttonColors(containerColor = EnigmaPurple),
                             modifier = Modifier.padding(top = 16.dp)
                         ) { Text("Retry") }
+                    }
+                }
+                
+                // Gesture feedback overlay
+                gestureLabel?.let { label ->
+                    Box(
+                        modifier = Modifier
+                            .align(Alignment.Center)
+                            .background(Color.Black.copy(alpha = 0.72f), androidx.compose.foundation.shape.RoundedCornerShape(12.dp))
+                            .padding(horizontal = 28.dp, vertical = 16.dp)
+                    ) {
+                        Text(
+                            text = label,
+                            color = Color.White,
+                            fontSize = 24.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                }
+                
+                bingeCountdown?.let { count ->
+                    Box(
+                        Modifier
+                            .align(Alignment.BottomEnd)
+                            .padding(bottom = 64.dp, end = 32.dp)
+                            .background(Color.Black.copy(alpha = 0.85f), androidx.compose.foundation.shape.RoundedCornerShape(12.dp))
+                            .padding(24.dp)
+                    ) {
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            Text(
+                                "Next episode starting in $count...",
+                                color = Color.White,
+                                fontSize = 18.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                            Button(
+                                onClick = { 
+                                    bingeCountdown = null
+                                    onPlaybackEnded?.invoke()
+                                },
+                                colors = ButtonDefaults.buttonColors(containerColor = accent),
+                                modifier = Modifier.padding(top = 16.dp).fillMaxWidth()
+                            ) { Text("Play Now", color = Color.White) }
+                            Button(
+                                onClick = { 
+                                    bingeCountdown = null
+                                    onClose()
+                                },
+                                colors = ButtonDefaults.buttonColors(containerColor = Color.DarkGray),
+                                modifier = Modifier.padding(top = 8.dp).fillMaxWidth()
+                            ) { Text("Cancel", color = Color.White) }
+                        }
                     }
                 }
             }
