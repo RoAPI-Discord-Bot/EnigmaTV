@@ -25,9 +25,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
@@ -59,8 +57,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
@@ -74,7 +70,6 @@ import androidx.core.view.WindowInsetsControllerCompat
 import com.enigma.tv.util.findActivity
 import com.enigma.tv.ui.theme.BgDark
 import com.enigma.tv.ui.theme.EnigmaPink
-import com.enigma.tv.ui.theme.EnigmaPurple
 import com.enigma.tv.ui.theme.TextPrimary
 import com.enigma.tv.ui.theme.TextSecondary
 
@@ -100,8 +95,6 @@ fun PlayerFullscreenHost(
     isNativePlayerActive: Boolean = false,
     content: @Composable (PlayerActionDispatcher) -> Unit
 ) {
-    // For native ExoPlayer, "playing" is always assumed true (no WebView callback)
-    val effectivelyPlaying = streamPlaying || isNativePlayerActive
     // Chrome starts HIDDEN — only show on user interaction
     var chromeVisible by remember { mutableStateOf(false) }
     var episodePanelOpen by remember { mutableStateOf(false) }
@@ -123,9 +116,8 @@ fun PlayerFullscreenHost(
     }
 
     // Auto-hide chrome after 4 seconds when playing
-    // effectivelyPlaying covers both WebView (streamPlaying) and ExoPlayer (isNativePlayerActive)
-    LaunchedEffect(chromeVisible, streamFailed, episodePanelOpen, effectivelyPlaying) {
-        if (chromeVisible && !streamFailed && effectivelyPlaying && !episodePanelOpen) {
+    LaunchedEffect(chromeVisible, streamFailed, episodePanelOpen) {
+        if (chromeVisible && !streamFailed && streamPlaying && !episodePanelOpen) {
             kotlinx.coroutines.delay(4000)
             chromeVisible = false
         }
@@ -411,8 +403,7 @@ fun PlayerFullscreenHost(
                         accent = accent,
                         onClose = onClose,
                         showBack = false,
-                        // Hide "Next Server" for native ExoPlayer — it only makes sense for WebView sources
-                        showNextSource = showNextSource && !streamFailed && !isNativePlayerActive,
+                        showNextSource = showNextSource && !streamFailed,
                         onNextSource = onNextSource,
                         showEpisodesButton = hasTv,
                         onShowEpisodes = if (hasTv) {
@@ -424,26 +415,22 @@ fun PlayerFullscreenHost(
                 }
             }
 
-            // Bottom playback controls — shown for native player
+            // Bottom playback controls — shown for native player when chrome is visible
             AnimatedVisibility(
                 visible = chromeVisible && isNativePlayerActive && !streamLoading,
                 enter = slideInVertically { it } + fadeIn(),
                 exit = slideOutVertically { it } + fadeOut(),
                 modifier = Modifier.align(Alignment.BottomCenter)
             ) {
-                Box(
+                androidx.compose.foundation.layout.Box(
                     modifier = Modifier
                         .fillMaxWidth()
-                        // Premium gradient overlay
-                        .background(
-                            Brush.verticalGradient(
-                                colors = listOf(Color.Transparent, Color.Black.copy(alpha = 0.95f))
-                            )
-                        )
-                        .padding(top = 80.dp, bottom = 32.dp)
+                        .background(Color.Black.copy(alpha = 0.82f))
+                        .padding(bottom = 16.dp)
                 ) {
                     PlaybackControlsRow(
                         actionDispatcher = actionDispatcher,
+                        accent = accent,
                         isTvLayout = layout == ScreenLayout.TV
                     )
                 }
@@ -488,6 +475,7 @@ private fun ImmersiveSystemBars(enabled: Boolean) {
 @Composable
 fun PlaybackControlsRow(
     actionDispatcher: PlayerActionDispatcher,
+    accent: Color,
     isTvLayout: Boolean
 ) {
     var isPlaying by remember { mutableStateOf(true) }
@@ -508,43 +496,53 @@ fun PlaybackControlsRow(
         horizontalArrangement = Arrangement.Center,
         verticalAlignment = Alignment.CenterVertically
     ) {
-        val sideSize = if (isTvLayout) 56.dp else 44.dp
-        val sideIconSize = if (isTvLayout) 30.dp else 24.dp
+        val sideSize = if (isTvLayout) 52.dp else 40.dp
+        val sideIconSize = if (isTvLayout) 28.dp else 22.dp
 
         // Restart
         IconButton(
             onClick = { actionDispatcher.restart() },
             modifier = Modifier
                 .size(sideSize)
-                .clip(CircleShape)
                 .focusable()
                 .onFocusChanged { restartFocused = it.isFocused }
-                .background(if (restartFocused) Color.White.copy(alpha = 0.2f) else Color.White.copy(alpha = 0.05f))
-                .then(if (restartFocused) Modifier.border(2.dp, Color.White, CircleShape) else Modifier)
+                .background(
+                    if (restartFocused) Color.White.copy(alpha = 0.28f) else Color.White.copy(alpha = 0.10f),
+                    RoundedCornerShape(percent = 50)
+                )
+                .then(
+                    if (restartFocused) Modifier.border(2.dp, Color.White, RoundedCornerShape(percent = 50))
+                    else Modifier
+                )
         ) {
-            Icon(Icons.Default.Replay, contentDescription = "Restart", tint = Color.White, modifier = Modifier.size(sideIconSize))
+            Icon(Icons.Default.Replay, contentDescription = "Restart", tint = TextPrimary, modifier = Modifier.size(sideIconSize))
         }
 
-        Spacer(modifier = Modifier.width(if (isTvLayout) 32.dp else 24.dp))
+        Spacer(modifier = Modifier.width(if (isTvLayout) 32.dp else 20.dp))
 
         // Rewind
         IconButton(
             onClick = { actionDispatcher.seekBackward() },
             modifier = Modifier
                 .size(sideSize)
-                .clip(CircleShape)
                 .focusable()
                 .onFocusChanged { rewindFocused = it.isFocused }
-                .background(if (rewindFocused) Color.White.copy(alpha = 0.2f) else Color.White.copy(alpha = 0.05f))
-                .then(if (rewindFocused) Modifier.border(2.dp, Color.White, CircleShape) else Modifier)
+                .background(
+                    if (rewindFocused) Color.White.copy(alpha = 0.28f) else Color.White.copy(alpha = 0.10f),
+                    RoundedCornerShape(percent = 50)
+                )
+                .then(
+                    if (rewindFocused) Modifier.border(2.dp, Color.White, RoundedCornerShape(percent = 50))
+                    else Modifier
+                )
         ) {
-            Icon(Icons.Default.FastRewind, contentDescription = "Rewind", tint = Color.White, modifier = Modifier.size(sideIconSize))
+            Icon(Icons.Default.FastRewind, contentDescription = "Rewind", tint = TextPrimary, modifier = Modifier.size(sideIconSize))
         }
 
-        Spacer(modifier = Modifier.width(if (isTvLayout) 32.dp else 24.dp))
+        Spacer(modifier = Modifier.width(if (isTvLayout) 32.dp else 20.dp))
 
-        // Play / Pause — centre button, biggest, purple accent
-        val playSize = if (isTvLayout) 76.dp else 60.dp
+        // Play / Pause — centre button, biggest
+        val playSize = if (isTvLayout) 64.dp else 52.dp
         IconButton(
             onClick = {
                 isPlaying = !isPlaying
@@ -552,34 +550,44 @@ fun PlaybackControlsRow(
             },
             modifier = Modifier
                 .size(playSize)
-                .clip(CircleShape)
                 .focusRequester(playFocusRequester)
                 .onFocusChanged { playFocused = it.isFocused }
-                .background(if (playFocused) Color.White else EnigmaPurple)
-                .then(if (playFocused) Modifier.border(4.dp, EnigmaPurple, CircleShape) else Modifier)
+                .background(
+                    if (playFocused) Color.White else accent,
+                    RoundedCornerShape(percent = 50)
+                )
+                .then(
+                    if (playFocused) Modifier.border(3.dp, Color.White, RoundedCornerShape(percent = 50))
+                    else Modifier
+                )
         ) {
             Icon(
                 if (isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
                 contentDescription = "Play/Pause",
-                tint = if (playFocused) EnigmaPurple else Color.White,
-                modifier = Modifier.size(if (isTvLayout) 42.dp else 32.dp)
+                tint = if (playFocused) accent else Color.White,
+                modifier = Modifier.size(if (isTvLayout) 34.dp else 28.dp)
             )
         }
 
-        Spacer(modifier = Modifier.width(if (isTvLayout) 32.dp else 24.dp))
+        Spacer(modifier = Modifier.width(if (isTvLayout) 32.dp else 20.dp))
 
         // Fast Forward
         IconButton(
             onClick = { actionDispatcher.seekForward() },
             modifier = Modifier
                 .size(sideSize)
-                .clip(CircleShape)
                 .focusable()
                 .onFocusChanged { forwardFocused = it.isFocused }
-                .background(if (forwardFocused) Color.White.copy(alpha = 0.2f) else Color.White.copy(alpha = 0.05f))
-                .then(if (forwardFocused) Modifier.border(2.dp, Color.White, CircleShape) else Modifier)
+                .background(
+                    if (forwardFocused) Color.White.copy(alpha = 0.28f) else Color.White.copy(alpha = 0.10f),
+                    RoundedCornerShape(percent = 50)
+                )
+                .then(
+                    if (forwardFocused) Modifier.border(2.dp, Color.White, RoundedCornerShape(percent = 50))
+                    else Modifier
+                )
         ) {
-            Icon(Icons.Default.FastForward, contentDescription = "Fast Forward", tint = Color.White, modifier = Modifier.size(sideIconSize))
+            Icon(Icons.Default.FastForward, contentDescription = "Fast Forward", tint = TextPrimary, modifier = Modifier.size(sideIconSize))
         }
     }
 }

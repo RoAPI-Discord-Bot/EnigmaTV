@@ -77,9 +77,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.viewmodel.compose.viewModel
-import com.enigma.tv.update.InAppUpdater
 import com.enigma.tv.data.ContentType
 import com.enigma.tv.data.ContinueWatchingEntry
 import com.enigma.tv.data.FavoriteItem
@@ -108,9 +106,6 @@ fun EnigmaShell(viewModel: EnigmaViewModel = viewModel()) {
     var query by rememberSaveable { mutableStateOf("") }
     // Exit confirmation dialog
     var showExitDialog by remember { mutableStateOf(false) }
-    // Update dialog
-    var showUpdateDialog by rememberSaveable { mutableStateOf(true) }
-    val context = LocalContext.current
 
     val layout = rememberScreenLayout()
 
@@ -140,36 +135,6 @@ fun EnigmaShell(viewModel: EnigmaViewModel = viewModel()) {
             onClearError = { viewModel.clearAuthError() }
         )
         return
-    }
-
-    if (state.updateInfo?.hasUpdate == true && showUpdateDialog) {
-        AlertDialog(
-            onDismissRequest = { showUpdateDialog = false },
-            title = { Text("Update Available", color = TextPrimary) },
-            text = { 
-                Text(
-                    "Version \${state.updateInfo!!.latestVersion} is now available!\n\n\${state.updateInfo!!.releaseNotes}",
-                    color = TextSecondary
-                )
-            },
-            containerColor = BgElevated,
-            confirmButton = {
-                Button(
-                    onClick = {
-                        showUpdateDialog = false
-                        InAppUpdater.downloadAndInstallUpdate(context, state.updateInfo!!.downloadUrl, state.updateInfo!!.latestVersion)
-                    },
-                    colors = ButtonDefaults.buttonColors(containerColor = EnigmaPurple)
-                ) {
-                    Text("Download & Install")
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { showUpdateDialog = false }) {
-                    Text("Later", color = TextSecondary)
-                }
-            }
-        )
     }
 
     // Cloud-refresh effect: fires when picker is shown; internal guard makes it safe outside picker too.
@@ -221,7 +186,7 @@ fun EnigmaShell(viewModel: EnigmaViewModel = viewModel()) {
     }
 
     // Sidebar: on TV always show an icon rail (72dp); expands to full width when any item has focus
-    val TV_RAIL_WIDTH = 56
+    val TV_RAIL_WIDTH = 72
     var isTvDrawerFocused by remember { mutableStateOf(false) }
     val tvDrawerWidth by animateDpAsState(
         if (isTvDrawerFocused) layout.drawerWidthDp().dp else TV_RAIL_WIDTH.dp,

@@ -41,9 +41,6 @@ import com.enigma.tv.data.formatRuntime
 import com.enigma.tv.data.FavoritesStore
 import com.enigma.tv.data.ImgurUploadService
 import com.enigma.tv.data.ProfileImageStorage
-import com.enigma.tv.update.UpdateChecker
-import com.enigma.tv.update.UpdateInfo
-import com.enigma.tv.BuildConfig
 import coil.ImageLoader
 import coil.request.ImageRequest
 import kotlinx.coroutines.async
@@ -122,8 +119,7 @@ data class EnigmaUiState(
     val searchSuggestions: List<SearchSuggestion> = emptyList(),
     val playerLiveHint: String? = null,
     val playerLiveEventStartMs: Long = 0L,
-    val playerStreamPlaying: Boolean = false,
-    val updateInfo: UpdateInfo? = null
+    val playerStreamPlaying: Boolean = false
 )
 
 class EnigmaViewModel(application: Application) : AndroidViewModel(application) {
@@ -255,12 +251,6 @@ class EnigmaViewModel(application: Application) : AndroidViewModel(application) 
                         }
                     }
                 }
-            }
-        }
-        viewModelScope.launch {
-            val update = UpdateChecker.checkForUpdate(BuildConfig.VERSION_NAME)
-            if (update?.hasUpdate == true) {
-                _state.update { it.copy(updateInfo = update) }
             }
         }
         viewModelScope.launch {

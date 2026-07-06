@@ -115,7 +115,7 @@ fun ProfilePickerGate(
     val isTv = layout == ScreenLayout.TV
     val gateLocked = openingProfileId != null
     val avatarSize = when (layout) {
-        ScreenLayout.TV -> 80
+        ScreenLayout.TV -> 100
         ScreenLayout.TABLET -> 96
         ScreenLayout.PHONE -> 80
     }
@@ -195,7 +195,7 @@ fun ProfilePickerGate(
 
                 if (isTv) {
                     LazyRow(
-                        horizontalArrangement = Arrangement.spacedBy(16.dp, Alignment.CenterHorizontally),
+                        horizontalArrangement = Arrangement.spacedBy(24.dp, Alignment.CenterHorizontally),
                         contentPadding = PaddingValues(horizontal = 24.dp, vertical = 8.dp),
                         modifier = Modifier
                             .fillMaxWidth()
