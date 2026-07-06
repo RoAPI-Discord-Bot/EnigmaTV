@@ -8,6 +8,8 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
 
     steps:
       - name: Checkout
@@ -53,14 +55,14 @@ jobs:
         with:
           tag_name: v\${{ env.VERSION_NAME }}
           name: EnigmaTV v\${{ env.VERSION_NAME }}
-          files: app/build/outputs/apk/release/app-release.apk
+          files: app/build/outputs/apk/release/*.apk
           draft: false
           prerelease: false
 
       - name: Upload APK (Fallback to GoFile)
         if: failure()
         run: |
-          APK_PATH="app/build/outputs/apk/release/app-release.apk"
+          APK_PATH=$(ls app/build/outputs/apk/release/*.apk | head -n 1)
           echo "GitHub storage failed or full. Uploading $APK_PATH to GoFile..."
           
           # 1. Get an available server to upload to
