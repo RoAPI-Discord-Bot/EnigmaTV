@@ -453,13 +453,11 @@ private fun EnigmaPlayerOverlay(
 ) {
     if (!state.playerVisible) return
 
-    androidx.compose.ui.window.Dialog(
-        onDismissRequest = { viewModel.closePlayer() },
-        properties = androidx.compose.ui.window.DialogProperties(
-            usePlatformDefaultWidth = false,
-            decorFitsSystemWindows = false
-        )
-    ) {
+    androidx.compose.ui.zIndex.ZIndex(100f) {
+        androidx.compose.foundation.layout.Box(
+            modifier = androidx.compose.ui.Modifier.fillMaxSize()
+        ) {
+            androidx.activity.compose.BackHandler { viewModel.closePlayer() }
         val accent = if (state.playerAccentMovie) MovieAccent else TvAccent
         val tvControls = if (
             state.playingType == ContentType.TV &&
@@ -570,6 +568,7 @@ private fun EnigmaPlayerOverlay(
                     )
                 }
             }
+        }
         }
         }
     }

@@ -149,12 +149,23 @@ fun LiveTvScreen(
                         horizontalAlignment = Alignment.CenterHorizontally,
                         verticalArrangement = Arrangement.Center
                     ) {
-                        CircularProgressIndicator(color = EnigmaPurple)
+                        CircularProgressIndicator(
+                            color = EnigmaPink,
+                            strokeWidth = 3.dp,
+                            modifier = Modifier.size(48.dp)
+                        )
                         Text(
-                            "Loading live games & channels…",
+                            "Tuning in…",
+                            color = TextPrimary,
+                            fontSize = 16.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            modifier = Modifier.padding(top = 24.dp)
+                        )
+                        Text(
+                            "Loading live games & channels",
                             color = TextSecondary,
                             fontSize = bodySize,
-                            modifier = Modifier.padding(top = 16.dp)
+                            modifier = Modifier.padding(top = 4.dp)
                         )
                     }
                 }

@@ -71,21 +71,22 @@ class StreamedRepository {
         "baseball", "american-football", "football", "basketball", "hockey", "fight", "motor-sports"
     )
 
-    suspend fun loadEvents(): List<LiveSportMatch> = coroutineScope {
-        val jobs = buildList {
-            add(async {
-                runCatching { api.liveMatches().map { it.toMatch() } }.getOrDefault(emptyList())
-            })
-            sportSlugs.forEach { sport ->
-                add(async {
-                    runCatching { api.sportMatches(sport).map { it.toMatch() } }.getOrDefault(emptyList())
-                })
-            }
+    suspend fun loadEvents(): List<LiveSportMatch> = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+        val allMatches = mutableListOf<LiveSportMatch>()
+        
+        // Fetch live matches first (most important)
+        runCatching { allMatches.addAll(api.liveMatches().map { it.toMatch() }) }
+        
+        // Fetch specific sports sequentially to prevent Cloudflare rate limits (429)
+        for (sport in sportSlugs) {
+            kotlinx.coroutines.delay(250) // gentle throttle
+            runCatching { allMatches.addAll(api.sportMatches(sport).map { it.toMatch() }) }
         }
+        
         val now = System.currentTimeMillis()
         val windowMs = 12 * 3_600_000L  // show games within 12-hour future window
-        jobs.awaitAll()
-            .flatten()
+        
+        allMatches
             // Drop games more than 12h in the future — they clutter the top
             .filter { it.dateMs <= now + windowMs }
             .sortedBy { kotlin.math.abs(it.dateMs - now) }

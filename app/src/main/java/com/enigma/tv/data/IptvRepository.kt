@@ -8,7 +8,10 @@ import okhttp3.OkHttpClient
 import okhttp3.Request
 
 class IptvRepository {
-    private val client = OkHttpClient.Builder().build()
+    private val client = OkHttpClient.Builder()
+        .connectTimeout(10, java.util.concurrent.TimeUnit.SECONDS)
+        .readTimeout(15, java.util.concurrent.TimeUnit.SECONDS)
+        .build()
 
     private val playlists = listOf(
         "https://iptv-org.github.io/iptv/categories/sports.m3u" to "Sports",
