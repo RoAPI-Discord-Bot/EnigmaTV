@@ -32,12 +32,6 @@ android {
     buildTypes {
         release {
             signingConfig = signingConfigs.getByName("release")
-            isMinifyEnabled = false // or your existing setting
-        }
-    }
-}
-    buildTypes {
-        release {
             isMinifyEnabled = false
             isCrunchPngs = false
             proguardFiles(
