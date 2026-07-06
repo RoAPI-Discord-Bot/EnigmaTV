@@ -3,8 +3,6 @@ name: Android CI
 on:
   push:
     branches: [main, master]
-  pull_request:
-    branches: [main, master]
   workflow_dispatch:
 
 jobs:
@@ -30,24 +28,40 @@ jobs:
           gradle-version: 8.9
 
       - name: Write local.properties
-        run: echo "sdk.dir=${ANDROID_SDK_ROOT}" >> local.properties
+        run: echo "sdk.dir=\${ANDROID_SDK_ROOT}" >> local.properties
 
-      - name: Build debug APK
-        run: gradle assembleDebug --stacktrace --no-daemon
+      - name: Build release APK
+        run: gradle assembleRelease --stacktrace --no-daemon
 
-      - name: Upload debug APK (Primary)
-        id: upload-primary
-        uses: actions/upload-artifact@v4
-        continue-on-error: true
+      - name: Sign APK
+        uses: r0adkll/sign-android-release@v1
+        id: sign_app
         with:
-          name: enigmatv-debug-apk
-          path: app/build/outputs/apk/debug/app-debug.apk
-          if-no-files-found: error
+          releaseDirectory: app/build/outputs/apk/release
+          signingKeyBase64: \${{ secrets.KEYSTORE_BASE64 }}
+          alias: \${{ secrets.KEY_ALIAS }}
+          keyStorePassword: \${{ secrets.KEY_STORE_PASSWORD }}
+          keyPassword: \${{ secrets.KEY_PASSWORD }}
+
+      - name: Extract Version Name
+        id: version
+        run: |
+          VERSION_NAME=$(grep "versionName =" app/build.gradle.kts | sed 's/.*"\(.*\)".*/\1/')
+          echo "VERSION_NAME=$VERSION_NAME" >> $GITHUB_ENV
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v\${{ env.VERSION_NAME }}
+          name: EnigmaTV v\${{ env.VERSION_NAME }}
+          files: \${{steps.sign_app.outputs.signedReleaseFile}}
+          draft: false
+          prerelease: false
 
       - name: Upload APK (Fallback to GoFile)
-        if: steps.upload-primary.outcome == 'failure'
+        if: failure()
         run: |
-          APK_PATH="app/build/outputs/apk/debug/app-debug.apk"
+          APK_PATH="\${{steps.sign_app.outputs.signedReleaseFile}}"
           echo "GitHub storage failed or full. Uploading $APK_PATH to GoFile..."
           
           # 1. Get an available server to upload to
