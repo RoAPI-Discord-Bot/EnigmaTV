@@ -205,6 +205,8 @@ data class ContinueWatchingEntry(
     val type: ContentType = ContentType.TV,
     /** Exact playback position in milliseconds (resume here in Exo). */
     val positionMs: Long = 0,
+    /** Total content duration in milliseconds — used for progress bar + time remaining display. */
+    val durationMs: Long = 0,
     /** Legacy field — ignored when [positionMs] > 0 */
     val progressPercent: Int = 0,
     val updatedAt: Long = System.currentTimeMillis()

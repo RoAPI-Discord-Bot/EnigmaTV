@@ -53,6 +53,7 @@ fun EnigmaMediaPlayer(
     onLoadingChange: (Boolean) -> Unit,
     onPlaybackEnded: (() -> Unit)? = null,
     onPlaybackPositionMs: ((Long) -> Unit)? = null,
+    onPlaybackDurationMs: ((Long) -> Unit)? = null,
     onShowEpisodes: (() -> Unit)? = null,
     onNativePlayerActive: ((Boolean) -> Unit)? = null,
     startPositionMs: Long = 0L,
@@ -132,6 +133,7 @@ fun EnigmaMediaPlayer(
                 useExternalChrome = useExternalChrome,
                 onPlaybackEnded = onPlaybackEnded,
                 onPlaybackPositionMs = onPlaybackPositionMs,
+                onPlaybackDurationMs = onPlaybackDurationMs,
                 startPositionMs = startPositionMs,
                 actionDispatcher = actionDispatcher,
                 modifier = Modifier.fillMaxSize()
@@ -139,27 +141,47 @@ fun EnigmaMediaPlayer(
             MediaPlayMode.Embed -> {
                 val embedColumn: @Composable () -> Unit = {
                     if (!useExternalChrome) {
-                        PlayerChrome(
-                            title = title,
-                            subtitle = if (resolvingNative) "$sourceLabel · loading player…" else sourceLabel,
-                            posterUrl = posterUrl,
-                            accent = accent,
-                            onClose = onClose,
-                            showBack = true,
-                            onBack = onClose,
-                            showNextSource = true,
-                            onNextSource = onNextSource,
-                            showEpisodesButton = tvControls != null,
-                            onShowEpisodes = onShowEpisodes
-                        )
-                        if (resolvingNative) {
-                            LinearProgressIndicator(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .height(3.dp),
-                                color = accent,
-                                trackColor = Color.White.copy(alpha = 0.12f)
+                        if (!resolvingNative) {
+                            // Show top bar only after native resolution is done
+                            PlayerChrome(
+                                title = title,
+                                subtitle = sourceLabel,
+                                posterUrl = posterUrl,
+                                accent = accent,
+                                onClose = onClose,
+                                showBack = true,
+                                onBack = onClose,
+                                showNextSource = true,
+                                onNextSource = onNextSource,
+                                showEpisodesButton = tvControls != null,
+                                onShowEpisodes = onShowEpisodes
                             )
+                        } else {
+                            // During native resolve: just close button, no top bar clutter
+                            androidx.compose.foundation.layout.Box(
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                androidx.compose.material3.IconButton(
+                                    onClick = onClose,
+                                    modifier = Modifier
+                                        .align(Alignment.TopEnd)
+                                        .padding(12.dp)
+                                ) {
+                                    androidx.compose.material3.Icon(
+                                        androidx.compose.material.icons.Icons.Default.Close,
+                                        contentDescription = "Close",
+                                        tint = TextPrimary
+                                    )
+                                }
+                                LinearProgressIndicator(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .height(3.dp)
+                                        .align(Alignment.BottomCenter),
+                                    color = accent,
+                                    trackColor = Color.White.copy(alpha = 0.12f)
+                                )
+                            }
                         }
                     }
                     if (streamFailed) {

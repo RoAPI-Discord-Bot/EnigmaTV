@@ -75,6 +75,7 @@ fun ExoLivePlayer(
     useExternalChrome: Boolean = false,
     onPlaybackEnded: (() -> Unit)? = null,
     onPlaybackPositionMs: ((Long) -> Unit)? = null,
+    onPlaybackDurationMs: ((Long) -> Unit)? = null,
     startPositionMs: Long = 0L,
     actionDispatcher: PlayerActionDispatcher? = null,
     modifier: Modifier = Modifier.fillMaxSize()
@@ -317,6 +318,9 @@ fun ExoLivePlayer(
                 if (!isPlaying && hasReachedReady && !isLiveBroadcast) {
                     onPlaybackPositionMs?.invoke(player.currentPosition.coerceAtLeast(0L))
                 }
+                // Report duration once we know it
+                val dur = player.duration
+                if (dur > 0L) onPlaybackDurationMs?.invoke(dur)
             }
 
             override fun onPlayerError(error: PlaybackException) {
@@ -420,6 +424,20 @@ fun ExoLivePlayer(
                             nextBtn?.setOnClickListener { onNextSource() }
                         } else {
                             nextBtn?.visibility = View.GONE
+                        }
+                        // Speed button
+                        view.findViewById<android.view.View>(com.enigma.tv.R.id.btn_enigma_speed)?.setOnClickListener {
+                            val currentSpeed = player.playbackParameters.speed
+                            val nextSpeed = when {
+                                currentSpeed < 1.0f -> 1.0f
+                                currentSpeed < 1.25f -> 1.25f
+                                currentSpeed < 1.5f -> 1.5f
+                                currentSpeed < 2.0f -> 2.0f
+                                else -> 0.75f
+                            }
+                            player.playbackParameters = androidx.media3.common.PlaybackParameters(nextSpeed)
+                            // Show a quick toast to confirm speed change
+                            android.widget.Toast.makeText(context, "${nextSpeed}x Speed", android.widget.Toast.LENGTH_SHORT).show()
                         }
                         // Episodes button
                         val epsBtn = view.findViewById<android.view.View>(com.enigma.tv.R.id.btn_enigma_episodes)

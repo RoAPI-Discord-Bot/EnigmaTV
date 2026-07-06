@@ -52,6 +52,17 @@
         </LinearLayout>
 
         <ImageButton
+            android:id="@+id/btn_enigma_speed"
+            android:layout_width="48dp"
+            android:layout_height="48dp"
+            android:layout_marginEnd="8dp"
+            android:background="@drawable/tv_focus_background_oval"
+            android:src="@drawable/ic_speed"
+            android:tint="#FFFFFF"
+            android:focusable="true"
+            android:contentDescription="Playback Speed"/>
+
+        <ImageButton
             android:id="@+id/btn_enigma_episodes"
             android:layout_width="48dp"
             android:layout_height="48dp"

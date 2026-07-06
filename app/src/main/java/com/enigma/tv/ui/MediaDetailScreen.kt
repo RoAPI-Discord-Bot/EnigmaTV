@@ -82,6 +82,7 @@ fun MediaDetailOverlay(
     onClose: () -> Unit,
     onPlay: () -> Unit,
     onRestart: () -> Unit,
+    onRemoveFromHistory: () -> Unit,
     onToggleFavorite: () -> Unit,
     onSeasonChange: (Int) -> Unit,
     onEpisodeSelect: (Int) -> Unit
@@ -110,6 +111,7 @@ fun MediaDetailOverlay(
                         onClose = onClose,
                         onPlay = onPlay,
                         onRestart = onRestart,
+                        onRemoveFromHistory = onRemoveFromHistory,
                         onToggleFavorite = onToggleFavorite,
                         onSeasonChange = onSeasonChange,
                         onEpisodeSelect = onEpisodeSelect,
@@ -125,6 +127,7 @@ fun MediaDetailOverlay(
                         onClose = onClose,
                         onPlay = onPlay,
                         onRestart = onRestart,
+                        onRemoveFromHistory = onRemoveFromHistory,
                         onToggleFavorite = onToggleFavorite,
                         onSeasonChange = onSeasonChange,
                         onEpisodeSelect = onEpisodeSelect,
@@ -150,6 +153,7 @@ private fun TvDetailContent(
     onClose: () -> Unit,
     onPlay: () -> Unit,
     onRestart: () -> Unit,
+    onRemoveFromHistory: () -> Unit,
     onToggleFavorite: () -> Unit,
     onSeasonChange: (Int) -> Unit,
     onEpisodeSelect: (Int) -> Unit,
@@ -333,6 +337,23 @@ private fun TvDetailContent(
                             ) {
                                 Text("Restart", fontSize = 18.sp, fontWeight = FontWeight.SemiBold)
                             }
+                            var removeFocused by remember { mutableStateOf(false) }
+                            IconButton(
+                                onClick = {
+                                    onRemoveFromHistory()
+                                    onClose()
+                                },
+                                modifier = Modifier
+                                    .height(56.dp)
+                                    .onFocusChanged { removeFocused = it.isFocused }
+                                    .then(
+                                        if (removeFocused) Modifier.border(3.dp, EnigmaPink, RoundedCornerShape(12.dp))
+                                        else Modifier
+                                    )
+                                    .background(Color.White.copy(alpha = 0.15f), RoundedCornerShape(12.dp))
+                            ) {
+                                Icon(Icons.Default.Delete, contentDescription = "Remove from history", tint = EnigmaPink)
+                            }
                         }
                     }
                 } else {
@@ -441,6 +462,7 @@ private fun MobileDetailContent(
     onClose: () -> Unit,
     onPlay: () -> Unit,
     onRestart: () -> Unit,
+    onRemoveFromHistory: () -> Unit,
     onToggleFavorite: () -> Unit,
     onSeasonChange: (Int) -> Unit,
     onEpisodeSelect: (Int) -> Unit,

@@ -98,6 +98,7 @@ data class EnigmaUiState(
     val playerLiveTv: Boolean = false,
     val playerStreamFailed: Boolean = false,
     val playbackPositionMs: Long = 0L,
+    val playbackDurationMs: Long = 0L,
     val sourceIndex: Int = 0,
     val sourceLabel: String = "",
     val playingType: ContentType? = null,
@@ -1110,6 +1111,13 @@ class EnigmaViewModel(application: Application) : AndroidViewModel(application) 
         }
     }
 
+    fun openDetailFromContinue(entry: ContinueWatchingEntry) {
+        when (entry.type) {
+            ContentType.MOVIE -> openMovieDetail(MovieItem(entry.id, entry.name))
+            ContentType.TV -> openTvDetail(TvItem(entry.id, entry.name))
+        }
+    }
+
     fun resumeContinue(entry: ContinueWatchingEntry) {
         when (entry.type) {
             ContentType.MOVIE -> playMovie(
@@ -1127,16 +1135,20 @@ class EnigmaViewModel(application: Application) : AndroidViewModel(application) 
         }
     }
 
-    fun removeFromContinue(entry: ContinueWatchingEntry) {
+    fun removeFromContinue(id: Int, type: ContentType) {
         viewModelScope.launch {
-            cwStore.removeEntry(activeProfileId(), entry.id, entry.type)
+            cwStore.removeEntry(activeProfileId(), id, type)
             _state.update { st ->
                 st.copy(continueWatching = st.continueWatching.filter {
-                    it.id != entry.id || it.type != entry.type
+                    it.id != id || it.type != type
                 })
             }
             syncIfLoggedIn()
         }
+    }
+
+    fun removeFromContinue(entry: ContinueWatchingEntry) {
+        removeFromContinue(entry.id, entry.type)
     }
 
     fun playFavorite(item: FavoriteItem) {
@@ -1328,6 +1340,10 @@ class EnigmaViewModel(application: Application) : AndroidViewModel(application) 
         if (ms >= 2_000L) schedulePersistContinueWatching()
     }
 
+    fun onPlaybackDurationMs(durationMs: Long) {
+        if (durationMs > 0L) _state.update { it.copy(playbackDurationMs = durationMs) }
+    }
+
     fun onEpisodeFinished() {
         if (_state.value.playingType != ContentType.TV) return
         if (!hasAdjacentEpisode(forward = true)) return
@@ -1349,7 +1365,8 @@ class EnigmaViewModel(application: Application) : AndroidViewModel(application) 
                         season = 0,
                         episode = 0,
                         type = ContentType.MOVIE,
-                        positionMs = s.playbackPositionMs
+                        positionMs = s.playbackPositionMs,
+                        durationMs = s.playbackDurationMs
                     )
                 )
             }
@@ -1364,7 +1381,8 @@ class EnigmaViewModel(application: Application) : AndroidViewModel(application) 
                         season = s.selectedSeason,
                         episode = s.selectedEpisode,
                         type = ContentType.TV,
-                        positionMs = s.playbackPositionMs
+                        positionMs = s.playbackPositionMs,
+                        durationMs = s.playbackDurationMs
                     )
                 )
             }

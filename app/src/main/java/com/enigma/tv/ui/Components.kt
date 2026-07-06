@@ -312,6 +312,9 @@ fun PosterCard(
     accent: Color,
     badge: String? = null,
     subtitle: String? = null,
+    episodeTag: String? = null,
+    progress: Float? = null,
+    remainingMs: Long? = null,
     cardWidthDp: Int = 150,
     isFavorite: Boolean = false,
     onFavoriteClick: (() -> Unit)? = null,
@@ -391,7 +394,19 @@ fun PosterCard(
                     modifier = Modifier
                         .align(Alignment.BottomStart)
                         .padding(horizontal = 8.dp, vertical = 6.dp)
+                        .fillMaxWidth()
                 ) {
+                    // Episode tag (e.g. "S2E5") for continue watching
+                    if (episodeTag != null) {
+                        Text(
+                            text = episodeTag,
+                            color = accent,
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.Bold,
+                            maxLines = 1,
+                            modifier = Modifier.padding(bottom = 2.dp)
+                        )
+                    }
                     Text(
                         text = title,
                         color = Color.White,
@@ -409,6 +424,38 @@ fun PosterCard(
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis,
                             modifier = Modifier.padding(top = 2.dp)
+                        )
+                    }
+                    // Progress bar + time remaining
+                    if (progress != null) {
+                        val timeLabel = remainingMs?.let { ms ->
+                            val totalMin = (ms / 60000L).toInt()
+                            if (totalMin >= 60) {
+                                val h = totalMin / 60
+                                val m = totalMin % 60
+                                if (m == 0) "${h}h left" else "${h}h ${m}m left"
+                            } else {
+                                "${totalMin}m left"
+                            }
+                        }
+                        if (timeLabel != null) {
+                            Text(
+                                text = timeLabel,
+                                color = Color.White.copy(alpha = 0.75f),
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.Medium,
+                                maxLines = 1,
+                                modifier = Modifier.padding(top = 3.dp, bottom = 2.dp)
+                            )
+                        }
+                        androidx.compose.material3.LinearProgressIndicator(
+                            progress = { progress },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(3.dp)
+                                .clip(RoundedCornerShape(2.dp)),
+                            color = accent,
+                            trackColor = Color.White.copy(alpha = 0.25f),
                         )
                     }
                 }

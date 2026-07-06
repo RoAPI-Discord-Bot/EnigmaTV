@@ -195,13 +195,26 @@ fun EnigmaShell(viewModel: EnigmaViewModel = viewModel()) {
             title = { Text("Update Available", color = TextPrimary) },
             text = { Text("Version ${state.updateInfo!!.latestVersion} is available to download.\n\n${state.updateInfo!!.releaseNotes}", color = TextSecondary) },
             confirmButton = {
-                Button(onClick = { viewModel.startUpdate() }, colors = ButtonDefaults.buttonColors(containerColor = EnigmaPurple)) {
+                var dlFocused by remember { mutableStateOf(false) }
+                Button(
+                    onClick = { viewModel.startUpdate() },
+                    modifier = Modifier
+                        .onFocusChanged { dlFocused = it.isFocused }
+                        .then(if (dlFocused) Modifier.border(3.dp, Color.White, RoundedCornerShape(8.dp)) else Modifier),
+                    colors = ButtonDefaults.buttonColors(containerColor = EnigmaPurple)
+                ) {
                     Text("Download & Install", color = Color.White)
                 }
             },
             dismissButton = {
-                TextButton(onClick = { viewModel.dismissUpdate() }) {
-                    Text("Later", color = TextSecondary)
+                var laterFocused by remember { mutableStateOf(false) }
+                TextButton(
+                    onClick = { viewModel.dismissUpdate() },
+                    modifier = Modifier
+                        .onFocusChanged { laterFocused = it.isFocused }
+                        .then(if (laterFocused) Modifier.border(2.dp, TextSecondary, RoundedCornerShape(8.dp)) else Modifier)
+                ) {
+                    Text("Later", color = if (laterFocused) TextPrimary else TextSecondary)
                 }
             },
             containerColor = androidx.compose.ui.graphics.Color(0xFF1A1A2E)
@@ -436,6 +449,10 @@ fun EnigmaShell(viewModel: EnigmaViewModel = viewModel()) {
                 onClose = { viewModel.closeDetail() },
                 onPlay = { viewModel.playFromDetail() },
                 onRestart = { viewModel.playFromDetail(restart = true) },
+                onRemoveFromHistory = {
+                    state.detail?.let { viewModel.removeFromContinue(it.id, it.type) }
+                    viewModel.closeDetail()
+                },
                 onToggleFavorite = { viewModel.toggleDetailFavorite() },
                 onSeasonChange = { viewModel.detailSeasonChange(it) },
                 onEpisodeSelect = { viewModel.detailEpisodeSelect(it) }
@@ -530,6 +547,7 @@ private fun EnigmaPlayerOverlay(
                         onLoadingChange = { viewModel.onPlayerPageLoading(it) },
                         onPlaybackEnded = viewModel::onEpisodeFinished,
                         onPlaybackPositionMs = viewModel::onPlaybackPositionMs,
+                        onPlaybackDurationMs = viewModel::onPlaybackDurationMs,
                         onNativePlayerActive = { isNativePlayerActive = it },
                         startPositionMs = state.playbackPositionMs,
                         tvControls = tvControls,
@@ -979,15 +997,18 @@ private fun ContinueWatchingSection(entries: List<ContinueWatchingEntry>, vm: En
 private fun ContinueWatchingCard(entry: ContinueWatchingEntry, vm: EnigmaViewModel, cardW: Int) {
     val accent = if (entry.type == ContentType.MOVIE) MovieAccent else TvAccent
     val badge = if (entry.type == ContentType.MOVIE) "MOVIE" else "TV"
-    val resumeTime = ResumeFormat.label(entry.positionMs)
-    val subtitle = when {
-        entry.type == ContentType.TV -> buildString {
-            append("S${entry.season}E${entry.episode}")
-            resumeTime?.let { append(" · $it") }
-        }
-        resumeTime != null -> "Resume $resumeTime"
-        else -> "Resume"
-    }
+
+    // Progress / time-remaining subtitle
+    val progressFraction = if (entry.durationMs > 0L) {
+        (entry.positionMs.toFloat() / entry.durationMs.toFloat()).coerceIn(0f, 1f)
+    } else if (entry.progressPercent > 0) {
+        entry.progressPercent / 100f
+    } else null
+
+    val remainingMs = if (entry.durationMs > 0L) (entry.durationMs - entry.positionMs).coerceAtLeast(0L) else null
+
+    val episodeTag = if (entry.type == ContentType.TV) "S${entry.season}E${entry.episode}" else null
+
     var showRemove by remember { mutableStateOf(false) }
 
     Box {
@@ -996,9 +1017,11 @@ private fun ContinueWatchingCard(entry: ContinueWatchingEntry, vm: EnigmaViewMod
             posterUrl = entry.poster.ifBlank { null },
             accent = accent,
             badge = badge,
-            subtitle = subtitle,
+            episodeTag = episodeTag,
+            progress = progressFraction,
+            remainingMs = remainingMs,
             cardWidthDp = cardW,
-            onClick = { vm.resumeContinue(entry) },
+            onClick = { vm.openDetailFromContinue(entry) },
             onLongClickPlay = { showRemove = true }
         )
         if (showRemove) {

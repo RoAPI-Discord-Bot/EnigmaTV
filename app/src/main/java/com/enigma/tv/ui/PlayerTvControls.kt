@@ -5,6 +5,7 @@ import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.ui.draw.clip
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -20,6 +21,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.foundation.focusable
 import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.size
@@ -72,6 +74,8 @@ fun TvEpisodePickerPanel(
             modifier = Modifier
                 .fillMaxWidth()
                 .navigationBarsPadding()
+                // Consume ALL pointer events — nothing leaks through to the video
+                .pointerInput(Unit) { detectTapGestures { /* swallow */ } }
                 .clickable(
                     interactionSource = remember { MutableInteractionSource() },
                     indication = null
@@ -106,7 +110,7 @@ fun TvEpisodePickerPanel(
                     items(controls.seasons, key = { it }) { s ->
                         val selected = s == controls.selectedSeason
                         var focused by remember { mutableStateOf(false) }
-                        
+
                         Box(
                             modifier = Modifier
                                 .fillMaxWidth()

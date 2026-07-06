@@ -437,11 +437,15 @@ private fun ProfilePickerTile(
             .padding(horizontal = if (isTv) 14.dp else 8.dp, vertical = if (isTv) 10.dp else 6.dp)
     ) {
         Box(
-            modifier = when {
-                isTv && showFocusRing -> Modifier.border(4.dp, EnigmaPink, CircleShape)
-                !isTv && showFocusRing -> Modifier.border(3.dp, EnigmaPink, CircleShape)
-                else -> Modifier
-            }
+            modifier = Modifier
+                .size(sizeDp.dp)
+                .then(
+                    when {
+                        isTv && showFocusRing -> Modifier.border(4.dp, EnigmaPink, CircleShape)
+                        !isTv && showFocusRing -> Modifier.border(3.dp, EnigmaPink, CircleShape)
+                        else -> Modifier
+                    }
+                )
         ) {
             ProfileAvatarCircle(
                 profile = profile,
@@ -457,7 +461,9 @@ private fun ProfilePickerTile(
             text = profile.name,
             color = if (showFocusRing) Color.White else TextSecondary,
             fontSize = if (isTv) 16.sp else 14.sp,
-            fontWeight = if (showFocusRing) FontWeight.Bold else FontWeight.Medium
+            fontWeight = if (showFocusRing) FontWeight.Bold else FontWeight.Medium,
+            maxLines = 1,
+            overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
         )
         if (!isTv && showFocusRing && !showEditBadge) {
             Text(
