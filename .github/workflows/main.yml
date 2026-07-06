@@ -36,6 +36,14 @@ jobs:
         run: |
           echo "${{ secrets.KEYSTORE_BASE64 }}" | tr -d '\n\r ' | base64 -d -i > app/keystore.jks
 
+      - name: Verify Keystore
+        env:
+          KEYSTORE_PASSWORD: ${{ secrets.KEY_STORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+        run: |
+          echo "Keystore file size: $(stat -c%s app/keystore.jks) bytes"
+          keytool -list -v -keystore app/keystore.jks -storepass "$KEYSTORE_PASSWORD" -alias "$KEY_ALIAS"
+
       - name: Build release APK
         env:
           KEYSTORE_PATH: keystore.jks
