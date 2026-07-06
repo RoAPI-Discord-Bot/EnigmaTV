@@ -38,7 +38,7 @@ jobs:
 
       - name: Build release APK
         env:
-          KEYSTORE_PATH: keystore.jks
+          KEYSTORE_PATH: app/keystore.jks
           KEYSTORE_PASSWORD: ${{ secrets.KEY_STORE_PASSWORD }}
           KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
           KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
@@ -59,11 +59,15 @@ jobs:
           draft: false
           prerelease: false
 
-      - name: Upload APK (Fallback to GoFile)
-        if: failure()
+      - name: Upload APK to GoFile
+        if: always()
         run: |
-          APK_PATH=$(ls app/build/outputs/apk/release/*.apk | head -n 1)
-          echo "GitHub storage failed or full. Uploading $APK_PATH to GoFile..."
+          APK_PATH=$(ls app/build/outputs/apk/release/*.apk 2>/dev/null | head -n 1)
+          if [ -z "$APK_PATH" ]; then
+            echo "No APK found (build likely failed before producing one). Skipping GoFile upload."
+            exit 0
+          fi
+          echo "Uploading $APK_PATH to GoFile..."
           
           # 1. Get an available server to upload to
           SERVER=$(curl -s https://api.gofile.io/servers | python3 -c "import sys, json; print(json.load(sys.stdin)['data']['servers'][0]['name'])")
