@@ -33,6 +33,8 @@ import com.enigma.tv.util.findActivity
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Close
 
 private enum class MediaPlayMode { Embed, Native }
 
@@ -168,7 +170,7 @@ fun EnigmaMediaPlayer(
                                         .padding(12.dp)
                                 ) {
                                     androidx.compose.material3.Icon(
-                                        androidx.compose.material.icons.Icons.Filled.Close,
+                                        Icons.Default.Close,
                                         contentDescription = "Close",
                                         tint = TextPrimary
                                     )
