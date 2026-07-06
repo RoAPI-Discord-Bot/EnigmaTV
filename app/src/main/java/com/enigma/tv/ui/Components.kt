@@ -448,15 +448,21 @@ fun PosterCard(
                                 modifier = Modifier.padding(top = 3.dp, bottom = 2.dp)
                             )
                         }
-                        androidx.compose.material.LinearProgressIndicator(
-                            progress = progress,
+                        // Custom Progress Bar (fixes M3 rounded cap bug)
+                        Box(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .height(3.dp)
-                                .clip(RoundedCornerShape(2.dp)),
-                            color = accent,
-                            backgroundColor = Color.White.copy(alpha = 0.25f),
-                        )
+                                .clip(RoundedCornerShape(2.dp))
+                                .background(Color.White.copy(alpha = 0.25f))
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth(progress)
+                                    .fillMaxHeight()
+                                    .background(accent)
+                            )
+                        }
                     }
                 }
             }
