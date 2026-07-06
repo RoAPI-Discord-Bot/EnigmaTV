@@ -168,7 +168,7 @@ fun EnigmaMediaPlayer(
                                         .padding(12.dp)
                                 ) {
                                     androidx.compose.material3.Icon(
-                                        androidx.compose.material.icons.Icons.Default.Close,
+                                        androidx.compose.material.icons.Icons.Filled.Close,
                                         contentDescription = "Close",
                                         tint = TextPrimary
                                     )
