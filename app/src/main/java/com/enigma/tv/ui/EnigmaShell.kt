@@ -189,7 +189,7 @@ fun EnigmaShell(viewModel: EnigmaViewModel = viewModel()) {
     }
 
     // Update dialog
-    if (state.updateInfo != null) {
+    if (state.updateInfo != null && !state.showProfilePicker && state.openingProfileId == null) {
         androidx.compose.material3.AlertDialog(
             onDismissRequest = { viewModel.dismissUpdate() },
             title = { Text("Update Available", color = TextPrimary) },

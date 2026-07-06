@@ -44,7 +44,11 @@ object UpdateChecker {
                 val latestVersionStr = tagName.removePrefix("v")
                 val currentVersionStr = currentVersion.removePrefix("v")
 
-                val releaseNotes = jsonResponse.optString("body", "No release notes provided.")
+                val releaseNotes = if (jsonResponse.isNull("body")) {
+                    "No release notes provided."
+                } else {
+                    jsonResponse.optString("body", "No release notes provided.")
+                }
                 var downloadUrl = ""
 
                 val assets = jsonResponse.optJSONArray("assets")

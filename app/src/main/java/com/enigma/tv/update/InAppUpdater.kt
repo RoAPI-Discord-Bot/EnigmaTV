@@ -56,7 +56,7 @@ object InAppUpdater {
         try {
             val apkUri = FileProvider.getUriForFile(
                 context,
-                "\${context.packageName}.provider",
+                "${context.packageName}.provider",
                 apkFile
             )
 
