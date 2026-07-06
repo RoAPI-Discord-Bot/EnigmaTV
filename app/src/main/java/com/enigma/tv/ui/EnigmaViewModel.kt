@@ -41,6 +41,8 @@ import com.enigma.tv.data.formatRuntime
 import com.enigma.tv.data.FavoritesStore
 import com.enigma.tv.data.ImgurUploadService
 import com.enigma.tv.data.ProfileImageStorage
+import com.enigma.tv.update.UpdateChecker
+import com.enigma.tv.update.UpdateInfo
 import coil.ImageLoader
 import coil.request.ImageRequest
 import kotlinx.coroutines.async
@@ -119,7 +121,8 @@ data class EnigmaUiState(
     val searchSuggestions: List<SearchSuggestion> = emptyList(),
     val playerLiveHint: String? = null,
     val playerLiveEventStartMs: Long = 0L,
-    val playerStreamPlaying: Boolean = false
+    val playerStreamPlaying: Boolean = false,
+    val updateInfo: UpdateInfo? = null
 )
 
 class EnigmaViewModel(application: Application) : AndroidViewModel(application) {
@@ -251,6 +254,18 @@ class EnigmaViewModel(application: Application) : AndroidViewModel(application) 
                         }
                     }
                 }
+            }
+        }
+        viewModelScope.launch {
+            try {
+                val pInfo = application.packageManager.getPackageInfo(application.packageName, 0)
+                val version = pInfo.versionName ?: ""
+                val update = UpdateChecker.checkForUpdate(version)
+                if (update != null && update.hasUpdate) {
+                    _state.update { it.copy(updateInfo = update) }
+                }
+            } catch (e: Exception) {
+                // ignore
             }
         }
         viewModelScope.launch {
@@ -1660,5 +1675,19 @@ class EnigmaViewModel(application: Application) : AndroidViewModel(application) 
         if (remote.isEmpty()) return local
         if (local.isEmpty()) return remote
         return (local + remote).distinctBy { it.id }
+    }
+
+    fun startUpdate() {
+        val update = _state.value.updateInfo ?: return
+        com.enigma.tv.update.InAppUpdater.downloadAndInstallUpdate(
+            getApplication(),
+            update.downloadUrl,
+            update.latestVersion
+        )
+        _state.update { it.copy(updateInfo = null) }
+    }
+
+    fun dismissUpdate() {
+        _state.update { it.copy(updateInfo = null) }
     }
 }

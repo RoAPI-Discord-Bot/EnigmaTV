@@ -188,6 +188,26 @@ fun EnigmaShell(viewModel: EnigmaViewModel = viewModel()) {
         )
     }
 
+    // Update dialog
+    if (state.updateInfo != null) {
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = { viewModel.dismissUpdate() },
+            title = { Text("Update Available", color = TextPrimary) },
+            text = { Text("Version ${state.updateInfo!!.latestVersion} is available to download.\n\n${state.updateInfo!!.releaseNotes}", color = TextSecondary) },
+            confirmButton = {
+                Button(onClick = { viewModel.startUpdate() }, colors = ButtonDefaults.buttonColors(containerColor = EnigmaPurple)) {
+                    Text("Download & Install", color = Color.White)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { viewModel.dismissUpdate() }) {
+                    Text("Later", color = TextSecondary)
+                }
+            },
+            containerColor = androidx.compose.ui.graphics.Color(0xFF1A1A2E)
+        )
+    }
+
     // Sidebar: on TV always show an icon rail (72dp); expands to full width when any item has focus
     val TV_RAIL_WIDTH = 72
     var isTvDrawerFocused by remember { mutableStateOf(false) }
