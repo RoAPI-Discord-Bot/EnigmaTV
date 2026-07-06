@@ -148,9 +148,9 @@ fun ExoLivePlayer(
                 .setPreferredTextLanguage("en")
                 .setSelectUndeterminedTextLanguage(true)
                 .setPreferredTextRoleFlags(C.ROLE_FLAG_CAPTION or C.ROLE_FLAG_SUBTITLE)
-                // Adaptive quality: allow dropping to lower bitrates when bandwidth is low
-                .setMaxVideoBitrate(Int.MAX_VALUE)
-                .setForceHighestSupportedBitrate(false)
+                // Always force the highest quality the device can decode
+                .setMaxVideoSize(Int.MAX_VALUE, Int.MAX_VALUE)
+                .setForceHighestSupportedBitrate(true)
         )
 
         ExoPlayer.Builder(context)
@@ -388,31 +388,46 @@ fun ExoLivePlayer(
                                 ViewGroup.LayoutParams.MATCH_PARENT
                             )
                             this.player = player
-                            useController = false  // We handle controls externally
-                            isFocusable = false    // Don't steal focus from Compose
-                            isFocusableInTouchMode = false
+                            useController = true   // Use our custom XML controller layout
+                            controllerShowTimeoutMs = 4000
+                            controllerHideOnTouch = true
                         }
                     },
                     update = { view ->
                         view.player = player
-                        // Don't use setShowSubtitleButton — it opens a dialog showing "Unknown"
-                        // Instead we wire our own XML CC button manually
+                        view.controllerShowTimeoutMs = 4000
+                        // CC button
                         view.setShowSubtitleButton(false)
                         val ccBtn = view.findViewById<android.view.View>(androidx.media3.ui.R.id.exo_subtitle)
                         if (showCcButton) {
                             ccBtn?.visibility = View.VISIBLE
-                            ccBtn?.setOnClickListener {
-                                captionsEnabled = !captionsEnabled
-                            }
+                            ccBtn?.setOnClickListener { captionsEnabled = !captionsEnabled }
                         } else {
                             ccBtn?.visibility = View.GONE
                         }
-                        if (useExternalChrome) {
-                            view.setControllerVisibilityListener(
-                                PlayerView.ControllerVisibilityListener { visibility ->
-                                    syncChrome(visibility == View.VISIBLE)
-                                }
-                            )
+                        // Close button
+                        view.findViewById<android.view.View>(com.enigma.tv.R.id.btn_enigma_close)
+                            ?.setOnClickListener { onClose() }
+                        // Title + subtitle
+                        view.findViewById<android.widget.TextView>(com.enigma.tv.R.id.tv_enigma_title)
+                            ?.text = title
+                        view.findViewById<android.widget.TextView>(com.enigma.tv.R.id.tv_enigma_subtitle)
+                            ?.text = sourceLabel
+                        // Next-server button
+                        val nextBtn = view.findViewById<android.view.View>(com.enigma.tv.R.id.btn_enigma_next)
+                        if (showNextSource && onNextSource != null) {
+                            nextBtn?.visibility = View.VISIBLE
+                            nextBtn?.setOnClickListener { onNextSource() }
+                        } else {
+                            nextBtn?.visibility = View.GONE
+                        }
+                        // Episodes button
+                        val epsBtn = view.findViewById<android.view.View>(com.enigma.tv.R.id.btn_enigma_episodes)
+                        if (tvControls != null && onShowEpisodes != null) {
+                            epsBtn?.visibility = View.VISIBLE
+                            epsBtn?.setOnClickListener { onShowEpisodes() }
+                        } else {
+                            epsBtn?.visibility = View.GONE
                         }
                     },
                     modifier = Modifier.fillMaxSize()

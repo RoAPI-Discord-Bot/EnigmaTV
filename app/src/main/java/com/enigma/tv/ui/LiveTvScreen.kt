@@ -158,17 +158,23 @@ fun LiveTvScreen(
                         )
                     }
                 }
-                live.error != null -> {
-                    Column(Modifier.padding(12.dp)) {
-                        Text(live.error, color = Color(0xFFFF6B6B), fontSize = bodySize)
+                live.error != null || (live.channels.isEmpty() && live.events.isEmpty() && !live.loading) -> {
+                    Column(
+                        Modifier.padding(24.dp).fillMaxWidth(),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
                         Text(
-                            "Open the menu and tap Live TV to retry.",
-                            color = TextSecondary,
-                            fontSize = 12.sp,
-                            modifier = Modifier
-                                .padding(top = 8.dp)
-                                .clickable { onReload() }
+                            live.error ?: "Could not load Live TV content.",
+                            color = Color(0xFFFF6B6B),
+                            fontSize = bodySize
                         )
+                        androidx.compose.material3.Button(
+                            onClick = onReload,
+                            colors = androidx.compose.material3.ButtonDefaults.buttonColors(containerColor = EnigmaPurple),
+                            modifier = Modifier.padding(top = 16.dp)
+                        ) {
+                            Text("Retry Loading", color = Color.White)
+                        }
                     }
                 }
                 live.tab == LiveTvTab.EVENTS -> LiveEventsList(

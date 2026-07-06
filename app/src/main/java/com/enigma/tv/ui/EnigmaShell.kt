@@ -2,8 +2,11 @@ package com.enigma.tv.ui
 
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.foundation.border
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.animation.togetherWith
@@ -254,7 +257,10 @@ fun EnigmaShell(viewModel: EnigmaViewModel = viewModel()) {
                     )
                     else -> AnimatedContent(
                         targetState = state.section,
-                        transitionSpec = { fadeIn() togetherWith fadeOut() },
+                        transitionSpec = {
+                            (fadeIn(tween(220)) + slideInHorizontally(tween(220)) { it / 8 }) togetherWith
+                            (fadeOut(tween(160)) + slideOutHorizontally(tween(160)) { -it / 8 })
+                        },
                         label = "main_section"
                     ) { section ->
                         when (section) {
@@ -738,14 +744,31 @@ private fun TvContentSection(title: String, content: @Composable () -> Unit) {
     androidx.compose.foundation.layout.Column(
         modifier = androidx.compose.ui.Modifier.fillMaxWidth()
     ) {
-        androidx.compose.material3.Text(
-            text = title,
-            color = TextPrimary,
-            fontSize = 18.sp,
-            fontWeight = FontWeight.Bold,
-            letterSpacing = 0.3.sp,
-            modifier = androidx.compose.ui.Modifier.padding(bottom = 14.dp, start = 4.dp)
-        )
+        // Accent bar + title row — Disney+ / Apple TV+ style
+        androidx.compose.foundation.layout.Row(
+            verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
+            modifier = androidx.compose.ui.Modifier.padding(bottom = 14.dp, start = 2.dp)
+        ) {
+            androidx.compose.foundation.layout.Box(
+                modifier = androidx.compose.ui.Modifier
+                    .width(4.dp)
+                    .height(22.dp)
+                    .clip(androidx.compose.foundation.shape.RoundedCornerShape(2.dp))
+                    .background(
+                        androidx.compose.ui.graphics.Brush.verticalGradient(
+                            listOf(EnigmaPurple, EnigmaPink)
+                        )
+                    )
+            )
+            androidx.compose.material3.Text(
+                text = title,
+                color = TextPrimary,
+                fontSize = 18.sp,
+                fontWeight = FontWeight.Bold,
+                letterSpacing = 0.3.sp,
+                modifier = androidx.compose.ui.Modifier.padding(start = 10.dp)
+            )
+        }
         content()
     }
 }

@@ -415,27 +415,6 @@ fun PlayerFullscreenHost(
                 }
             }
 
-            // Bottom playback controls — shown for native player when chrome is visible
-            AnimatedVisibility(
-                visible = chromeVisible && isNativePlayerActive && !streamLoading,
-                enter = slideInVertically { it } + fadeIn(),
-                exit = slideOutVertically { it } + fadeOut(),
-                modifier = Modifier.align(Alignment.BottomCenter)
-            ) {
-                androidx.compose.foundation.layout.Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .background(Color.Black.copy(alpha = 0.82f))
-                        .padding(bottom = 16.dp)
-                ) {
-                    PlaybackControlsRow(
-                        actionDispatcher = actionDispatcher,
-                        accent = accent,
-                        isTvLayout = layout == ScreenLayout.TV
-                    )
-                }
-            }
-
             if (hasTv) {
                 TvEpisodePickerPanel(
                     visible = episodePanelOpen,

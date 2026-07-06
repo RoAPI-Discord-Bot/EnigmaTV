@@ -494,6 +494,10 @@ class EnigmaViewModel(application: Application) : AndroidViewModel(application) 
                 }
                 if (rows.isNotEmpty()) {
                     prefetchHomePosters(rows)
+                    // Pre-warm Live TV in background so tapping Live is instant
+                    if (_state.value.liveTv.channels.isEmpty() && !_state.value.liveTv.loading) {
+                        viewModelScope.launch { loadLiveTv() }
+                    }
                 }
             } catch (e: kotlinx.coroutines.CancellationException) {
                 throw e

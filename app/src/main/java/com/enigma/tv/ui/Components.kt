@@ -55,9 +55,17 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.Animatable
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import com.enigma.tv.R
@@ -268,14 +276,30 @@ fun ContentSection(
     content: @Composable () -> Unit
 ) {
     Column(modifier = modifier.padding(bottom = 20.dp)) {
-        Text(
-            text = cleanRowTitle(title),
-            color = TextPrimary,
-            fontSize = 18.sp,
-            fontWeight = FontWeight.Bold,
-            letterSpacing = 0.2.sp,
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
             modifier = Modifier.padding(bottom = 10.dp, start = 2.dp)
-        )
+        ) {
+            Box(
+                modifier = Modifier
+                    .width(4.dp)
+                    .height(20.dp)
+                    .clip(RoundedCornerShape(2.dp))
+                    .background(
+                        Brush.verticalGradient(
+                            listOf(EnigmaPurple, EnigmaPink)
+                        )
+                    )
+            )
+            Text(
+                text = cleanRowTitle(title),
+                color = TextPrimary,
+                fontSize = 18.sp,
+                fontWeight = FontWeight.Bold,
+                letterSpacing = 0.2.sp,
+                modifier = Modifier.padding(start = 8.dp)
+            )
+        }
         content()
     }
 }
@@ -299,7 +323,7 @@ fun PosterCard(
     val isTv = cardWidthDp >= 140
 
     var focused by remember { mutableStateOf(false) }
-    val scale by animateFloatAsState(targetValue = if (focused) 1.08f else 1f, label = "card_scale")
+    val scale by animateFloatAsState(targetValue = if (focused) 1.07f else 1f, label = "card_scale")
 
     val clickModifier = if (onLongClickPlay != null) {
         Modifier.combinedClickable(onClick = onClick, onLongClick = onLongClickPlay)
@@ -317,12 +341,15 @@ fun PosterCard(
         Box(
             modifier = Modifier
                 .size(width = cardW, height = cardH)
-                .clip(RoundedCornerShape(12.dp))
+                .clip(RoundedCornerShape(14.dp))
                 .background(CardBg.copy(alpha = 0.4f))
                 .then(
                     if (focused) {
-                        Modifier
-                            .border(3.dp, if (isTv) Color.White else accent, RoundedCornerShape(12.dp))
+                        Modifier.border(
+                            3.dp,
+                            if (isTv) Color.White else accent,
+                            RoundedCornerShape(14.dp)
+                        )
                     } else Modifier
                 )
         ) {
@@ -337,12 +364,43 @@ fun PosterCard(
                 Icon(
                     imageVector = if (badge == "TV") Icons.Default.Tv else Icons.Default.Movie,
                     contentDescription = null,
-                    tint = Color(0xFF333333),
+                    tint = Color(0xFF444444),
                     modifier = Modifier
                         .align(Alignment.Center)
                         .size(40.dp)
                 )
             }
+
+            // Bottom gradient scrim with title baked in — Netflix style
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height((cardWidthDp * 0.65f).dp)
+                    .align(Alignment.BottomCenter)
+                    .background(
+                        Brush.verticalGradient(
+                            colors = listOf(
+                                Color.Transparent,
+                                Color.Black.copy(alpha = 0.55f),
+                                Color.Black.copy(alpha = 0.90f)
+                            )
+                        )
+                    )
+            ) {
+                // Title at the very bottom of the gradient
+                Text(
+                    text = title,
+                    color = Color.White,
+                    fontSize = if (isTv) 13.sp else 11.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier
+                        .align(Alignment.BottomStart)
+                        .padding(horizontal = 8.dp, vertical = 6.dp)
+                )
+            }
+
             if (onFavoriteClick != null) {
                 IconButton(
                     onClick = onFavoriteClick,
@@ -354,23 +412,12 @@ fun PosterCard(
                     Icon(
                         imageVector = if (isFavorite) Icons.Filled.Favorite else Icons.Outlined.FavoriteBorder,
                         contentDescription = "Favorite",
-                        tint = if (isFavorite) EnigmaPink else TextSecondary,
+                        tint = if (isFavorite) EnigmaPink else Color.White.copy(alpha = 0.8f),
                         modifier = Modifier.size(22.dp)
                     )
                 }
             }
-            if (onLongClickPlay != null && subtitle == null) {
-                Text(
-                    text = "Hold to play",
-                    color = Color.White.copy(alpha = 0.85f),
-                    fontSize = 9.sp,
-                    modifier = Modifier
-                        .align(Alignment.BottomStart)
-                        .padding(6.dp)
-                        .background(Color.Black.copy(alpha = 0.55f), RoundedCornerShape(4.dp))
-                        .padding(horizontal = 6.dp, vertical = 2.dp)
-                )
-            }
+
             if (badge != null) {
                 Text(
                     text = badge,
@@ -379,11 +426,15 @@ fun PosterCard(
                     fontWeight = FontWeight.Bold,
                     modifier = Modifier
                         .align(Alignment.TopEnd)
-                        .padding(4.dp)
-                        .background(accent, RoundedCornerShape(3.dp))
-                        .padding(horizontal = 5.dp, vertical = 2.dp)
+                        .padding(6.dp)
+                        .background(
+                            accent.copy(alpha = 0.92f),
+                            RoundedCornerShape(4.dp)
+                        )
+                        .padding(horizontal = 6.dp, vertical = 3.dp)
                 )
             }
+
             if (subtitle != null) {
                 Text(
                     text = subtitle,
@@ -399,15 +450,6 @@ fun PosterCard(
                 )
             }
         }
-        Text(
-            text = title,
-            color = if (focused && isTv) Color.White else TextSecondary,
-            fontSize = if (isTv) 14.sp else 12.sp,
-            fontWeight = if (focused && isTv) FontWeight.Bold else FontWeight.Normal,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.padding(top = 8.dp)
-        )
     }
 }
 
@@ -450,23 +492,47 @@ fun PosterRow(content: @Composable androidx.compose.foundation.layout.RowScope.(
 
 @Composable
 fun LoadingState(message: String = "FETCHING...") {
-    Box(
+    Row(
         modifier = Modifier
             .fillMaxWidth()
-            .height(300.dp),
-        contentAlignment = Alignment.Center
+            .padding(vertical = 8.dp),
+        horizontalArrangement = Arrangement.spacedBy(12.dp)
     ) {
-        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            CircularProgressIndicator(color = Color(0xFF666666))
-            Text(
-                text = message,
-                color = Color(0xFF666666),
-                fontSize = 11.sp,
-                letterSpacing = 3.sp,
-                modifier = Modifier.padding(top = 20.dp)
-            )
+        repeat(4) {
+            ShimmerCard(widthDp = 140)
         }
     }
+}
+
+@Composable
+fun ShimmerCard(widthDp: Int = 140) {
+    val infiniteTransition = rememberInfiniteTransition(label = "shimmer")
+    val shimmerTranslate by infiniteTransition.animateFloat(
+        initialValue = 0f,
+        targetValue = 1000f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(durationMillis = 1100, easing = LinearEasing)
+        ),
+        label = "shimmerX"
+    )
+    val shimmerBrush = androidx.compose.ui.graphics.Brush.linearGradient(
+        colors = listOf(
+            Color(0xFF1E1E2E),
+            Color(0xFF2A2A3E),
+            Color(0xFF353554),
+            Color(0xFF2A2A3E),
+            Color(0xFF1E1E2E),
+        ),
+        start = Offset(shimmerTranslate - 400f, 0f),
+        end = Offset(shimmerTranslate, 0f)
+    )
+    Box(
+        modifier = Modifier
+            .width(widthDp.dp)
+            .height((widthDp * 1.5f).dp)
+            .clip(RoundedCornerShape(14.dp))
+            .background(shimmerBrush)
+    )
 }
 
 @Composable
