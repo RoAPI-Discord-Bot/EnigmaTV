@@ -30,18 +30,18 @@ jobs:
           gradle-version: 8.9
 
       - name: Write local.properties
-        run: echo "sdk.dir=\${ANDROID_SDK_ROOT}" >> local.properties
+        run: echo "sdk.dir=${ANDROID_SDK_ROOT}" >> local.properties
 
       - name: Decode Keystore
         run: |
-          echo "\${{ secrets.KEYSTORE_BASE64 }}" | tr -d '\n\r ' | base64 -d -i > app/keystore.jks
+          echo "${{ secrets.KEYSTORE_BASE64 }}" | tr -d '\n\r ' | base64 -d -i > app/keystore.jks
 
       - name: Build release APK
         env:
           KEYSTORE_PATH: keystore.jks
-          KEYSTORE_PASSWORD: \${{ secrets.KEY_STORE_PASSWORD }}
-          KEY_ALIAS: \${{ secrets.KEY_ALIAS }}
-          KEY_PASSWORD: \${{ secrets.KEY_PASSWORD }}
+          KEYSTORE_PASSWORD: ${{ secrets.KEY_STORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
         run: gradle assembleRelease --stacktrace --no-daemon
 
       - name: Extract Version Name
@@ -53,8 +53,8 @@ jobs:
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: v\${{ env.VERSION_NAME }}
-          name: EnigmaTV v\${{ env.VERSION_NAME }}
+          tag_name: v${{ env.VERSION_NAME }}
+          name: EnigmaTV v${{ env.VERSION_NAME }}
           files: app/build/outputs/apk/release/*.apk
           draft: false
           prerelease: false
