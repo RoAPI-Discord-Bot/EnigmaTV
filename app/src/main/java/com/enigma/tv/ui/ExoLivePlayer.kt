@@ -18,6 +18,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -25,7 +26,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -151,16 +151,10 @@ fun ExoLivePlayer(
     }
 
     val player = remember(playUrl, playToken) {
-        // Adaptive bandwidth meter — picks video quality the connection can actually handle
+        // V3: Adaptive bandwidth meter + aggressive buffer for best quality
         val bandwidthMeter = androidx.media3.exoplayer.upstream.DefaultBandwidthMeter.Builder(context).build()
-
         val loadControl = DefaultLoadControl.Builder()
-            .setBufferDurationsMs(
-                /* minBufferMs                     */ 5_000,   // 5s minimum — resume fast after stalls
-                /* maxBufferMs                     */ 30_000,  // 30s max look-ahead
-                /* bufferForPlaybackMs             */ 1_500,   // start after 1.5s
-                /* bufferForPlaybackAfterRebufferMs*/ 1_000    // resume after just 1s after any stall
-            )
+            .setBufferDurationsMs(32_000, 120_000, 2_500, 5_000)
             .setPrioritizeTimeOverSizeThresholds(true)
             .build()
 
@@ -170,22 +164,9 @@ fun ExoLivePlayer(
                 .setPreferredTextLanguage("en")
                 .setSelectUndeterminedTextLanguage(true)
                 .setPreferredTextRoleFlags(C.ROLE_FLAG_CAPTION or C.ROLE_FLAG_SUBTITLE)
-                // Always force the highest quality the device can decode
                 .setMaxVideoSize(Int.MAX_VALUE, Int.MAX_VALUE)
                 .setForceHighestSupportedBitrate(true)
         )
-
-        // Intelligent Quality Selection & Buffering (V3 Feature)
-        val bandwidthMeter = androidx.media3.exoplayer.upstream.DefaultBandwidthMeter.Builder(context).build()
-        val loadControl = androidx.media3.exoplayer.DefaultLoadControl.Builder()
-            .setBufferDurationsMs(
-                32000, // min buffer
-                120000, // max buffer (aggressive)
-                2500, // buffer for playback
-                5000  // buffer for playback after rebuffer
-            )
-            .setPrioritizeTimeOverSizeThresholds(true)
-            .build()
 
         ExoPlayer.Builder(context)
             .setTrackSelector(trackSelector)
@@ -431,25 +412,27 @@ fun ExoLivePlayer(
     }
 
     // Watch Party Sync loop
-    LaunchedEffect(partyState.isActive, partyState.isHost) {
-        if (!partyState.isActive) return@LaunchedEffect
+    val partyActive = partyState.isActive
+    val partyIsHost = partyState.isHost
+    LaunchedEffect(partyActive, partyIsHost) {
+        if (!partyActive) return@LaunchedEffect
         while (true) {
             if (hasReachedReady) {
-                if (partyState.isHost) {
+                if (partyIsHost) {
                     // Host broadcasts state every 2 seconds
                     partyVm.broadcastState(player.currentPosition, player.isPlaying)
                 } else {
                     // Guest checks for drift
                     val hostPos = partyState.syncPositionMs
                     val myPos = player.currentPosition
-                    if (hostPos > 0 && kotlin.math.abs(hostPos - myPos) > 5000L) { // 5-second loose sync window
+                    if (hostPos > 0L && kotlin.math.abs(hostPos - myPos) > 5000L) {
                         player.seekTo(hostPos)
                     }
                     if (partyState.syncIsPlaying && !player.isPlaying) player.play()
                     if (!partyState.syncIsPlaying && player.isPlaying) player.pause()
                 }
             }
-            delay(2000L) // check/broadcast every 2s
+            delay(2000L)
         }
     }
 
