@@ -426,34 +426,11 @@ private fun TvDetailContent(
                             if (partyState.showDialog) {
                                 WatchPartyDialog(
                                     state = partyState,
-                                    onHost = { partyVm.hostRoom(); onPlay() },
+                                    onHost = { partyVm.hostRoom(detail.resumePositionMs); onPlay() },
                                     onJoin = { code -> partyVm.joinRoom(code); onPlay() },
                                     onLeave = { partyVm.leaveRoom() },
                                     onDismiss = { partyVm.hideDialog() }
                                 )
-                            }
-                            
-                            // Download button
-                            val dlContext = LocalContext.current
-                            var downloadFocused by remember { mutableStateOf(false) }
-                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                IconButton(
-                                    onClick = {
-                                        android.widget.Toast.makeText(dlContext, "Download started...", android.widget.Toast.LENGTH_SHORT).show()
-                                    },
-                                    modifier = Modifier
-                                        .size(64.dp)
-                                        .onFocusChanged { downloadFocused = it.isFocused }
-                                        .then(
-                                            if (downloadFocused) Modifier.border(3.dp, Color.White, RoundedCornerShape(32.dp))
-                                            else Modifier
-                                        )
-                                        .background(Color.White.copy(alpha = 0.2f), RoundedCornerShape(32.dp))
-                                ) {
-                                    Icon(Icons.Default.Download, contentDescription = "Download", tint = Color.White, modifier = Modifier.size(28.dp))
-                                }
-                                Spacer(Modifier.height(4.dp))
-                                Text("Download", color = TextPrimary, fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
                             }
                         }
                     }
@@ -661,14 +638,29 @@ private fun MobileDetailContent(
                     EpisodeRow(ep, ep.episodeNumber == detail.selectedEpisode, onEpisodeSelect)
                 }
             }
-            Spacer(Modifier.height(80.dp))
+            Spacer(Modifier.height(24.dp))
         }
 
         Box(
             Modifier.fillMaxWidth().background(BgDark.copy(alpha = 0.95f)).padding(16.dp)
         ) {
+            val partyVm: WatchPartyViewModel = androidx.lifecycle.viewmodel.compose.viewModel()
+            val partyState by partyVm.state.collectAsState()
+
+            if (partyState.showDialog) {
+                WatchPartyDialog(
+                    state = partyState,
+                    onHost = { partyVm.hostRoom(detail.resumePositionMs) },
+                    onJoin = { code -> partyVm.joinRoom(code) },
+                    onLeave = { partyVm.leaveRoom() },
+                    onDismiss = { partyVm.hideDialog() }
+                )
+            }
+
             if (detail.isPlayable) {
-                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
+                    WatchPartyButton(partyState = partyState, onShowDialog = { partyVm.showDialog() })
+
                     Button(
                         onClick = onPlay,
                         modifier = Modifier.weight(1f).heightIn(min = 52.dp),
@@ -690,6 +682,9 @@ private fun MobileDetailContent(
                     }
 
                     if (detail.resumePositionMs > 0) {
+                        IconButton(onClick = onRemoveFromHistory, modifier = Modifier.size(48.dp)) {
+                            Icon(Icons.Default.Delete, contentDescription = "Remove", tint = TextSecondary)
+                        }
                         Button(
                             onClick = onRestart,
                             modifier = Modifier.heightIn(min = 52.dp),

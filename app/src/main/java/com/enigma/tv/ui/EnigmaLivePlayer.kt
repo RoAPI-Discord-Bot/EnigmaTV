@@ -97,6 +97,7 @@ fun EnigmaLivePlayer(
                 isLiveBroadcast = true,
                 showNextSource = true,
                 onNextSource = onNextSource,
+                onPlaybackReady = onPlaybackReady,
                 useExternalChrome = useExternalChrome,
                 modifier = Modifier.fillMaxSize()
             )

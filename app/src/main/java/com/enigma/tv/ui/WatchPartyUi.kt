@@ -12,6 +12,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
@@ -45,7 +46,7 @@ fun WatchPartyButton(
     if (partyState.isActive) {
         // Small pill showing member count and room code
         Box(
-            modifier = modifier
+            modifier = Modifier
                 .offset(x = 24.dp, y = (-4).dp)
                 .background(EnigmaPurple, RoundedCornerShape(8.dp))
                 .padding(horizontal = 4.dp, vertical = 2.dp)
@@ -148,17 +149,23 @@ fun WatchPartyDialog(
                         )
                     }
                     else -> {
-                        Text("Watch in sync with friends in real time.", color = TextSecondary, fontSize = 13.sp)
                         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                            var hostFocused by remember { mutableStateOf(false) }
+                            var joinFocused by remember { mutableStateOf(false) }
                             OutlinedButton(
                                 onClick = { mode = "host" },
-                                modifier = Modifier.weight(1f),
-                                colors = ButtonDefaults.outlinedButtonColors(contentColor = EnigmaPurple)
+                                modifier = Modifier.weight(1f).onFocusChanged { hostFocused = it.isFocused },
+                                colors = ButtonDefaults.outlinedButtonColors(
+                                    contentColor = EnigmaPurple,
+                                    containerColor = if (hostFocused) EnigmaPurple.copy(alpha = 0.2f) else Color.Transparent
+                                )
                             ) { Text("Host Party") }
                             Button(
                                 onClick = { mode = "join" },
-                                modifier = Modifier.weight(1f),
-                                colors = ButtonDefaults.buttonColors(containerColor = EnigmaPurple)
+                                modifier = Modifier.weight(1f).onFocusChanged { joinFocused = it.isFocused },
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = if (joinFocused) EnigmaPink else EnigmaPurple
+                                )
                             ) { Text("Join Party") }
                         }
                     }
@@ -166,29 +173,35 @@ fun WatchPartyDialog(
             }
         },
         confirmButton = {
+            var btnFocused by remember { mutableStateOf(false) }
             if (state.isActive) {
                 Button(
                     onClick = { onLeave(); onDismiss() },
-                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF8B0000))
+                    modifier = Modifier.onFocusChanged { btnFocused = it.isFocused },
+                    colors = ButtonDefaults.buttonColors(containerColor = if (btnFocused) Color.Red else Color(0xFF8B0000))
                 ) { Text("Leave Party") }
             } else when (mode) {
                 "host" -> Button(
                     onClick = { onHost(); onDismiss() },
-                    colors = ButtonDefaults.buttonColors(containerColor = EnigmaPurple)
+                    modifier = Modifier.onFocusChanged { btnFocused = it.isFocused },
+                    colors = ButtonDefaults.buttonColors(containerColor = if (btnFocused) EnigmaPink else EnigmaPurple)
                 ) { Text("Start Party") }
                 "join" -> Button(
                     onClick = { if (codeInput.length == 5) { onJoin(codeInput); onDismiss() } },
                     enabled = codeInput.length == 5,
-                    colors = ButtonDefaults.buttonColors(containerColor = EnigmaPurple)
+                    modifier = Modifier.onFocusChanged { btnFocused = it.isFocused },
+                    colors = ButtonDefaults.buttonColors(containerColor = if (btnFocused) EnigmaPink else EnigmaPurple)
                 ) { Text("Join") }
                 else -> {}
             }
         },
         dismissButton = {
-            TextButton(onClick = {
-                if (mode != null) mode = null else onDismiss()
-            }) {
-                Text(if (mode != null) "Back" else "Cancel", color = TextSecondary)
+            var cancelFocused by remember { mutableStateOf(false) }
+            TextButton(
+                onClick = { if (mode != null) mode = null else onDismiss() },
+                modifier = Modifier.onFocusChanged { cancelFocused = it.isFocused }
+            ) {
+                Text(if (mode != null) "Back" else "Cancel", color = if (cancelFocused) Color.White else TextSecondary)
             }
         }
     )

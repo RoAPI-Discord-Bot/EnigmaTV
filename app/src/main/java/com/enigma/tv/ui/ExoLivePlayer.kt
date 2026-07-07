@@ -88,6 +88,7 @@ fun ExoLivePlayer(
     tvControls: TvPlayerControls? = null,
     useExternalChrome: Boolean = false,
     onPlaybackEnded: (() -> Unit)? = null,
+    onPlaybackReady: (() -> Unit)? = null,
     onPlaybackPositionMs: ((Long) -> Unit)? = null,
     onPlaybackDurationMs: ((Long) -> Unit)? = null,
     startPositionMs: Long = 0L,
@@ -296,6 +297,8 @@ fun ExoLivePlayer(
             errorMessage = "Stream unavailable — try another source"
             return@DisposableEffect onDispose { }
         }
+        var initialQualityForced = false
+
         val listener = object : Player.Listener {
             override fun onPlaybackStateChanged(state: Int) {
                 when (state) {
@@ -303,6 +306,37 @@ fun ExoLivePlayer(
                         hasReachedReady = true
                         onLoadingChange(false)
                         errorMessage = null
+                        onPlaybackReady?.invoke()
+                        
+                        if (!initialQualityForced) {
+                            initialQualityForced = true
+                            // Force the highest quality video track available automatically
+                            val videoGroups = player.currentTracks.groups.filter { it.type == C.TRACK_TYPE_VIDEO }
+                            if (videoGroups.isNotEmpty()) {
+                                var bestGroup: androidx.media3.common.Tracks.Group? = null
+                                var bestTrackIndex = -1
+                                var maxPixels = -1
+                                for (group in videoGroups) {
+                                    for (i in 0 until group.length) {
+                                        if (group.isTrackSupported(i)) {
+                                            val format = group.getTrackFormat(i)
+                                            val pixels = format.width * format.height
+                                            if (pixels > maxPixels) {
+                                                maxPixels = pixels
+                                                bestGroup = group
+                                                bestTrackIndex = i
+                                            }
+                                        }
+                                    }
+                                }
+                                if (bestGroup != null && bestTrackIndex >= 0) {
+                                    player.trackSelectionParameters = player.trackSelectionParameters.buildUpon()
+                                        .setOverrideForType(
+                                            androidx.media3.common.TrackSelectionOverride(bestGroup.mediaTrackGroup, listOf(bestTrackIndex))
+                                        ).build()
+                                }
+                            }
+                        }
                     }
                     Player.STATE_BUFFERING -> {
                         // Never show loading spinner during mid-play rebuffer — just

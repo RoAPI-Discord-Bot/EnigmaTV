@@ -5,7 +5,7 @@
 - **NEVER run Gradle, Java, `./gradlew`, Android Studio, or any local build tool.**
   The user's machine does not have a working Java/Android SDK environment.
   All builds happen exclusively via **GitHub Actions** (`main.yml`).
-- **NEVER run `./gradlew`, `gradlew.bat`, or any `gradle` command** — they will fail.
+- **NEVER run `./gradlew`, `gradlew.bat`, or any `gradle` command** â€” they will fail.
 - **DO NOT attempt to compile, lint, or run the app locally** for any reason.
 - To verify code correctness, do a careful manual code review and check for obvious syntax errors before pushing.
 
@@ -21,7 +21,7 @@
 
 ## Git & Push Workflow
 
-- **Always push immediately after committing.** Never leave commits in a local-only state — the user monitors GitHub Actions and expects changes to appear there promptly.
+- **Always push immediately after committing.** Never leave commits in a local-only state â€” the user monitors GitHub Actions and expects changes to appear there promptly.
 - **Always use semicolons (`;`) to chain commands in PowerShell**, not `&&`. The `&&` operator is not a valid statement separator in Windows PowerShell 5 and will cause a parse error.
   - Correct: `git add .; git commit -m "msg"; git push`
   - Wrong:   `git add . && git commit -m "msg" && git push`
@@ -30,7 +30,7 @@
 ## Android / Kotlin Code Rules
 
 - The app targets **Android TV and phones**. Always account for both `ScreenLayout.TV` and `ScreenLayout.PHONE` when writing UI code.
-- **Do not use `Dialog` for full-screen overlays** in Compose. Use a `Box` with `zIndex` inside the main composition instead — Android Dialogs break edge-to-edge insets, especially in landscape.
+- **Do not use `Dialog` for full-screen overlays** in Compose. Use a `Box` with `zIndex` inside the main composition instead â€” Android Dialogs break edge-to-edge insets, especially in landscape.
 - **Prefer sequential network calls over parallel bursts** when hitting rate-limited APIs (e.g., `streamed.pk`). Use a small `delay()` between requests to avoid Cloudflare 429 errors.
 - Always add explicit `connectTimeout` and `readTimeout` to `OkHttpClient` builders to prevent UI hangs on slow connections.
 - **FileProvider** is required for `ACTION_INSTALL_PACKAGE` intents on Android 8+. Always declare it in `AndroidManifest.xml` and provide the corresponding `res/xml/file_paths.xml`.
@@ -41,6 +41,6 @@
 - The auto-updater checks the **latest GitHub Release** via the public API (`https://api.github.com/repos/RoAPI-Discord-Bot/EnigmaTV/releases/latest`).
 - For the updater to detect a new version, the GitHub Release **must exist** (created by CI) and `versionName` in the APK must be lower than the tag in the release.
 - **The update dialog must not appear before the user passes the profile picker screen.** Gate the dialog behind `!state.showProfilePicker && state.openingProfileId == null`.
-- When parsing release `body` from the GitHub API, always use `isNull("body")` before `optString()` — the API returns a literal JSON `null` (not a missing key) which causes `optString` to return the string `"null"` if not handled.
+- When parsing release `body` from the GitHub API, always use `isNull("body")` before `optString()` â€” the API returns a literal JSON `null` (not a missing key) which causes `optString` to return the string `"null"` if not handled.
 
-- **Bug Fixes:** When fixing a compilation error or a minor bug on the exact same feature immediately after a push, prefer using git commit --amend and git push --force instead of creating a new commit. This keeps the build version the same, preventing unnecessary updates for users and keeping the release notes consistent.
+- **Bug Fixes:** When fixing a compilation error or a minor bug with the gradle build immediately after a push, prefer using `git commit --amend` and `git push --force`. **However, DO NOT amend for bug fixes in the app itself!** Bug fixes in the app code require a new commit and a version bump.

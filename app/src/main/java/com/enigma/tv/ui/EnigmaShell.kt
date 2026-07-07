@@ -551,6 +551,7 @@ private fun EnigmaPlayerOverlay(
                         onClose = { viewModel.closePlayer() },
                         onNextSource = { viewModel.nextSource() },
                         onLoadingChange = { viewModel.onPlayerPageLoading(it) },
+                        onPlaybackReady = viewModel::onPlayerPlaybackReady,
                         onPlaybackEnded = viewModel::onEpisodeFinished,
                         onPlaybackPositionMs = viewModel::onPlaybackPositionMs,
                         onPlaybackDurationMs = viewModel::onPlaybackDurationMs,
