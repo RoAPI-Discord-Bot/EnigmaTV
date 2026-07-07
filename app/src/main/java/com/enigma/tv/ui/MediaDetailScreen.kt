@@ -28,6 +28,7 @@ import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
@@ -589,6 +590,88 @@ private fun MobileDetailContent(
                 fontSize = 14.sp,
                 lineHeight = 20.sp
             )
+
+            // Mobile Action Buttons (Play, Restart, Remove, Watch Party)
+            Spacer(Modifier.height(16.dp))
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(16.dp),
+                modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState())
+            ) {
+                // Play Button (Movies only, since TV has episode rows)
+                if (detail.type == ContentType.MOVIE) {
+                    val playText = if (detail.resumePositionMs > 0) "Resume" else "Play"
+                    Button(
+                        onClick = onPlay,
+                        colors = ButtonDefaults.buttonColors(containerColor = Color.White),
+                        shape = RoundedCornerShape(8.dp),
+                        contentPadding = PaddingValues(horizontal = 20.dp, vertical = 10.dp)
+                    ) {
+                        Icon(Icons.Default.PlayArrow, contentDescription = null, tint = Color.Black, modifier = Modifier.size(24.dp))
+                        Text(playText, color = Color.Black, fontWeight = FontWeight.Bold, modifier = Modifier.padding(start = 8.dp))
+                    }
+                }
+                
+                // Restart Button
+                if (detail.resumePositionMs > 0) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        IconButton(
+                            onClick = onRestart,
+                            modifier = Modifier.size(48.dp).background(Color.White.copy(alpha = 0.2f), CircleShape)
+                        ) {
+                            Icon(Icons.Default.PlayCircle, contentDescription = "Restart", tint = Color.White)
+                        }
+                        Text("Restart", color = TextPrimary, fontSize = 10.sp, modifier = Modifier.padding(top = 4.dp))
+                    }
+                    
+                    // Remove Button
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        IconButton(
+                            onClick = {
+                                onRemoveFromHistory()
+                                onClose()
+                            },
+                            modifier = Modifier.size(48.dp).background(Color.White.copy(alpha = 0.2f), CircleShape)
+                        ) {
+                            Icon(Icons.Default.Delete, contentDescription = "Remove", tint = Color.White)
+                        }
+                        Text("Remove", color = TextPrimary, fontSize = 10.sp, modifier = Modifier.padding(top = 4.dp))
+                    }
+                }
+                
+                // Watch Party
+                val partyVm: WatchPartyViewModel = androidx.lifecycle.viewmodel.compose.viewModel()
+                val partyState by partyVm.state.collectAsState()
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Box(modifier = Modifier.size(48.dp)) {
+                        IconButton(
+                            onClick = { partyVm.showDialog() },
+                            modifier = Modifier.fillMaxSize().background(if (partyState.isActive) EnigmaPurple else Color.White.copy(alpha = 0.2f), CircleShape)
+                        ) {
+                            Icon(if (partyState.isActive) Icons.Default.Group else Icons.Default.GroupAdd, contentDescription = "Party", tint = Color.White)
+                        }
+                        if (partyState.isActive) {
+                            Box(
+                                modifier = Modifier
+                                    .align(Alignment.TopEnd)
+                                    .background(EnigmaPink, RoundedCornerShape(8.dp))
+                                    .padding(horizontal = 4.dp, vertical = 2.dp)
+                            ) {
+                                Text("${partyState.memberCount}", color = Color.White, fontSize = 9.sp, fontWeight = FontWeight.Bold)
+                            }
+                        }
+                    }
+                    Text("Party", color = TextPrimary, fontSize = 10.sp, modifier = Modifier.padding(top = 4.dp))
+                }
+                if (partyState.showDialog) {
+                    WatchPartyDialog(
+                        state = partyState,
+                        onHost = { partyVm.hostRoom(detail.resumePositionMs); onPlay() },
+                        onJoin = { code -> partyVm.joinRoom(code); onPlay() },
+                        onLeave = { partyVm.leaveRoom() },
+                        onDismiss = { partyVm.hideDialog() }
+                    )
+                }
+            }
 
             if (detail.trailers.isNotEmpty()) {
                 Spacer(Modifier.height(16.dp))

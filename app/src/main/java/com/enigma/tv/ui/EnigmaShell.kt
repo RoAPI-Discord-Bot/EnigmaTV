@@ -312,6 +312,7 @@ fun EnigmaShell(viewModel: EnigmaViewModel = viewModel()) {
                             NavSection.LIVE -> LiveTvScreen(
                                 live = state.liveTv,
                                 layout = layout,
+                                activeChannelName = if (state.playerVisible && state.playerHls && !state.playerLiveTv) state.playerTitle else null,
                                 onTab = viewModel::setLiveTvTab,
                                 onSearch = viewModel::searchLiveTv,
                                 onReload = viewModel::loadLiveTv,

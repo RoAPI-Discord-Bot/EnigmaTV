@@ -436,26 +436,14 @@ private fun ProfilePickerTile(
             )
             .padding(horizontal = if (isTv) 14.dp else 8.dp, vertical = if (isTv) 10.dp else 6.dp)
     ) {
-        Box(
-            modifier = Modifier
-                .size(sizeDp.dp)
-                .then(
-                    when {
-                        isTv && showFocusRing -> Modifier.border(4.dp, EnigmaPink, CircleShape)
-                        !isTv && showFocusRing -> Modifier.border(3.dp, EnigmaPink, CircleShape)
-                        else -> Modifier
-                    }
-                )
-        ) {
-            ProfileAvatarCircle(
-                profile = profile,
-                selected = false,
-                sizeDp = sizeDp,
-                showEditBadge = showEditBadge,
-                showName = false,
-                onClick = null
-            )
-        }
+        ProfileAvatarCircle(
+            profile = profile,
+            selected = showFocusRing,
+            sizeDp = sizeDp,
+            showEditBadge = showEditBadge,
+            showName = false,
+            onClick = null
+        )
         Spacer(Modifier.height(10.dp))
         Text(
             text = profile.name,

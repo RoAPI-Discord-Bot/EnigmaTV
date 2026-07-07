@@ -4,6 +4,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.focusable
 import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -75,6 +76,7 @@ private sealed class ChannelListEntry {
 fun LiveTvScreen(
     live: LiveTvBrowseState,
     layout: ScreenLayout,
+    activeChannelName: String? = null,
     onTab: (LiveTvTab) -> Unit,
     onSearch: (String) -> Unit,
     onReload: () -> Unit,
@@ -196,6 +198,7 @@ fun LiveTvScreen(
                 else -> LiveChannelsBrowser(
                     live = live,
                     layout = layout,
+                    activeChannelName = activeChannelName,
                     onPlayChannel = onPlayChannel,
                     onToggleFavorite = onToggleFavorite,
                     onGroupFilter = onGroupFilter,
@@ -230,6 +233,7 @@ private fun LiveTabChip(tab: LiveTvTab, selected: Boolean, onTab: (LiveTvTab) ->
 private fun LiveChannelsBrowser(
     live: LiveTvBrowseState,
     layout: ScreenLayout,
+    activeChannelName: String? = null,
     onPlayChannel: (IptvChannel) -> Unit,
     onToggleFavorite: (IptvChannel) -> Unit,
     onGroupFilter: (String?) -> Unit,
@@ -305,6 +309,7 @@ private fun LiveChannelsBrowser(
                 LiveChannelRow(
                     ch,
                     live.favoriteChannelIds.contains(ch.id),
+                    ch.name == activeChannelName,
                     layout,
                     onPlayChannel,
                     onToggleFavorite
@@ -355,6 +360,7 @@ private fun LiveChannelsBrowser(
                     is ChannelListEntry.Channel -> LiveChannelRow(
                         row.channel,
                         live.favoriteChannelIds.contains(row.channel.id),
+                        row.channel.name == activeChannelName,
                         layout,
                         onPlayChannel,
                         onToggleFavorite
@@ -366,6 +372,7 @@ private fun LiveChannelsBrowser(
                 LiveChannelRow(
                     ch,
                     live.favoriteChannelIds.contains(ch.id),
+                    ch.name == activeChannelName,
                     layout,
                     onPlayChannel,
                     onToggleFavorite
@@ -475,6 +482,7 @@ private fun LiveEventCard(match: LiveSportMatch, layout: ScreenLayout, onPlay: (
 private fun LiveChannelRow(
     channel: IptvChannel,
     isFavorite: Boolean,
+    isActive: Boolean,
     layout: ScreenLayout,
     onPlay: (IptvChannel) -> Unit,
     onToggleFavorite: (IptvChannel) -> Unit
@@ -490,8 +498,15 @@ private fun LiveChannelRow(
             .height(rowH)
             .scale(scale)
             .clip(RoundedCornerShape(10.dp))
-            .glassSurface(cornerRadius = 10.dp, accentBorder = focused)
-            .background(if (focused) EnigmaPurple.copy(alpha = 0.85f) else Color.Transparent)
+            .glassSurface(cornerRadius = 10.dp, accentBorder = focused || isActive)
+            .background(
+                when {
+                    focused -> EnigmaPurple.copy(alpha = 0.85f)
+                    isActive -> EnigmaPink.copy(alpha = 0.15f)
+                    else -> Color.Transparent
+                }
+            )
+            .then(if (isActive && !focused) Modifier.border(2.dp, EnigmaPink.copy(alpha = 0.5f), RoundedCornerShape(10.dp)) else Modifier)
             .clickable { onPlay(channel) }
             .onFocusChanged { focused = it.isFocused }
             .padding(horizontal = 12.dp),
@@ -513,18 +528,18 @@ private fun LiveChannelRow(
         Column(Modifier.weight(1f).padding(horizontal = 12.dp)) {
             Text(
                 channel.name,
-                color = if (focused && isTv) Color.White else TextPrimary,
-                fontWeight = if (focused && isTv) FontWeight.Bold else FontWeight.Normal,
+                color = if ((focused && isTv) || isActive) Color.White else TextPrimary,
+                fontWeight = if ((focused && isTv) || isActive) FontWeight.Bold else FontWeight.Normal,
                 fontSize = if (isTv) 17.sp else 15.sp,
                 maxLines = 2,
                 lineHeight = 18.sp
             )
             Text(
-                channel.group,
-                color = TextSecondary,
+                if (isActive) "Playing Now · ${channel.group}" else channel.group,
+                color = if (isActive) EnigmaPink else TextSecondary,
                 fontSize = 12.sp,
-                maxLines = 1,
-                modifier = Modifier.padding(top = 2.dp)
+                fontWeight = if (isActive) FontWeight.SemiBold else FontWeight.Normal,
+                modifier = Modifier.padding(top = 4.dp)
             )
         }
         IconButton(
