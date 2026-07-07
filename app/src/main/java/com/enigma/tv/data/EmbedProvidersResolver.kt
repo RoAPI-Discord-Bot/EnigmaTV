@@ -6,7 +6,7 @@ import android.util.Log
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.selects.select
+import kotlinx.coroutines.withTimeoutOrNull
 
 private const val TAG = "EmbedResolver"
 
@@ -49,78 +49,50 @@ object EmbedProvidersResolver {
             val webViewJob = async {
                 if (activity == null) return@async null
                 Log.d(TAG, "[$tmdbId] Round1/WebView: $primaryEmbedUrl")
-                val r = StreamExtractor(context).extractStreamUrl(primaryEmbedUrl, activity = activity)
+                val r = withTimeoutOrNull(15_000) {
+                    StreamExtractor(context).extractStreamUrl(primaryEmbedUrl, activity = activity)
+                }
                 Log.d(TAG, "[$tmdbId] Round1/WebView: ${if (r != null) "got stream" else "null"}")
                 r
             }
 
-            var result: ResolvedStream? = null
-            try {
-                select<Unit> {
-                    apiJob.onAwait { r ->
-                        if (r != null) {
-                            result = r
-                            if (r.subtitleUrl == null) {
-                                // API doesn't provide subtitles directly. Give the WebView a few seconds
-                                // to catch the subtitles before we cancel it and play without them.
-                                val webResult = kotlinx.coroutines.withTimeoutOrNull(3500) { webViewJob.await() }
-                                if (webResult?.subtitleUrl != null) {
-                                    result = r.copy(subtitleUrl = webResult.subtitleUrl)
-                                }
-                            }
-                            webViewJob.cancel()
-                        } else {
-                            result = webViewJob.await()
-                        }
-                    }
-                    webViewJob.onAwait { r ->
-                        if (r != null) { result = r; apiJob.cancel() }
-                        else           { result = apiJob.await() }
-                    }
-                }
-            } finally {
-                if (apiJob.isActive)     apiJob.cancel()
+            // VidLink API is fast (< 2s) — wait for it first.
+            // If it has the content, we get high-quality right away.
+            val apiResult = withTimeoutOrNull(6_000) { apiJob.await() }
+            if (apiResult != null) {
+                Log.d(TAG, "[$tmdbId] VidLink API won")
                 if (webViewJob.isActive) webViewJob.cancel()
+                return@coroutineScope apiResult
             }
 
-            // ── Round 2: Try remaining embed sources in parallel ────────────────────
-            if (result == null && activity != null && embedUrls.size > 1) {
-                Log.d(TAG, "[$tmdbId] Round1 failed — trying ${embedUrls.size - 1} fallback sources in parallel")
-                
-                result = kotlinx.coroutines.coroutineScope {
-                    val fallbacks = embedUrls.drop(1)
-                    val channel = kotlinx.coroutines.channels.Channel<ResolvedStream?>(fallbacks.size)
-                    
-                    val jobs = fallbacks.map { (srcName, fallbackUrl) ->
-                        launch {
-                            val res = kotlinx.coroutines.withTimeoutOrNull(8000) {
-                                StreamExtractor(context).extractStreamUrl(fallbackUrl, activity = activity)
-                            }
-                            if (res != null) {
-                                Log.d(TAG, "[$tmdbId] Fallback $srcName: SUCCESS")
-                            } else {
-                                Log.d(TAG, "[$tmdbId] Fallback $srcName: failed")
-                            }
-                            channel.send(res)
-                        }
+            // VidLink didn't have it (403 / missing content). Wait for WebView.
+            Log.d(TAG, "[$tmdbId] VidLink API failed — waiting for WebView")
+            val webResult = webViewJob.await()
+            if (apiJob.isActive) apiJob.cancel()
+            if (webResult != null) {
+                Log.d(TAG, "[$tmdbId] Primary WebView won")
+                return@coroutineScope webResult
+            }
+
+            // ── Round 2: Try remaining embed sources sequentially ────────────────────
+            if (activity != null && embedUrls.size > 1) {
+                Log.d(TAG, "[$tmdbId] Round1 failed — trying ${embedUrls.size - 1} fallback sources")
+
+                for ((srcName, fallbackUrl) in embedUrls.drop(1)) {
+                    Log.d(TAG, "[$tmdbId] Fallback: $srcName")
+                    val res = withTimeoutOrNull(12_000) {
+                        StreamExtractor(context).extractStreamUrl(fallbackUrl, activity = activity)
                     }
-                    
-                    var found: ResolvedStream? = null
-                    for (i in fallbacks.indices) {
-                        val res = channel.receive()
-                        if (res != null) {
-                            found = res
-                            break
-                        }
+                    if (res != null) {
+                        Log.d(TAG, "[$tmdbId] Fallback $srcName: SUCCESS")
+                        return@coroutineScope res
                     }
-                    // Cancel all remaining jobs once we have a winner (or if all failed)
-                    jobs.forEach { it.cancel() }
-                    found
+                    Log.d(TAG, "[$tmdbId] Fallback $srcName: failed")
                 }
             }
 
-            if (result == null) Log.w(TAG, "[$tmdbId] All sources exhausted — content not found")
-            result
+            Log.w(TAG, "[$tmdbId] All sources exhausted — content not found")
+            null
         }
     }
 

@@ -637,40 +637,6 @@ private fun MobileDetailContent(
                         Text("Remove", color = TextPrimary, fontSize = 10.sp, modifier = Modifier.padding(top = 4.dp))
                     }
                 }
-                
-                // Watch Party
-                val partyVm: WatchPartyViewModel = androidx.lifecycle.viewmodel.compose.viewModel()
-                val partyState by partyVm.state.collectAsState()
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Box(modifier = Modifier.size(48.dp)) {
-                        IconButton(
-                            onClick = { partyVm.showDialog() },
-                            modifier = Modifier.fillMaxSize().background(if (partyState.isActive) EnigmaPurple else Color.White.copy(alpha = 0.2f), CircleShape)
-                        ) {
-                            Icon(if (partyState.isActive) Icons.Default.Group else Icons.Default.GroupAdd, contentDescription = "Party", tint = Color.White)
-                        }
-                        if (partyState.isActive) {
-                            Box(
-                                modifier = Modifier
-                                    .align(Alignment.TopEnd)
-                                    .background(EnigmaPink, RoundedCornerShape(8.dp))
-                                    .padding(horizontal = 4.dp, vertical = 2.dp)
-                            ) {
-                                Text("${partyState.memberCount}", color = Color.White, fontSize = 9.sp, fontWeight = FontWeight.Bold)
-                            }
-                        }
-                    }
-                    Text("Party", color = TextPrimary, fontSize = 10.sp, modifier = Modifier.padding(top = 4.dp))
-                }
-                if (partyState.showDialog) {
-                    WatchPartyDialog(
-                        state = partyState,
-                        onHost = { partyVm.hostRoom(detail.resumePositionMs); onPlay() },
-                        onJoin = { code -> partyVm.joinRoom(code); onPlay() },
-                        onLeave = { partyVm.leaveRoom() },
-                        onDismiss = { partyVm.hideDialog() }
-                    )
-                }
             }
 
             if (detail.trailers.isNotEmpty()) {
