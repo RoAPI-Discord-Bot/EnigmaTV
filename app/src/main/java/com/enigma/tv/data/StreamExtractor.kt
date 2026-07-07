@@ -54,6 +54,7 @@ class StreamExtractor(private val context: Context) {
                     val finished = AtomicBoolean(false)
                     val capturedSubtitle = AtomicReference<String?>(null)
                     val capturedStream = AtomicReference<String?>(null)
+                    var capturedStreamScore = -1  // Track quality score of best stream so far
                     val refererHeader = referer ?: embedUrl
                     val handler = Handler(Looper.getMainLooper())
                     var webView: WebView? = null
@@ -112,11 +113,33 @@ class StreamExtractor(private val context: Context) {
                                 ): android.webkit.WebResourceResponse? {
                                     val reqUrl = request.url.toString()
                                     pickStreamUrl(reqUrl)?.let { found ->
-                                        if (capturedStream.compareAndSet(null, found)) {
-                                            if (capturedSubtitle.get() != null) {
-                                                handler.post { complete(found) }
-                                            } else {
-                                                handler.postDelayed({ complete(capturedStream.get()) }, 1800)
+                                        val score = masterScore(found)
+                                        // Only upgrade if this is a better (higher-scored) URL.
+                                        // This ensures we prefer master playlists over low-quality
+                                        // segment playlists that are requested first by the embed player.
+                                        synchronized(capturedStream) {
+                                            val existing = capturedStream.get()
+                                            if (existing == null || score > capturedStreamScore) {
+                                                capturedStream.set(found)
+                                                capturedStreamScore = score
+                                                if (score >= SCORE_MASTER) {
+                                                    // Master playlist — fire immediately (no need to wait)
+                                                    val sub = capturedSubtitle.get()
+                                                    handler.removeCallbacksAndMessages(null)
+                                                    if (sub != null) {
+                                                        handler.post { complete(found) }
+                                                    } else {
+                                                        handler.postDelayed({ complete(capturedStream.get()) }, 1800)
+                                                    }
+                                                } else if (existing == null) {
+                                                    // First stream found but not master — wait a bit
+                                                    // in case a better (master) URL comes shortly after
+                                                    handler.removeCallbacksAndMessages(null)
+                                                    handler.postDelayed({
+                                                        val best = capturedStream.get()
+                                                        if (best != null) complete(best)
+                                                    }, 2500)
+                                                }
                                             }
                                         }
                                     }
@@ -183,10 +206,37 @@ class StreamExtractor(private val context: Context) {
         val lower = url.lowercase()
         if (!lower.startsWith("http")) return null
         if (lower.contains("thumbnail") || lower.contains("preview") || lower.contains("sprite")) return null
+        // Skip TS segments — these are individual video chunks, not playlists
+        if (lower.contains(".ts?") || lower.endsWith(".ts")) return null
         if (lower.contains(".m3u8")) return cleanUrl(url)
         if (lower.contains(".mp4") && !lower.contains("poster")) return cleanUrl(url)
         if (lower.contains("/master.") || lower.contains("playlist.m3u8")) return cleanUrl(url)
         return null
+    }
+
+    /**
+     * Scores a stream URL — higher = better quality / more likely to be a master playlist.
+     * Master playlists give ExoPlayer full adaptive bitrate selection ability.
+     */
+    private fun masterScore(url: String): Int {
+        val lower = url.lowercase()
+        // Explicit master playlist indicators
+        if (lower.contains("master.m3u8") || lower.contains("/master?") || lower.contains("master?")) return SCORE_MASTER
+        if (lower.contains("playlist.m3u8") || lower.contains("index.m3u8")) return SCORE_MASTER
+        // Generic .m3u8 without quality suffix — likely a master
+        if (lower.contains(".m3u8") && !hasQualitySuffix(lower)) return SCORE_MASTER
+        // Quality-specific m3u8 — lower score
+        if (lower.contains(".m3u8") && hasQualitySuffix(lower)) return SCORE_SEGMENT
+        // mp4 files are direct and fine
+        if (lower.contains(".mp4")) return SCORE_MP4
+        return 0
+    }
+
+    private fun hasQualitySuffix(lower: String): Boolean {
+        return lower.contains("360p") || lower.contains("480p") || lower.contains("720p") ||
+               lower.contains("1080p") || lower.contains("2160p") || lower.contains("4k") ||
+               lower.contains("/360/") || lower.contains("/480/") || lower.contains("/720/") ||
+               lower.contains("/1080/") || lower.contains("/sd/") || lower.contains("/hd/")
     }
 
     private fun pickSubtitleUrl(url: String): String? {
@@ -226,6 +276,11 @@ class StreamExtractor(private val context: Context) {
 
     companion object {
         const val USER_AGENT = StreamResolver.USER_AGENT
+
+        // Stream quality scores — higher wins
+        private const val SCORE_MASTER = 100   // Master/adaptive HLS playlist
+        private const val SCORE_MP4 = 50       // Direct MP4
+        private const val SCORE_SEGMENT = 10   // Single-quality segment playlist
 
         private const val HOOK_JS = """
 (function() {

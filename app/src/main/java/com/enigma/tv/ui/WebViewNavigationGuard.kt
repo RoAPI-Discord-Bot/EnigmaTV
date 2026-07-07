@@ -26,6 +26,7 @@ class WebViewNavigationGuard(initialUrl: String) {
     private var resumeTargetMs: Long = 0L
     private var didSeekResume = false
     private var capturedStreamUrl: String? = null
+    private var capturedStreamScore = -1   // quality score of best stream so far
     private var capturedSubtitleUrl: String? = null
     private val streamHandler = android.os.Handler(android.os.Looper.getMainLooper())
     private var streamNotifyPending = false
@@ -53,6 +54,7 @@ class WebViewNavigationGuard(initialUrl: String) {
         resumeTargetMs = resumePositionMs.coerceAtLeast(0L)
         didSeekResume = false
         capturedStreamUrl = null
+        capturedStreamScore = -1
         capturedSubtitleUrl = null
         streamNotifyPending = false
         streamHandler.removeCallbacksAndMessages(null)
@@ -253,9 +255,14 @@ class WebViewNavigationGuard(initialUrl: String) {
         val lower = url.lowercase()
         if (!lower.startsWith("http")) return
         if (lower.contains("thumbnail") || lower.contains("preview") || lower.contains("sprite")) return
+        // Skip raw .ts segment chunks — not useful as a playback URL
+        if (lower.contains(".ts?") || lower.endsWith(".ts")) return
         if (lower.contains(".m3u8") || (lower.contains(".mp4") && !lower.contains("poster"))) {
-            if (capturedStreamUrl == null) {
+            val score = masterScore(url)
+            // Best-wins: only replace if this URL scores higher than the current one
+            if (capturedStreamUrl == null || score > capturedStreamScore) {
                 capturedStreamUrl = url
+                capturedStreamScore = score
                 if (!streamNotifyPending) {
                     streamNotifyPending = true
                     // Wait 1.5 s so the parallel .vtt request can be intercepted first
@@ -266,6 +273,22 @@ class WebViewNavigationGuard(initialUrl: String) {
                 }
             }
         }
+    }
+
+    private fun masterScore(url: String): Int {
+        val lower = url.lowercase()
+        if (lower.contains("master.m3u8") || lower.contains("/master?") || lower.contains("playlist.m3u8") || lower.contains("index.m3u8")) return 100
+        if (lower.contains(".m3u8") && !hasQualitySuffix(lower)) return 100
+        if (lower.contains(".m3u8") && hasQualitySuffix(lower)) return 10
+        if (lower.contains(".mp4")) return 50
+        return 0
+    }
+
+    private fun hasQualitySuffix(lower: String): Boolean {
+        return lower.contains("360p") || lower.contains("480p") || lower.contains("720p") ||
+               lower.contains("1080p") || lower.contains("2160p") || lower.contains("4k") ||
+               lower.contains("/360/") || lower.contains("/480/") || lower.contains("/720/") ||
+               lower.contains("/1080/") || lower.contains("/sd/") || lower.contains("/hd/")
     }
 
     private fun captureSubtitleUrl(url: String) {

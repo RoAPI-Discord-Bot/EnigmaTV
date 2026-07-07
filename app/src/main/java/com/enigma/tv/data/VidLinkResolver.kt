@@ -128,47 +128,71 @@ object VidLinkResolver {
     }
 
     private fun findUrlInJson(el: JsonElement): Pair<String, String?>? {
+        // Collect all stream URLs found, then pick the best (master playlist preferred)
+        val candidates = mutableListOf<String>()
+        var subUrl: String? = null
+        collectUrlsFromJson(el, candidates) { sub -> if (subUrl == null) subUrl = sub }
+
+        if (candidates.isEmpty()) return null
+
+        // Score candidates: master/adaptive HLS > mp4 > quality-specific HLS
+        val best = candidates.maxByOrNull { scoreUrl(it) } ?: return null
+        return best to subUrl
+    }
+
+    private fun scoreUrl(url: String): Int {
+        val lower = url.lowercase()
+        if (!lower.contains(".m3u8") && !lower.contains(".mp4")) return 0
+        if (lower.contains("master.m3u8") || lower.contains("playlist.m3u8") || lower.contains("index.m3u8")) return 100
+        if (lower.contains(".m3u8") && !hasQualitySuffix(lower)) return 90
+        if (lower.contains(".mp4")) return 50
+        return 10 // quality-specific .m3u8
+    }
+
+    private fun hasQualitySuffix(lower: String): Boolean {
+        return lower.contains("360p") || lower.contains("480p") || lower.contains("720p") ||
+               lower.contains("1080p") || lower.contains("2160p") || lower.contains("4k") ||
+               lower.contains("/360/") || lower.contains("/480/") || lower.contains("/720/") ||
+               lower.contains("/1080/") || lower.contains("/sd/") || lower.contains("/hd/")
+    }
+
+    private fun collectUrlsFromJson(
+        el: JsonElement,
+        urls: MutableList<String>,
+        onSub: (String) -> Unit
+    ) {
         when {
             el.isJsonObject -> {
                 val obj = el.asJsonObject
-                var streamUrl: String? = null
-                var subUrl: String? = null
 
                 listOf("url", "stream", "file", "hls", "source", "src", "link", "m3u8", "playlist")
                     .forEach { key ->
-                        if (obj.has(key) && streamUrl == null) {
-                            streamUrl = pickUrl(jsonPrimitiveUrl(obj.get(key)))
+                        if (obj.has(key)) {
+                            pickUrl(jsonPrimitiveUrl(obj.get(key)))?.let { urls.add(it) }
                         }
                     }
 
                 listOf("subtitles", "tracks", "captions").forEach { key ->
-                    if (obj.has(key) && obj.get(key).isJsonArray && subUrl == null) {
+                    if (obj.has(key) && obj.get(key).isJsonArray) {
                         val subs = obj.getAsJsonArray(key)
                         for (item in subs) {
                             if (item.isJsonObject) {
                                 val subObj = item.asJsonObject
                                 val lang = subObj.get("language")?.asString ?: subObj.get("lang")?.asString ?: subObj.get("label")?.asString ?: ""
                                 if (lang.contains("en", ignoreCase = true) || lang.contains("english", ignoreCase = true)) {
-                                    subUrl = subObj.get("url")?.asString ?: subObj.get("file")?.asString
-                                    if (subUrl != null && subUrl!!.contains(".vtt", true)) break
+                                    val sub = subObj.get("url")?.asString ?: subObj.get("file")?.asString
+                                    if (sub != null && sub.contains(".vtt", true)) onSub(sub)
                                 }
                             }
                         }
                     }
                 }
 
-                if (streamUrl != null) return streamUrl to subUrl
-
-                obj.entrySet().forEach { (_, v) ->
-                    findUrlInJson(v)?.let { return it }
-                }
+                obj.entrySet().forEach { (_, v) -> collectUrlsFromJson(v, urls, onSub) }
             }
-            el.isJsonArray -> el.asJsonArray.forEach { item ->
-                findUrlInJson(item)?.let { return it }
-            }
-            el.isJsonPrimitive -> pickUrl(jsonPrimitiveUrl(el))?.let { return it to null }
+            el.isJsonArray -> el.asJsonArray.forEach { item -> collectUrlsFromJson(item, urls, onSub) }
+            el.isJsonPrimitive -> pickUrl(jsonPrimitiveUrl(el))?.let { urls.add(it) }
         }
-        return null
     }
 
     private fun jsonPrimitiveUrl(el: JsonElement): String? =
