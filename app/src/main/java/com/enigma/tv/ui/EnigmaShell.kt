@@ -647,26 +647,28 @@ private fun EnigmaDrawerContent(
                 ) {
                     profiles.take(5).forEach { profile ->
                         val isActive = profile.id == activeProfileId
+                        var isFocused by remember { mutableStateOf(false) }
                         Box(
                             modifier = Modifier
                                 .size(42.dp)
                                 .clip(CircleShape)
-                                .background(
-                                    if (isActive) EnigmaPurple else Color.White.copy(alpha = 0.12f)
-                                )
+                                .onFocusChanged { isFocused = it.isFocused }
+                                .focusable(enabled = !isActive)
+                                .clickable(enabled = !isActive) { onSwitchProfileQuick(profile.id) }
                                 .border(
-                                    width = if (isActive) 2.dp else 0.dp,
-                                    color = if (isActive) EnigmaPink else Color.Transparent,
+                                    width = if (isFocused || isActive) 2.dp else 0.dp,
+                                    color = if (isFocused) Color.White else if (isActive) EnigmaPink else Color.Transparent,
                                     shape = CircleShape
-                                )
-                                .clickable(enabled = !isActive) { onSwitchProfileQuick(profile.id) },
+                                ),
                             contentAlignment = Alignment.Center
                         ) {
-                            Text(
-                                text = profile.name.take(1).uppercase(),
-                                color = Color.White,
-                                fontSize = 15.sp,
-                                fontWeight = FontWeight.Bold
+                            ProfileAvatarCircle(
+                                profile = profile,
+                                selected = false,
+                                sizeDp = 42,
+                                showEditBadge = false,
+                                showName = false,
+                                onClick = null
                             )
                         }
                     }

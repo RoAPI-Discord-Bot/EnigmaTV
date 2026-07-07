@@ -270,11 +270,10 @@ private fun TvDetailContent(
                     }
 
                     item {
-                        // Action Buttons Row (Prime style)
                         Row(
                             horizontalArrangement = Arrangement.spacedBy(16.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            modifier = Modifier.padding(top = 8.dp)
+                            verticalAlignment = Alignment.Top,
+                            modifier = Modifier.padding(top = 8.dp).focusGroup()
                         ) {
                             // Large Play Button
                             var playFocused by remember { mutableStateOf(false) }
@@ -310,60 +309,72 @@ private fun TvDetailContent(
                             }
                             
                             // Favorite Button (Small Circle)
-                            var favFocused by remember { mutableStateOf(false) }
-                            IconButton(
-                                onClick = onToggleFavorite,
-                                modifier = Modifier
-                                    .size(64.dp)
-                                    .onFocusChanged { favFocused = it.isFocused }
-                                    .then(
-                                        if (favFocused) Modifier.border(3.dp, Color.White, RoundedCornerShape(32.dp))
-                                        else Modifier
+                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                var favFocused by remember { mutableStateOf(false) }
+                                IconButton(
+                                    onClick = onToggleFavorite,
+                                    modifier = Modifier
+                                        .size(64.dp)
+                                        .onFocusChanged { favFocused = it.isFocused }
+                                        .then(
+                                            if (favFocused) Modifier.border(3.dp, Color.White, RoundedCornerShape(32.dp))
+                                            else Modifier
+                                        )
+                                        .background(Color.White.copy(alpha = 0.2f), RoundedCornerShape(32.dp))
+                                ) {
+                                    Icon(
+                                        if (detail.isFavorite) Icons.Filled.Favorite else Icons.Outlined.FavoriteBorder,
+                                        contentDescription = "Favorite",
+                                        tint = if (detail.isFavorite) EnigmaPink else Color.White,
+                                        modifier = Modifier.size(28.dp)
                                     )
-                                    .background(Color.White.copy(alpha = 0.2f), RoundedCornerShape(32.dp))
-                            ) {
-                                Icon(
-                                    if (detail.isFavorite) Icons.Filled.Favorite else Icons.Outlined.FavoriteBorder,
-                                    contentDescription = "Favorite",
-                                    tint = if (detail.isFavorite) EnigmaPink else Color.White,
-                                    modifier = Modifier.size(28.dp)
-                                )
+                                }
+                                Spacer(Modifier.height(4.dp))
+                                Text("Favorite", color = TextPrimary, fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
                             }
 
                             // Restart Button
                             if (detail.resumePositionMs > 0) {
-                                var restartFocused by remember { mutableStateOf(false) }
-                                IconButton(
-                                    onClick = onRestart,
-                                    modifier = Modifier
-                                        .size(64.dp)
-                                        .onFocusChanged { restartFocused = it.isFocused }
-                                        .then(
-                                            if (restartFocused) Modifier.border(3.dp, Color.White, RoundedCornerShape(32.dp))
-                                            else Modifier
-                                        )
-                                        .background(Color.White.copy(alpha = 0.2f), RoundedCornerShape(32.dp))
-                                ) {
-                                    Icon(Icons.Default.PlayCircle, contentDescription = "Restart", tint = Color.White, modifier = Modifier.size(28.dp))
+                                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                    var restartFocused by remember { mutableStateOf(false) }
+                                    IconButton(
+                                        onClick = onRestart,
+                                        modifier = Modifier
+                                            .size(64.dp)
+                                            .onFocusChanged { restartFocused = it.isFocused }
+                                            .then(
+                                                if (restartFocused) Modifier.border(3.dp, Color.White, RoundedCornerShape(32.dp))
+                                                else Modifier
+                                            )
+                                            .background(Color.White.copy(alpha = 0.2f), RoundedCornerShape(32.dp))
+                                    ) {
+                                        Icon(Icons.Default.PlayCircle, contentDescription = "Restart", tint = Color.White, modifier = Modifier.size(28.dp))
+                                    }
+                                    Spacer(Modifier.height(4.dp))
+                                    Text("Restart", color = TextPrimary, fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
                                 }
                                 
                                 // Delete History Button
-                                var removeFocused by remember { mutableStateOf(false) }
-                                IconButton(
-                                    onClick = {
-                                        onRemoveFromHistory()
-                                        onClose()
-                                    },
-                                    modifier = Modifier
-                                        .size(64.dp)
-                                        .onFocusChanged { removeFocused = it.isFocused }
-                                        .then(
-                                            if (removeFocused) Modifier.border(3.dp, Color.White, RoundedCornerShape(32.dp))
-                                            else Modifier
-                                        )
-                                        .background(Color.White.copy(alpha = 0.2f), RoundedCornerShape(32.dp))
-                                ) {
-                                    Icon(Icons.Default.Delete, contentDescription = "Remove", tint = Color.White, modifier = Modifier.size(28.dp))
+                                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                    var removeFocused by remember { mutableStateOf(false) }
+                                    IconButton(
+                                        onClick = {
+                                            onRemoveFromHistory()
+                                            onClose()
+                                        },
+                                        modifier = Modifier
+                                            .size(64.dp)
+                                            .onFocusChanged { removeFocused = it.isFocused }
+                                            .then(
+                                                if (removeFocused) Modifier.border(3.dp, Color.White, RoundedCornerShape(32.dp))
+                                                else Modifier
+                                            )
+                                            .background(Color.White.copy(alpha = 0.2f), RoundedCornerShape(32.dp))
+                                    ) {
+                                        Icon(Icons.Default.Delete, contentDescription = "Remove", tint = Color.White, modifier = Modifier.size(28.dp))
+                                    }
+                                    Spacer(Modifier.height(4.dp))
+                                    Text("Remove", color = TextPrimary, fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
                                 }
                             }
 
@@ -372,41 +383,45 @@ private fun TvDetailContent(
                             val partyState by partyVm.state.collectAsState()
                             var partyBtnFocused by remember { mutableStateOf(false) }
                             
-                            Box(modifier = Modifier.size(64.dp)) {
-                                IconButton(
-                                    onClick = { partyVm.showDialog() },
-                                    modifier = Modifier
-                                        .fillMaxSize()
-                                        .onFocusChanged { partyBtnFocused = it.isFocused }
-                                        .then(
-                                            if (partyBtnFocused) Modifier.border(3.dp, Color.White, RoundedCornerShape(32.dp))
-                                            else Modifier
-                                        )
-                                        .background(if (partyState.isActive) EnigmaPurple else Color.White.copy(alpha = 0.2f), RoundedCornerShape(32.dp))
-                                ) {
-                                    Icon(
-                                        if (partyState.isActive) Icons.Default.Group else Icons.Default.GroupAdd, 
-                                        contentDescription = "Watch Party", 
-                                        tint = Color.White, 
-                                        modifier = Modifier.size(28.dp)
-                                    )
-                                }
-                                if (partyState.isActive) {
-                                    Box(
+                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                Box(modifier = Modifier.size(64.dp)) {
+                                    IconButton(
+                                        onClick = { partyVm.showDialog() },
                                         modifier = Modifier
-                                            .align(Alignment.TopEnd)
-                                            .offset(x = 4.dp, y = (-4).dp)
-                                            .background(EnigmaPink, RoundedCornerShape(8.dp))
-                                            .padding(horizontal = 4.dp, vertical = 2.dp)
+                                            .fillMaxSize()
+                                            .onFocusChanged { partyBtnFocused = it.isFocused }
+                                            .then(
+                                                if (partyBtnFocused) Modifier.border(3.dp, Color.White, RoundedCornerShape(32.dp))
+                                                else Modifier
+                                            )
+                                            .background(if (partyState.isActive) EnigmaPurple else Color.White.copy(alpha = 0.2f), RoundedCornerShape(32.dp))
                                     ) {
-                                        Text(
-                                            "${partyState.memberCount}",
-                                            color = Color.White,
-                                            fontSize = 10.sp,
-                                            fontWeight = FontWeight.Bold
+                                        Icon(
+                                            if (partyState.isActive) Icons.Default.Group else Icons.Default.GroupAdd, 
+                                            contentDescription = "Watch Party", 
+                                            tint = Color.White, 
+                                            modifier = Modifier.size(28.dp)
                                         )
                                     }
+                                    if (partyState.isActive) {
+                                        Box(
+                                            modifier = Modifier
+                                                .align(Alignment.TopEnd)
+                                                .offset(x = 4.dp, y = (-4).dp)
+                                                .background(EnigmaPink, RoundedCornerShape(8.dp))
+                                                .padding(horizontal = 4.dp, vertical = 2.dp)
+                                        ) {
+                                            Text(
+                                                "${partyState.memberCount}",
+                                                color = Color.White,
+                                                fontSize = 10.sp,
+                                                fontWeight = FontWeight.Bold
+                                            )
+                                        }
+                                    }
                                 }
+                                Spacer(Modifier.height(4.dp))
+                                Text("Party", color = TextPrimary, fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
                             }
                             if (partyState.showDialog) {
                                 WatchPartyDialog(
@@ -421,20 +436,24 @@ private fun TvDetailContent(
                             // Download button
                             val dlContext = LocalContext.current
                             var downloadFocused by remember { mutableStateOf(false) }
-                            IconButton(
-                                onClick = {
-                                    android.widget.Toast.makeText(dlContext, "Download started...", android.widget.Toast.LENGTH_SHORT).show()
-                                },
-                                modifier = Modifier
-                                    .size(64.dp)
-                                    .onFocusChanged { downloadFocused = it.isFocused }
-                                    .then(
-                                        if (downloadFocused) Modifier.border(3.dp, Color.White, RoundedCornerShape(32.dp))
-                                        else Modifier
-                                    )
-                                    .background(Color.White.copy(alpha = 0.2f), RoundedCornerShape(32.dp))
-                            ) {
-                                Icon(Icons.Default.Download, contentDescription = "Download", tint = Color.White, modifier = Modifier.size(28.dp))
+                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                IconButton(
+                                    onClick = {
+                                        android.widget.Toast.makeText(dlContext, "Download started...", android.widget.Toast.LENGTH_SHORT).show()
+                                    },
+                                    modifier = Modifier
+                                        .size(64.dp)
+                                        .onFocusChanged { downloadFocused = it.isFocused }
+                                        .then(
+                                            if (downloadFocused) Modifier.border(3.dp, Color.White, RoundedCornerShape(32.dp))
+                                            else Modifier
+                                        )
+                                        .background(Color.White.copy(alpha = 0.2f), RoundedCornerShape(32.dp))
+                                ) {
+                                    Icon(Icons.Default.Download, contentDescription = "Download", tint = Color.White, modifier = Modifier.size(28.dp))
+                                }
+                                Spacer(Modifier.height(4.dp))
+                                Text("Download", color = TextPrimary, fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
                             }
                         }
                     }
@@ -793,14 +812,14 @@ private fun TvEpisodeRow(ep: TvEpisode, selected: Boolean, onSelect: (Int) -> Un
             .clip(RoundedCornerShape(10.dp))
             .background(
                 when {
-                    focused -> Color.White.copy(alpha = 0.9f)
+                    focused -> Color.White
                     selected -> EnigmaPurple.copy(alpha = 0.35f)
                     else -> Color.White.copy(alpha = 0.05f)
                 }
             )
             .border(
-                if (focused) 3.dp else 0.dp,
-                if (focused) Color.White else Color.Transparent,
+                if (focused) 4.dp else 0.dp,
+                if (focused) EnigmaPurple else Color.Transparent,
                 RoundedCornerShape(10.dp)
             )
             .focusable()

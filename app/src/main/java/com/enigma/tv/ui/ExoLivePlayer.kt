@@ -11,6 +11,8 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.height
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Text
@@ -25,6 +27,8 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.foundation.border
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import androidx.compose.ui.Alignment
@@ -45,6 +49,7 @@ import android.media.AudioManager
 import androidx.media3.common.C
 import androidx.media3.common.MediaItem
 import androidx.media3.common.MimeTypes
+import androidx.media3.common.Format
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
 import androidx.media3.common.Tracks
@@ -123,6 +128,7 @@ fun ExoLivePlayer(
     val scope = rememberCoroutineScope()
     var playToken by remember { mutableIntStateOf(0) }
     var retryCount by remember(playUrl) { mutableIntStateOf(0) }
+    var showQualityPicker by remember { mutableStateOf(false) }
     var stripHeaders by remember { mutableStateOf(false) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
     var hasTextTracks by remember { mutableStateOf(false) }
@@ -391,13 +397,11 @@ fun ExoLivePlayer(
     // Sync captionsEnabled → text renderer whenever it changes
     LaunchedEffect(captionsEnabled, hasTextTracks) {
         if (hasTextTracks) {
-            val selector = player.trackSelector as? androidx.media3.exoplayer.trackselection.DefaultTrackSelector
-            selector?.setParameters(
-                selector.buildUponParameters()
-                    .setRendererDisabled(C.TRACK_TYPE_TEXT, !captionsEnabled)
-                    .setPreferredTextLanguage(if (captionsEnabled) "en" else "")
-                    .setSelectUndeterminedTextLanguage(captionsEnabled)
-            )
+            val exo = (player as? ExoPlayer) ?: return@LaunchedEffect
+            exo.trackSelectionParameters = exo.trackSelectionParameters.buildUpon()
+                .setTrackTypeDisabled(C.TRACK_TYPE_TEXT, !captionsEnabled)
+                .setPreferredTextLanguage(if (captionsEnabled) "en" else "")
+                .build()
         }
     }
 
@@ -503,30 +507,25 @@ fun ExoLivePlayer(
                             useController = true   // Use our custom XML controller layout
                             controllerShowTimeoutMs = 4000
                             controllerHideOnTouch = true
+                            // Disable focus on PlayerView itself so Compose handles all D-pad input
+                            isFocusable = false
+                            isFocusableInTouchMode = false
                         }
                     },
                     update = { view ->
                         view.player = player
                         view.controllerShowTimeoutMs = 4000
-                        view.setOnKeyListener { _, keyCode, event ->
-                            if (event.action == android.view.KeyEvent.ACTION_DOWN && keyCode == android.view.KeyEvent.KEYCODE_DPAD_CENTER) {
-                                if (!view.isControllerFullyVisible) {
-                                    player.playWhenReady = !player.playWhenReady
-                                    view.showController()
-                                    return@setOnKeyListener true
-                                }
-                            }
-                            false
-                        }
                         // CC button
                         view.setShowSubtitleButton(false)
-                        val ccBtn = view.findViewById<android.view.View>(androidx.media3.ui.R.id.exo_subtitle)
+                        val ccBtn = view.findViewById<android.widget.ImageButton>(androidx.media3.ui.R.id.exo_subtitle)
                         ccBtn?.visibility = android.view.View.VISIBLE
                         if (showCcButton) {
                             ccBtn?.alpha = 1.0f
+                            ccBtn?.setColorFilter(if (captionsEnabled) android.graphics.Color.parseColor("#9C27B0") else android.graphics.Color.WHITE)
                             ccBtn?.setOnClickListener { captionsEnabled = !captionsEnabled }
                         } else {
                             ccBtn?.alpha = 0.5f
+                            ccBtn?.setColorFilter(android.graphics.Color.WHITE)
                             ccBtn?.setOnClickListener {
                                 android.widget.Toast.makeText(context, "No captions available", android.widget.Toast.LENGTH_SHORT).show()
                             }
@@ -569,9 +568,22 @@ fun ExoLivePlayer(
                         } else {
                             epsBtn?.visibility = View.GONE
                         }
+                        
+                        // Quality button
+                        view.findViewById<android.view.View>(com.enigma.tv.R.id.btn_enigma_quality)?.setOnClickListener {
+                            showQualityPicker = true
+                        }
                     },
                     modifier = Modifier.fillMaxSize()
                 )
+                
+                if (showQualityPicker) {
+                    QualityPickerDialog(
+                        player = player as ExoPlayer,
+                        visible = true,
+                        onDismiss = { showQualityPicker = false }
+                    )
+                }
                 if (streamLoading) {
                     EnigmaLoadingRing(
                         modifier = Modifier.fillMaxSize().background(BgDark.copy(alpha = 0.85f)),
@@ -686,5 +698,65 @@ private fun hideVodTimeline(playerView: PlayerView) {
         MediaUiR.id.exo_position
     ).forEach { id ->
         playerView.findViewById<View>(id)?.visibility = View.GONE
+    }
+}
+
+@OptIn(UnstableApi::class)
+@Composable
+fun QualityPickerDialog(
+    player: ExoPlayer,
+    visible: Boolean,
+    onDismiss: () -> Unit
+) {
+    if (!visible) return
+    androidx.compose.ui.window.Dialog(onDismissRequest = onDismiss) {
+        Column(
+            Modifier
+                .background(Color.Black.copy(alpha = 0.95f), androidx.compose.foundation.shape.RoundedCornerShape(12.dp))
+                .padding(24.dp)
+        ) {
+            Text("Select Quality", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 20.sp)
+            Spacer(Modifier.height(16.dp))
+            val videoGroups = player.currentTracks.groups.filter { it.type == C.TRACK_TYPE_VIDEO }
+            
+            // "Auto" option
+            var autoFocused by remember { mutableStateOf(false) }
+            Button(
+                onClick = {
+                    player.trackSelectionParameters = player.trackSelectionParameters.buildUpon().clearOverridesOfType(C.TRACK_TYPE_VIDEO).build()
+                    onDismiss()
+                },
+                modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp).onFocusChanged { autoFocused = it.isFocused }
+                    .then(if (autoFocused) Modifier.border(2.dp, EnigmaPurple, androidx.compose.foundation.shape.RoundedCornerShape(8.dp)) else Modifier),
+                colors = ButtonDefaults.buttonColors(containerColor = if(autoFocused) Color.White else Color.White.copy(alpha=0.1f))
+            ) {
+                Text("Auto", color = if (autoFocused) Color.Black else Color.White)
+            }
+            
+            videoGroups.forEach { group ->
+                for (i in 0 until group.length) {
+                    val format = group.getTrackFormat(i)
+                    if (format.height <= 0) continue
+                    val resolution = "${format.height}p"
+                    val isSupported = group.isTrackSupported(i)
+                    if (!isSupported) continue
+                    
+                    var itemFocused by remember { mutableStateOf(false) }
+                    Button(
+                        onClick = {
+                            player.trackSelectionParameters = player.trackSelectionParameters.buildUpon()
+                                .setOverrideForType(androidx.media3.common.TrackSelectionOverride(group.mediaTrackGroup, listOf(i)))
+                                .build()
+                            onDismiss()
+                        },
+                        modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp).onFocusChanged { itemFocused = it.isFocused }
+                            .then(if (itemFocused) Modifier.border(2.dp, EnigmaPurple, androidx.compose.foundation.shape.RoundedCornerShape(8.dp)) else Modifier),
+                        colors = ButtonDefaults.buttonColors(containerColor = if (itemFocused) Color.White else Color.White.copy(alpha = 0.1f))
+                    ) {
+                        Text(resolution, color = if (itemFocused) Color.Black else Color.White)
+                    }
+                }
+            }
+        }
     }
 }

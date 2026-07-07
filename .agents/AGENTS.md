@@ -42,3 +42,5 @@
 - For the updater to detect a new version, the GitHub Release **must exist** (created by CI) and `versionName` in the APK must be lower than the tag in the release.
 - **The update dialog must not appear before the user passes the profile picker screen.** Gate the dialog behind `!state.showProfilePicker && state.openingProfileId == null`.
 - When parsing release `body` from the GitHub API, always use `isNull("body")` before `optString()` — the API returns a literal JSON `null` (not a missing key) which causes `optString` to return the string `"null"` if not handled.
+
+- **Bug Fixes:** When fixing a compilation error or a minor bug on the exact same feature immediately after a push, prefer using git commit --amend and git push --force instead of creating a new commit. This keeps the build version the same, preventing unnecessary updates for users and keeping the release notes consistent.
