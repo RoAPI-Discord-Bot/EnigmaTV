@@ -407,7 +407,7 @@ private fun LiveEventCard(match: LiveSportMatch, layout: ScreenLayout, onPlay: (
     var focused by remember { mutableStateOf(false) }
     val isTv = layout == ScreenLayout.TV
     val padV = if (layout == ScreenLayout.PHONE) 14.dp else 12.dp
-    val scale by animateFloatAsState(targetValue = if (focused && isTv) 1.04f else 1f)
+    val scale by animateFloatAsState(targetValue = if (focused && isTv) 1.08f else 1f)
 
     Row(
         Modifier
@@ -416,7 +416,7 @@ private fun LiveEventCard(match: LiveSportMatch, layout: ScreenLayout, onPlay: (
             .clip(RoundedCornerShape(12.dp))
             .glassSurface(cornerRadius = 12.dp, accentBorder = focused)
             .background(
-                if (focused) EnigmaPurple.copy(alpha = 0.35f) else Color.Transparent
+                if (focused) EnigmaPurple.copy(alpha = 0.85f) else Color.Transparent
             )
             .clickable { onPlay(match) }
             .onFocusChanged { focused = it.isFocused }
@@ -482,7 +482,7 @@ private fun LiveChannelRow(
     var focused by remember { mutableStateOf(false) }
     val isTv = layout == ScreenLayout.TV
     val rowH = if (layout == ScreenLayout.PHONE) 72.dp else 64.dp
-    val scale by animateFloatAsState(targetValue = if (focused && isTv) 1.04f else 1f)
+    val scale by animateFloatAsState(targetValue = if (focused && isTv) 1.08f else 1f)
 
     Row(
         Modifier
@@ -491,7 +491,7 @@ private fun LiveChannelRow(
             .scale(scale)
             .clip(RoundedCornerShape(10.dp))
             .glassSurface(cornerRadius = 10.dp, accentBorder = focused)
-            .background(if (focused) EnigmaPurple.copy(alpha = 0.35f) else Color.Transparent)
+            .background(if (focused) EnigmaPurple.copy(alpha = 0.85f) else Color.Transparent)
             .clickable { onPlay(channel) }
             .onFocusChanged { focused = it.isFocused }
             .padding(horizontal = 12.dp),

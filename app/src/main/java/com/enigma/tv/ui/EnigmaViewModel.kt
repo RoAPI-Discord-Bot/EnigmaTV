@@ -1485,7 +1485,7 @@ class EnigmaViewModel(application: Application) : AndroidViewModel(application) 
         val hint = if (isPreLiveEvent()) {
             formatLiveEventHint(_state.value.playerLiveEventStartMs)
         } else {
-            "This mirror returned code instead of a player. Tap ⋮ then Next Server."
+            "Waiting for stream to start... (This may take a moment)"
         }
         _state.update { it.copy(playerLoading = false, playerLiveHint = hint, playerStreamFailed = false) }
     }

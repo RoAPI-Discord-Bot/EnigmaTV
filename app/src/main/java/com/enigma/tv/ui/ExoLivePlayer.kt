@@ -28,6 +28,9 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.focus.onFocusChanged
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.foundation.border
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -185,6 +188,21 @@ fun ExoLivePlayer(
                 playWhenReady = true
                 volume = 1f
             }
+    }
+
+    val lifecycleOwner = LocalLifecycleOwner.current
+    DisposableEffect(lifecycleOwner, player) {
+        val observer = LifecycleEventObserver { _, event ->
+            when (event) {
+                Lifecycle.Event.ON_PAUSE -> player.pause()
+                Lifecycle.Event.ON_RESUME -> player.play()
+                else -> {}
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose {
+            lifecycleOwner.lifecycle.removeObserver(observer)
+        }
     }
 
     DisposableEffect(actionDispatcher, player) {
@@ -392,6 +410,13 @@ fun ExoLivePlayer(
                 else -1
 
                 val isRealBlock = isHttpError && (httpCode == 403 || httpCode == 401)
+
+                if (isRealBlock && !stripHeaders) {
+                    // 403/401 and headers haven't been stripped yet? Try stripping headers and retry.
+                    stripHeaders = true
+                    playToken++
+                    return
+                }
 
                 if (!isRealBlock && retryCount < 1) {
                     // Network/connection error on Fire TV — retry once immediately
