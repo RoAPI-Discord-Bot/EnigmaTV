@@ -31,14 +31,16 @@ class StreamExtractor(private val context: Context) {
         activity: Activity? = null
     ): ResolvedStream? {
         val result = extractStreamUrlAndSubtitle(embedUrl, referer, activity) ?: return null
-        val ref = referer ?: ResolvedStream.embedReferer(embedUrl)
-        return ResolvedStream(
-            url = result.first,
-            referer = ref,
-            origin = ResolvedStream.embedOrigin(embedUrl),
-            provider = "webview",
-            subtitleUrl = result.second
-        )
+        val streamUrl = result.first
+        val subtitleUrl = result.second
+        // Use fromEmbed so the headers={} query param on the stream URL is parsed:
+        // e.g. https://cdn.example.com/video.mp4?headers={"referer":"https://filmboom.top/","origin":"https://filmboom.top"}
+        // fromEmbed() reads those and uses them as the actual Referer/Origin HTTP headers ExoPlayer sends.
+        return ResolvedStream.fromEmbed(
+            embedUrl = referer ?: embedUrl,
+            streamUrl = streamUrl,
+            provider = "webview"
+        ).copy(subtitleUrl = subtitleUrl)
     }
 
     /** Returns Pair(streamUrl, subtitleUrl?) */
@@ -100,7 +102,30 @@ class StreamExtractor(private val context: Context) {
 
                             addJavascriptInterface(
                                 JsBridge(
-                                    onStream = { url -> complete(url) },
+                                    onStream = { url ->
+                                        // Route JS-intercepted URLs through the same score-based
+                                        // upgrade system as shouldInterceptRequest. This prevents
+                                        // a 360p/index.m3u8 (the FIRST fetch) from locking quality.
+                                        pickStreamUrl(url)?.let { found ->
+                                            val score = masterScore(found)
+                                            synchronized(capturedStream) {
+                                                val existing = capturedStream.get()
+                                                if (existing == null || score > capturedStreamScore) {
+                                                    capturedStream.set(found)
+                                                    capturedStreamScore = score
+                                                    handler.removeCallbacksAndMessages(null)
+                                                    if (score >= SCORE_MASTER) {
+                                                        handler.postDelayed({ complete(capturedStream.get()) }, 1800)
+                                                    } else if (existing == null) {
+                                                        handler.postDelayed({
+                                                            val best = capturedStream.get()
+                                                            if (best != null) complete(best)
+                                                        }, 3000)
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    },
                                     onSubtitle = { url -> capturedSubtitle.compareAndSet(null, url) }
                                 ),
                                 "EnigmaStream"
@@ -220,9 +245,10 @@ class StreamExtractor(private val context: Context) {
      */
     private fun masterScore(url: String): Int {
         val lower = url.lowercase()
-        // Explicit master playlist indicators
+        // Explicit master playlist indicators only — index.m3u8 is NOT a master,
+        // it's a quality-specific segment playlist (e.g. 360p/index.m3u8)
         if (lower.contains("master.m3u8") || lower.contains("/master?") || lower.contains("master?")) return SCORE_MASTER
-        if (lower.contains("playlist.m3u8") || lower.contains("index.m3u8")) return SCORE_MASTER
+        if (lower.contains("playlist.m3u8")) return SCORE_MASTER
         // Generic .m3u8 without quality suffix — likely a master
         if (lower.contains(".m3u8") && !hasQualitySuffix(lower)) return SCORE_MASTER
         // Quality-specific m3u8 — lower score
