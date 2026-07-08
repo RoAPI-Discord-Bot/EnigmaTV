@@ -1,5 +1,6 @@
 package com.enigma.tv.data
 
+import android.util.Log
 import com.google.gson.JsonElement
 import com.google.gson.JsonParser
 import kotlinx.coroutines.Dispatchers
@@ -12,6 +13,7 @@ import java.util.concurrent.TimeUnit
  * VidLink direct API (enc-dec.app + /api/b/) — same flow used by community VidLink proxies.
  */
 object VidLinkResolver {
+    private const val TAG = "VidLinkResolver"
     private val client = OkHttpClient.Builder()
         .followRedirects(true)
         .connectTimeout(8, TimeUnit.SECONDS)
@@ -58,8 +60,9 @@ object VidLinkResolver {
             }
         }
         for (apiUrl in paths) {
-            parseApiResponse(get(apiUrl))?.let { (stream, sub) -> 
-                return ResolvedStream.vidLink(stream).copy(subtitleUrl = sub) 
+            parseApiResponse(get(apiUrl))?.let { (stream, sub) ->
+                Log.i(TAG, "resolveViaApi: picked url=$stream sub=$sub")
+                return ResolvedStream.vidLink(stream).copy(subtitleUrl = sub)
             }
         }
         return null
@@ -117,14 +120,26 @@ object VidLinkResolver {
 
     private fun parseStreamFromBody(body: String?): Pair<String, String?>? {
         if (body.isNullOrBlank()) return null
-        pickUrl(m3u8Regex.find(body)?.groupValues?.get(1))?.let { return it to null }
-        pickUrl(mp4Regex.find(body)?.groupValues?.get(1))?.let { return it to null }
-        return try {
+        // Try JSON scoring FIRST so we pick the best-quality URL when multiple are present.
+        // Only fall back to regex if JSON parsing fails (e.g. the response is plain text).
+        val jsonResult = try {
             val el = JsonParser.parseString(body)
             findUrlInJson(el)
         } catch (_: Exception) {
             null
         }
+        if (jsonResult != null) {
+            Log.d(TAG, "parseStreamFromBody: JSON path picked ${jsonResult.first}")
+            return jsonResult
+        }
+        // Plain-text fallback — find ALL regex matches, score them, pick best
+        val m3u8Matches = m3u8Regex.findAll(body).mapNotNull { pickUrl(it.groupValues[1]) }.toList()
+        val mp4Matches  = mp4Regex.findAll(body).mapNotNull { pickUrl(it.groupValues[1]) }.toList()
+        val all = (m3u8Matches + mp4Matches).distinctBy { it }
+        if (all.isEmpty()) return null
+        val best = all.maxByOrNull { scoreUrl(it) }!!
+        Log.d(TAG, "parseStreamFromBody: regex path picked $best from ${all.size} candidates")
+        return best to null
     }
 
     private fun findUrlInJson(el: JsonElement): Pair<String, String?>? {
@@ -143,7 +158,8 @@ object VidLinkResolver {
     private fun scoreUrl(url: String): Int {
         val lower = url.lowercase()
         if (!lower.contains(".m3u8") && !lower.contains(".mp4")) return 0
-        if (lower.contains("master.m3u8") || lower.contains("playlist.m3u8") || lower.contains("index.m3u8")) return 100
+        // index.m3u8 is a quality-specific segment playlist (e.g. 360p/index.m3u8), NOT a master
+        if (lower.contains("master.m3u8") || lower.contains("playlist.m3u8")) return 100
         if (lower.contains(".m3u8") && !hasQualitySuffix(lower)) return 90
         if (lower.contains(".mp4")) return 50
         return 10 // quality-specific .m3u8
