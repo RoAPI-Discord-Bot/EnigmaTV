@@ -259,6 +259,8 @@ class EnigmaViewModel(application: Application) : AndroidViewModel(application) 
         }
         viewModelScope.launch {
             try {
+                // Wait a few seconds for the user to pass the Profile Picker screen
+                delay(3000)
                 val pInfo = application.packageManager.getPackageInfo(application.packageName, 0)
                 val version = pInfo.versionName ?: ""
                 val update = UpdateChecker.checkForUpdate(version)
