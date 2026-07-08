@@ -261,22 +261,24 @@ class StreamExtractor(private val context: Context) {
         val lower = url.lowercase()
         // Explicit master playlist indicators only — index.m3u8 is NOT a master,
         // it's a quality-specific segment playlist (e.g. 360p/index.m3u8)
-        if (lower.contains("master.m3u8") || lower.contains("/master?") || lower.contains("master?")) return SCORE_MASTER
-        if (lower.contains("playlist.m3u8")) return SCORE_MASTER
-        // Generic .m3u8 without quality suffix — likely a master
-        if (lower.contains(".m3u8") && !hasQualitySuffix(lower)) return SCORE_MASTER
-        // Quality-specific m3u8 — lower score
-        if (lower.contains(".m3u8") && hasQualitySuffix(lower)) return SCORE_SEGMENT
-        // mp4 files are direct and fine
-        if (lower.contains(".mp4")) return SCORE_MP4
+        
+        // True adaptive masters
+        if (lower.contains("master.m3u8") || lower.contains("playlist.m3u8")) return 100
+        
+        // Specific resolutions
+        if (lower.contains("4k") || lower.contains("2160p") || lower.contains("/2160/")) return 95
+        if (lower.contains("1080p") || lower.contains("/1080/")) return 90
+        if (lower.contains("720p") || lower.contains("/720/") || lower.contains("/hd/")) return 80
+        if (lower.contains("480p") || lower.contains("/480/") || lower.contains("/sd/")) return 70
+        if (lower.contains("360p") || lower.contains("/360/")) return 60
+        
+        // M3U8 without resolution (might be master with weird name)
+        if (lower.contains(".m3u8")) return 50
+        
+        // MP4 fallback (often 360p)
+        if (lower.contains(".mp4")) return 10
+        
         return 0
-    }
-
-    private fun hasQualitySuffix(lower: String): Boolean {
-        return lower.contains("360p") || lower.contains("480p") || lower.contains("720p") ||
-               lower.contains("1080p") || lower.contains("2160p") || lower.contains("4k") ||
-               lower.contains("/360/") || lower.contains("/480/") || lower.contains("/720/") ||
-               lower.contains("/1080/") || lower.contains("/sd/") || lower.contains("/hd/")
     }
 
     private fun pickSubtitleUrl(url: String): String? {
