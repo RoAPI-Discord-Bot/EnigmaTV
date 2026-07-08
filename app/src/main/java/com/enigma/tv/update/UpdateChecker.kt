@@ -27,6 +27,8 @@ object UpdateChecker {
             val connection = url.openConnection() as HttpURLConnection
             connection.requestMethod = "GET"
             connection.setRequestProperty("Accept", "application/vnd.github.v3+json")
+            connection.connectTimeout = 8_000
+            connection.readTimeout = 8_000
 
             if (connection.responseCode == HttpURLConnection.HTTP_OK) {
                 val reader = BufferedReader(InputStreamReader(connection.inputStream))
@@ -63,8 +65,8 @@ object UpdateChecker {
                     }
                 }
 
-                // If we found an APK and the versions differ
-                val hasUpdate = latestVersionStr != currentVersionStr && downloadUrl.isNotEmpty()
+                // Only notify if latest is semantically newer (not just different)
+                val hasUpdate = isNewerVersion(latestVersionStr, currentVersionStr) && downloadUrl.isNotEmpty()
 
                 return@withContext UpdateInfo(
                     hasUpdate = hasUpdate,
@@ -79,5 +81,21 @@ object UpdateChecker {
             Log.e(TAG, "Exception during update check", e)
         }
         return@withContext null
+    }
+
+    /**
+     * Returns true if [remote] is strictly newer than [local].
+     * Compares each dot-separated component numerically so "2.10.0" > "2.9.0".
+     */
+    private fun isNewerVersion(remote: String, local: String): Boolean {
+        val r = remote.split(".").mapNotNull { it.toIntOrNull() }
+        val l = local.split(".").mapNotNull { it.toIntOrNull() }
+        for (i in 0 until maxOf(r.size, l.size)) {
+            val rv = r.getOrElse(i) { 0 }
+            val lv = l.getOrElse(i) { 0 }
+            if (rv > lv) return true
+            if (rv < lv) return false
+        }
+        return false  // equal
     }
 }

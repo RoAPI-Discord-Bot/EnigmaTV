@@ -5,6 +5,7 @@ import android.app.Activity
 import android.content.Context
 import android.os.Handler
 import android.os.Looper
+import android.util.Log
 import android.view.ViewGroup
 import android.webkit.JavascriptInterface
 import android.webkit.WebResourceRequest
@@ -30,9 +31,14 @@ class StreamExtractor(private val context: Context) {
         referer: String? = null,
         activity: Activity? = null
     ): ResolvedStream? {
-        val result = extractStreamUrlAndSubtitle(embedUrl, referer, activity) ?: return null
+        Log.d(TAG, "extractStreamUrl: embed=$embedUrl referer=$referer")
+        val result = extractStreamUrlAndSubtitle(embedUrl, referer, activity) ?: run {
+            Log.w(TAG, "extractStreamUrl: extractor returned null for $embedUrl")
+            return null
+        }
         val streamUrl = result.first
         val subtitleUrl = result.second
+        Log.i(TAG, "extractStreamUrl: RESOLVED url=$streamUrl subtitle=$subtitleUrl")
         // Use fromEmbed so the headers={} query param on the stream URL is parsed:
         // e.g. https://cdn.example.com/video.mp4?headers={"referer":"https://filmboom.top/","origin":"https://filmboom.top"}
         // fromEmbed() reads those and uses them as the actual Referer/Origin HTTP headers ExoPlayer sends.
@@ -108,9 +114,11 @@ class StreamExtractor(private val context: Context) {
                                         // a 360p/index.m3u8 (the FIRST fetch) from locking quality.
                                         pickStreamUrl(url)?.let { found ->
                                             val score = masterScore(found)
+                                            Log.d(TAG, "JsBridge stream: score=$score url=$found")
                                             synchronized(capturedStream) {
                                                 val existing = capturedStream.get()
                                                 if (existing == null || score > capturedStreamScore) {
+                                                    Log.i(TAG, "JsBridge UPGRADE: score $capturedStreamScore->$score url=$found")
                                                     capturedStream.set(found)
                                                     capturedStreamScore = score
                                                     handler.removeCallbacksAndMessages(null)
@@ -122,6 +130,8 @@ class StreamExtractor(private val context: Context) {
                                                             if (best != null) complete(best)
                                                         }, 3000)
                                                     }
+                                                } else {
+                                                    Log.d(TAG, "JsBridge SKIP (lower score $score <= $capturedStreamScore): $found")
                                                 }
                                             }
                                         }
@@ -139,12 +149,14 @@ class StreamExtractor(private val context: Context) {
                                     val reqUrl = request.url.toString()
                                     pickStreamUrl(reqUrl)?.let { found ->
                                         val score = masterScore(found)
+                                        Log.d(TAG, "Intercept stream: score=$score url=$found")
                                         // Only upgrade if this is a better (higher-scored) URL.
                                         // This ensures we prefer master playlists over low-quality
                                         // segment playlists that are requested first by the embed player.
                                         synchronized(capturedStream) {
                                             val existing = capturedStream.get()
                                             if (existing == null || score > capturedStreamScore) {
+                                                Log.i(TAG, "Intercept UPGRADE: score $capturedStreamScore->$score url=$found")
                                                 capturedStream.set(found)
                                                 capturedStreamScore = score
                                                 if (score >= SCORE_MASTER) {
@@ -165,6 +177,8 @@ class StreamExtractor(private val context: Context) {
                                                         if (best != null) complete(best)
                                                     }, 2500)
                                                 }
+                                            } else {
+                                                Log.d(TAG, "Intercept SKIP (lower score $score <= $capturedStreamScore): $found")
                                             }
                                         }
                                     }
@@ -301,6 +315,7 @@ class StreamExtractor(private val context: Context) {
     }
 
     companion object {
+        private const val TAG = "StreamExtractor"
         const val USER_AGENT = StreamResolver.USER_AGENT
 
         // Stream quality scores — higher wins
