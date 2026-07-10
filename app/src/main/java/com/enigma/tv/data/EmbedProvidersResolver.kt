@@ -67,14 +67,14 @@ object EmbedProvidersResolver {
                     return@coroutineScope apiResult
                 }
                 // API returned MP4 only (360p fallback). Give WebView up to 5s to find HLS.
-                Log.d(TAG, "[$tmdbId] VidLink API got MP4 — waiting up to 5s for WebView HLS")
+                Log.d(TAG, "[$tmdbId] VidLink API got MP4 — waiting up to 5s for WebView")
                 val webResult = withTimeoutOrNull(5_000) { webViewJob.await() }
                 webViewJob.cancel()
-                if (webResult != null && webResult.url.contains(".m3u8", ignoreCase = true)) {
-                    Log.d(TAG, "[$tmdbId] WebView found HLS, upgrading from API MP4")
+                if (webResult != null) {
+                    Log.d(TAG, "[$tmdbId] WebView finished in time, preferring WebView stream over API MP4")
                     return@coroutineScope webResult
                 }
-                Log.d(TAG, "[$tmdbId] VidLink API won (MP4 fallback)")
+                Log.d(TAG, "[$tmdbId] VidLink API won (MP4 fallback) - WebView timed out")
                 return@coroutineScope apiResult
             }
 

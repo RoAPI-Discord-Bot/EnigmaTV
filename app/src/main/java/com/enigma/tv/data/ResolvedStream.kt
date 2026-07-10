@@ -52,22 +52,28 @@ data class ResolvedStream(
             var referer = "https://vidlink.pro/"
             var origin = "https://vidlink.pro"
             
+            var cleanUrl = streamUrl
             try {
                 // Use regex instead of Uri.parse since unencoded JSON in the URL can crash the parser
-                val match = Regex("""[?&]headers=([^&]+)""").find(streamUrl)
+                val match = Regex("""([?&])headers=([^&]+)(&|)""").find(streamUrl)
                 if (match != null) {
-                    val rawJson = match.groupValues[1]
+                    val rawJson = match.groupValues[2]
                     val decoded = java.net.URLDecoder.decode(rawJson, "UTF-8")
                     val jsonObj = org.json.JSONObject(decoded)
                     if (jsonObj.has("referer")) referer = jsonObj.getString("referer")
                     if (jsonObj.has("origin")) origin = jsonObj.getString("origin")
+                    
+                    val prefix = match.groupValues[1]
+                    val suffix = match.groupValues[3]
+                    val replacement = if (prefix == "?" && suffix == "&") "?" else ""
+                    cleanUrl = streamUrl.replace(match.value, replacement)
                 }
             } catch (e: Exception) {
                 android.util.Log.e("ResolvedStream", "Failed to parse headers from $streamUrl", e)
             }
 
             return ResolvedStream(
-                url = streamUrl,
+                url = cleanUrl,
                 referer = referer,
                 origin = origin,
                 provider = "VidLink"
