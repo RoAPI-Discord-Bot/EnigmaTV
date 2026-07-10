@@ -57,11 +57,24 @@ object EmbedProvidersResolver {
             }
 
             // VidLink API is fast (< 2s) — wait for it first.
-            // If it has the content, we get high-quality right away.
             val apiResult = withTimeoutOrNull(6_000) { apiJob.await() }
             if (apiResult != null) {
-                Log.d(TAG, "[$tmdbId] VidLink API won")
-                if (webViewJob.isActive) webViewJob.cancel()
+                val apiIsHls = apiResult.url.contains(".m3u8", ignoreCase = true)
+                if (apiIsHls) {
+                    // Good HLS stream from API — use immediately, cancel WebView
+                    Log.d(TAG, "[$tmdbId] VidLink API won (HLS)")
+                    webViewJob.cancel()
+                    return@coroutineScope apiResult
+                }
+                // API returned MP4 only (360p fallback). Give WebView up to 5s to find HLS.
+                Log.d(TAG, "[$tmdbId] VidLink API got MP4 — waiting up to 5s for WebView HLS")
+                val webResult = withTimeoutOrNull(5_000) { webViewJob.await() }
+                webViewJob.cancel()
+                if (webResult != null && webResult.url.contains(".m3u8", ignoreCase = true)) {
+                    Log.d(TAG, "[$tmdbId] WebView found HLS, upgrading from API MP4")
+                    return@coroutineScope webResult
+                }
+                Log.d(TAG, "[$tmdbId] VidLink API won (MP4 fallback)")
                 return@coroutineScope apiResult
             }
 

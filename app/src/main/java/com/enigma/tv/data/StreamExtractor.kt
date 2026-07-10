@@ -122,14 +122,16 @@ class StreamExtractor(private val context: Context) {
                                                     capturedStream.set(found)
                                                     capturedStreamScore = score
                                                     handler.removeCallbacksAndMessages(null)
-                                                    if (score >= SCORE_MASTER) {
-                                                        handler.postDelayed({ complete(capturedStream.get()) }, 1800)
-                                                    } else if (existing == null) {
-                                                        handler.postDelayed({
-                                                            val best = capturedStream.get()
-                                                            if (best != null) complete(best)
-                                                        }, 3000)
+                                                    // Smart delay: fire faster the higher-quality the stream.
+                                                    // Master/true adaptive: almost immediate (200ms for subtitle)
+                                                    // Any m3u8 (including quality-specific HLS): 600ms
+                                                    // MP4 fallback: 1500ms (give HLS a chance to appear)
+                                                    val delayMs = when {
+                                                        score >= 100 -> 200L
+                                                        score >= 50  -> 600L
+                                                        else         -> 1500L
                                                     }
+                                                    handler.postDelayed({ complete(capturedStream.get()) }, delayMs)
                                                 } else {
                                                     Log.d(TAG, "JsBridge SKIP (lower score $score <= $capturedStreamScore): $found")
                                                 }
@@ -150,33 +152,20 @@ class StreamExtractor(private val context: Context) {
                                     pickStreamUrl(reqUrl)?.let { found ->
                                         val score = masterScore(found)
                                         Log.d(TAG, "Intercept stream: score=$score url=$found")
-                                        // Only upgrade if this is a better (higher-scored) URL.
-                                        // This ensures we prefer master playlists over low-quality
-                                        // segment playlists that are requested first by the embed player.
                                         synchronized(capturedStream) {
                                             val existing = capturedStream.get()
                                             if (existing == null || score > capturedStreamScore) {
                                                 Log.i(TAG, "Intercept UPGRADE: score $capturedStreamScore->$score url=$found")
                                                 capturedStream.set(found)
                                                 capturedStreamScore = score
-                                                if (score >= SCORE_MASTER) {
-                                                    // Master playlist — fire immediately (no need to wait)
-                                                    val sub = capturedSubtitle.get()
-                                                    handler.removeCallbacksAndMessages(null)
-                                                    if (sub != null) {
-                                                        handler.post { complete(found) }
-                                                    } else {
-                                                        handler.postDelayed({ complete(capturedStream.get()) }, 1800)
-                                                    }
-                                                } else if (existing == null) {
-                                                    // First stream found but not master — wait a bit
-                                                    // in case a better (master) URL comes shortly after
-                                                    handler.removeCallbacksAndMessages(null)
-                                                    handler.postDelayed({
-                                                        val best = capturedStream.get()
-                                                        if (best != null) complete(best)
-                                                    }, 2500)
+                                                handler.removeCallbacksAndMessages(null)
+                                                // Same smart delay as JsBridge path
+                                                val delayMs = when {
+                                                    score >= 100 -> 200L
+                                                    score >= 50  -> 600L
+                                                    else         -> 1500L
                                                 }
+                                                handler.postDelayed({ complete(capturedStream.get()) }, delayMs)
                                             } else {
                                                 Log.d(TAG, "Intercept SKIP (lower score $score <= $capturedStreamScore): $found")
                                             }
@@ -320,10 +309,9 @@ class StreamExtractor(private val context: Context) {
         private const val TAG = "StreamExtractor"
         const val USER_AGENT = StreamResolver.USER_AGENT
 
-        // Stream quality scores — higher wins
-        private const val SCORE_MASTER = 100   // Master/adaptive HLS playlist
-        private const val SCORE_MP4 = 50       // Direct MP4
-        private const val SCORE_SEGMENT = 10   // Single-quality segment playlist
+        // Stream quality scores — higher wins. Kept for reference / future use.
+        // masterScore() returns these values. SCORE_MASTER threshold is 100 (true adaptive masters).
+        // Any m3u8 (score >= 50) fires in 600ms; MP4 (score=10) fires in 1500ms; master fires in 200ms.
 
         private const val HOOK_JS = """
 (function() {
