@@ -184,6 +184,10 @@ class StreamExtractor(private val context: Context) {
                                     injectHooks(view)
                                 }
 
+                                override fun onReceivedSslError(view: WebView?, handler: android.webkit.SslErrorHandler?, error: android.net.http.SslError?) {
+                                    handler?.proceed()
+                                }
+
                                 override fun onPageFinished(view: WebView?, url: String?) {
                                     injectHooks(view)
                                     listOf(800L, 2000L, 4000L, 7000L).forEach { delay ->
