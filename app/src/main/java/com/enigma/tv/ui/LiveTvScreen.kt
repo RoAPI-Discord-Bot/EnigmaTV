@@ -192,6 +192,7 @@ fun LiveTvScreen(
                 }
                 live.tab == LiveTvTab.EVENTS -> LiveEventsList(
                     events = live.filteredEvents,
+                    searchQuery = live.searchQuery,
                     layout = layout,
                     onPlay = onPlayMatch
                 )
@@ -385,13 +386,19 @@ private fun LiveChannelsBrowser(
 @Composable
 private fun LiveEventsList(
     events: List<LiveSportMatch>,
+    searchQuery: String,
     layout: ScreenLayout,
     onPlay: (LiveSportMatch) -> Unit
 ) {
     val listBottomPad = if (layout.usePermanentDrawer()) 24.dp else 88.dp
     if (events.isEmpty()) {
+        val text = if (searchQuery.isBlank()) {
+            "The live sports provider (streamed.su) is currently down or not returning any matches. Check back later."
+        } else {
+            "No live games match your search. Try team names or a sport (baseball, nfl)."
+        }
         Text(
-            "No live games match your search. Try team names or a sport (baseball, nfl).",
+            text,
             color = TextSecondary,
             fontSize = 14.sp,
             modifier = Modifier.padding(12.dp)
