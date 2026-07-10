@@ -24,7 +24,8 @@ data class ResolvedStream(
 
     companion object {
         fun fromEmbed(embedUrl: String, streamUrl: String, provider: String, cookies: String = "", userAgent: String = StreamResolver.USER_AGENT): ResolvedStream {
-            var referer = embedReferer(embedUrl)
+            // Live TV / embed proxies often require the FULL embed URL as the Referer, not just the host domain.
+            var referer = embedUrl
             var origin = embedOrigin(embedUrl)
 
             try {
@@ -47,12 +48,27 @@ data class ResolvedStream(
             )
         }
 
-        fun vidLink(streamUrl: String): ResolvedStream = ResolvedStream(
-            url = streamUrl,
-            referer = "https://vidlink.pro/",
-            origin = "https://vidlink.pro",
-            provider = "VidLink"
-        )
+        fun vidLink(streamUrl: String): ResolvedStream {
+            var referer = "https://vidlink.pro/"
+            var origin = "https://vidlink.pro"
+            
+            try {
+                val uri = Uri.parse(streamUrl)
+                val headersJson = uri.getQueryParameter("headers")
+                if (headersJson != null) {
+                    val jsonObj = org.json.JSONObject(headersJson)
+                    if (jsonObj.has("referer")) referer = jsonObj.getString("referer")
+                    if (jsonObj.has("origin")) origin = jsonObj.getString("origin")
+                }
+            } catch (_: Exception) {}
+
+            return ResolvedStream(
+                url = streamUrl,
+                referer = referer,
+                origin = origin,
+                provider = "VidLink"
+            )
+        }
 
         fun embedReferer(embedUrl: String): String = try {
             val uri = Uri.parse(embedUrl)
