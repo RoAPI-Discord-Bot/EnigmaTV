@@ -28,6 +28,11 @@ data class ResolvedStream(
             var referer = embedUrl
             var origin = embedOrigin(embedUrl)
 
+            if (embedUrl.contains("streamed.su") || embedUrl.contains("streamed.pk")) {
+                referer = "https://streamed.su/"
+                origin = "https://streamed.su"
+            }
+
             try {
                 val uri = Uri.parse(streamUrl)
                 val headersJson = uri.getQueryParameter("headers")

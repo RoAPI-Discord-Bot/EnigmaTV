@@ -17,8 +17,8 @@ data class StreamSource(
 object StreamSources {
     val movieSources: List<StreamSource> = listOf(
         // Tier 1: Most reliable — good for new releases, rarely 403
-        StreamSource("VidLink",      movieUrl = { id -> "https://vidlink.pro/movie/$id" }),
         StreamSource("Vidsrc.cc",    movieUrl = { id -> "https://vidsrc.cc/embed/movie/$id" }),
+        StreamSource("VidLink",      movieUrl = { id -> "https://vidlink.pro/movie/$id" }),
         StreamSource("Vidsrc.xyz",   movieUrl = { id -> "https://vidsrc.xyz/embed/movie?tmdb=$id" }),
         StreamSource("Vidsrc.rip",   movieUrl = { id -> "https://vidsrc.rip/embed/movie/$id" }),
         // Tier 2: Good alternatives
@@ -34,8 +34,8 @@ object StreamSources {
 
     val tvSources: List<StreamSource> = listOf(
         // Tier 1
-        StreamSource("VidLink TV",    tvUrl = { id, s, e -> "https://vidlink.pro/tv/$id/$s/$e" }),
         StreamSource("Vidsrc.cc TV",  tvUrl = { id, s, e -> "https://vidsrc.cc/embed/tv/$id/$s/$e" }),
+        StreamSource("VidLink TV",    tvUrl = { id, s, e -> "https://vidlink.pro/tv/$id/$s/$e" }),
         StreamSource("Vidsrc.xyz TV", tvUrl = { id, s, e -> "https://vidsrc.xyz/embed/tv?tmdb=$id&season=$s&episode=$e" }),
         StreamSource("Vidsrc.rip TV", tvUrl = { id, s, e -> "https://vidsrc.rip/embed/tv/$id/$s/$e" }),
         // Tier 2
