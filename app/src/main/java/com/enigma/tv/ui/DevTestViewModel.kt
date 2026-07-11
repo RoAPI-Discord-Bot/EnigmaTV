@@ -59,45 +59,48 @@ class DevTestViewModel : ViewModel() {
         _state.update { it.copy(tests = testsToRun) }
 
         viewModelScope.launch {
-            for (test in testsToRun) {
-                updateTestStatus(test.id, TestStatus.RUNNING)
-                
-                try {
-                    var success = false
-                    val time = measureTimeMillis {
-                        success = withContext(Dispatchers.IO) {
-                            if (test.type == DevTestType.LIVE_TV) {
-                                val url = test.embedUrl ?: return@withContext false
-                                val resolved = StreamExtractor(context).extractStreamUrl(
-                                    embedUrl = url,
-                                    activity = activity
-                                )
-                                resolved != null
-                            } else {
-                                val cType = if (test.type == DevTestType.MOVIE) ContentType.MOVIE else ContentType.TV
-                                val resolved = StreamPlaybackResolver.resolve(
-                                    context = context,
-                                    embedUrl = "",
-                                    activity = activity,
-                                    tmdbId = test.tmdbId,
-                                    type = cType,
-                                    season = 1,
-                                    episode = 1
-                                )
-                                resolved != null
+            val jobs = testsToRun.map { test ->
+                launch {
+                    updateTestStatus(test.id, TestStatus.RUNNING)
+                    
+                    try {
+                        var success = false
+                        val time = measureTimeMillis {
+                            success = withContext(Dispatchers.IO) {
+                                if (test.type == DevTestType.LIVE_TV) {
+                                    val url = test.embedUrl ?: return@withContext false
+                                    val resolved = StreamExtractor(context).extractStreamUrl(
+                                        embedUrl = url,
+                                        activity = activity
+                                    )
+                                    resolved != null
+                                } else {
+                                    val cType = if (test.type == DevTestType.MOVIE) ContentType.MOVIE else ContentType.TV
+                                    val resolved = StreamPlaybackResolver.resolve(
+                                        context = context,
+                                        embedUrl = "",
+                                        activity = activity,
+                                        tmdbId = test.tmdbId,
+                                        type = cType,
+                                        season = 1,
+                                        episode = 1
+                                    )
+                                    resolved != null
+                                }
                             }
                         }
+                        
+                        if (success) {
+                            updateTestStatus(test.id, TestStatus.SUCCESS, time)
+                        } else {
+                            updateTestStatus(test.id, TestStatus.FAILED, time, "No stream found")
+                        }
+                    } catch (e: Exception) {
+                        updateTestStatus(test.id, TestStatus.FAILED, 0, e.message ?: "Unknown error")
                     }
-                    
-                    if (success) {
-                        updateTestStatus(test.id, TestStatus.SUCCESS, time)
-                    } else {
-                        updateTestStatus(test.id, TestStatus.FAILED, time, "No stream found")
-                    }
-                } catch (e: Exception) {
-                    updateTestStatus(test.id, TestStatus.FAILED, 0, e.message ?: "Unknown error")
                 }
             }
+            jobs.forEach { it.join() }
             _state.update { it.copy(isRunning = false) }
         }
     }

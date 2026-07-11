@@ -46,16 +46,18 @@ fun DevTestScreen(
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
+            verticalAlignment = Alignment.Top
         ) {
-            Text(
-                text = "Developer Stream Testing",
-                color = TextPrimary,
-                fontSize = 28.sp,
-                fontWeight = FontWeight.Bold
-            )
-            
-            Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+            Column {
+                Text(
+                    text = "Developer Stream Testing",
+                    color = TextPrimary,
+                    fontSize = 28.sp,
+                    fontWeight = FontWeight.Bold
+                )
+                
+                Spacer(Modifier.height(16.dp))
+                
                 Button(
                     onClick = { viewModel.runAllTests(context, activity) },
                     enabled = !state.isRunning,
@@ -65,10 +67,10 @@ fun DevTestScreen(
                     Spacer(Modifier.width(8.dp))
                     Text(if (state.isRunning) "Running..." else "Run Tests")
                 }
-                
-                IconButton(onClick = onClose) {
-                    Icon(Icons.Default.Close, contentDescription = "Close", tint = TextPrimary)
-                }
+            }
+            
+            IconButton(onClick = onClose) {
+                Icon(Icons.Default.Close, contentDescription = "Close", tint = TextPrimary)
             }
         }
         
