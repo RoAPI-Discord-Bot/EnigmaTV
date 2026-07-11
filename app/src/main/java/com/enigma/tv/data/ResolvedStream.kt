@@ -28,7 +28,8 @@ data class ResolvedStream(
             var referer = embedUrl
             var origin = embedOrigin(embedUrl)
 
-            if (embedUrl.contains("streamed.su") || embedUrl.contains("streamed.pk")) {
+            if (embedUrl.contains("streamed.su") || embedUrl.contains("streamed.pk") ||
+                embedUrl.contains("embed.st") || embedUrl.contains("strmd.st")) {
                 referer = "https://streamed.su/"
                 origin = "https://streamed.su"
             }

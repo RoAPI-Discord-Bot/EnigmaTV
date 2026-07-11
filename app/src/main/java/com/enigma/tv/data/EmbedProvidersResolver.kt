@@ -80,8 +80,17 @@ object EmbedProvidersResolver {
                         finalResult = stream
                         break
                     } else {
-                        Log.d(TAG, "[$tmdbId] $sourceName returned MP4. Saving as fallback.")
-                        if (bestMp4 == null) bestMp4 = stream
+                        // Reject stale MP4s — CDN signs URLs with t= expiry timestamp.
+                        // If t= is more than 6h old, skip to avoid ExoPlayer 403.
+                        val tParam = Regex("""[?&]t=(\d+)""").find(stream.url)?.groupValues?.get(1)?.toLongOrNull()
+                        val nowSec = System.currentTimeMillis() / 1000L
+                        val isStale = tParam != null && (nowSec - tParam) > 6 * 3600
+                        if (isStale) {
+                            Log.w(TAG, "[$tmdbId] $sourceName MP4 has expired CDN token (t=$tParam now=$nowSec) — skipping")
+                        } else {
+                            Log.d(TAG, "[$tmdbId] $sourceName returned MP4. Saving as fallback.")
+                            if (bestMp4 == null) bestMp4 = stream
+                        }
                     }
                 }
             }
@@ -129,18 +138,23 @@ object EmbedProvidersResolver {
         episode: Int,
         preferredEmbedUrl: String?
     ): List<Pair<String, String>> {
-        val list = linkedSetOf<Pair<String, String>>()
+        // Deduplicate by URL value — avoids racing the same dead site twice
+        val seenUrls = mutableSetOf<String>()
+        val list = mutableListOf<Pair<String, String>>()
+        fun addIfNew(name: String, url: String) {
+            if (seenUrls.add(url)) list.add(name to url)
+        }
         if (!preferredEmbedUrl.isNullOrBlank()) {
-            list.add("Current" to preferredEmbedUrl)
+            addIfNew("Current", preferredEmbedUrl)
         }
         when (type) {
             ContentType.MOVIE -> StreamSources.movieSources.forEach { src ->
-                list.add(src.name to src.movieUrl(tmdbId))
+                addIfNew(src.name, src.movieUrl(tmdbId))
             }
             ContentType.TV -> StreamSources.tvSources.forEach { src ->
-                list.add(src.name to src.tvUrl(tmdbId, season, episode))
+                addIfNew(src.name, src.tvUrl(tmdbId, season, episode))
             }
         }
-        return list.toList()
+        return list
     }
 }
