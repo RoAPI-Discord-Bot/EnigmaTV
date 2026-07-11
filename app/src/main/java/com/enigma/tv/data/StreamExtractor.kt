@@ -353,6 +353,7 @@ class StreamExtractor(private val context: Context) {
 (function() {
   try {
     document.querySelectorAll('video, source, iframe').forEach(function(el) {
+      if (el.tagName === 'VIDEO') { el.muted = true; el.volume = 0; }
       var s = el.src || el.getAttribute('src');
       if (s && (s.indexOf('.m3u8') >= 0 || s.indexOf('.mp4') >= 0)) EnigmaStream.onStreamFound(s);
     });

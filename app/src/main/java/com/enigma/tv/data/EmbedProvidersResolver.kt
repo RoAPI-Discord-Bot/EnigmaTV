@@ -35,63 +35,76 @@ object EmbedProvidersResolver {
         val primaryEmbedUrl = embedUrls.firstOrNull()?.second ?: return null
 
         return coroutineScope {
-            // ── Round 1: VidLink API vs primary WebView ──────────────────────────────
-            val apiJob = async {
-                Log.d(TAG, "[$tmdbId] Round1/VidLink: starting")
+            val resultsChannel = kotlinx.coroutines.channels.Channel<Pair<String, ResolvedStream?>>(capacity = kotlinx.coroutines.channels.Channel.UNLIMITED)
+
+            // ── Round 1: Race VidLink API vs Top 3 WebViews concurrently ──────────────────────────────
+            val apiJob = launch {
+                Log.d(TAG, "[$tmdbId] Concurrent/VidLinkAPI: starting")
                 val r = when (type) {
                     ContentType.MOVIE -> VidLinkResolver.resolveMovie(tmdbId)
                     ContentType.TV    -> VidLinkResolver.resolveTv(tmdbId, season, episode)
                 }
-                Log.d(TAG, "[$tmdbId] Round1/VidLink: ${if (r != null) "got stream" else "null"}")
-                r
+                Log.d(TAG, "[$tmdbId] Concurrent/VidLinkAPI: ${if (r != null) "got stream" else "null"}")
+                resultsChannel.send("VidLink API" to r)
             }
 
-            val webViewJob = async {
-                if (activity == null) return@async null
-                Log.d(TAG, "[$tmdbId] Round1/WebView: $primaryEmbedUrl")
-                val r = withTimeoutOrNull(15_000) {
-                    StreamExtractor(context).extractStreamUrl(primaryEmbedUrl, activity = activity)
+            val topSources = embedUrls.take(3)
+            val webJobs = topSources.map { (srcName, url) ->
+                launch {
+                    if (activity == null) {
+                        resultsChannel.send(srcName to null)
+                        return@launch
+                    }
+                    Log.d(TAG, "[$tmdbId] Concurrent/WebView: starting $srcName")
+                    val r = withTimeoutOrNull(15_000) {
+                        StreamExtractor(context).extractStreamUrl(url, activity = activity)
+                    }
+                    Log.d(TAG, "[$tmdbId] Concurrent/WebView: $srcName ${if (r != null) "got stream" else "null"}")
+                    resultsChannel.send(srcName to r)
                 }
-                Log.d(TAG, "[$tmdbId] Round1/WebView: ${if (r != null) "got stream" else "null"}")
-                r
             }
 
-            // VidLink API is fast (< 2s) — wait for it first.
-            val apiResult = withTimeoutOrNull(6_000) { apiJob.await() }
-            if (apiResult != null) {
-                val apiIsHls = apiResult.url.contains(".m3u8", ignoreCase = true)
-                if (apiIsHls) {
-                    // Good HLS stream from API — use immediately, cancel WebView
-                    Log.d(TAG, "[$tmdbId] VidLink API won (HLS)")
-                    webViewJob.cancel()
-                    return@coroutineScope apiResult
+            val totalExpected = 1 + topSources.size
+            var bestMp4: ResolvedStream? = null
+            var finalResult: ResolvedStream? = null
+            var receivedCount = 0
+
+            while (receivedCount < totalExpected) {
+                val (sourceName, stream) = resultsChannel.receive()
+                receivedCount++
+
+                if (stream != null) {
+                    val isHls = stream.url.contains(".m3u8", ignoreCase = true)
+                    if (isHls) {
+                        Log.d(TAG, "[$tmdbId] $sourceName WON (HLS). Cancelling others.")
+                        finalResult = stream
+                        break
+                    } else {
+                        Log.d(TAG, "[$tmdbId] $sourceName returned MP4. Saving as fallback.")
+                        if (bestMp4 == null) bestMp4 = stream
+                    }
                 }
-                // API returned MP4 only (360p fallback). Give WebView up to 5s to find HLS.
-                Log.d(TAG, "[$tmdbId] VidLink API got MP4 — waiting up to 5s for WebView")
-                val webResult = withTimeoutOrNull(5_000) { webViewJob.await() }
-                webViewJob.cancel()
-                if (webResult != null) {
-                    Log.d(TAG, "[$tmdbId] WebView finished in time, preferring WebView stream over API MP4")
-                    return@coroutineScope webResult
-                }
-                Log.d(TAG, "[$tmdbId] VidLink API won (MP4 fallback) - WebView timed out")
-                return@coroutineScope apiResult
             }
 
-            // VidLink didn't have it (403 / missing content). Wait for WebView.
-            Log.d(TAG, "[$tmdbId] VidLink API failed — waiting for WebView")
-            val webResult = webViewJob.await()
-            if (apiJob.isActive) apiJob.cancel()
-            if (webResult != null) {
-                Log.d(TAG, "[$tmdbId] Primary WebView won")
-                return@coroutineScope webResult
+            // Clean up: cancel any unfinished background jobs
+            apiJob.cancel()
+            webJobs.forEach { it.cancel() }
+            resultsChannel.close()
+
+            if (finalResult != null) {
+                return@coroutineScope finalResult
+            }
+
+            if (bestMp4 != null) {
+                Log.d(TAG, "[$tmdbId] All top sources finished without HLS. Falling back to MP4.")
+                return@coroutineScope bestMp4
             }
 
             // ── Round 2: Try remaining embed sources sequentially ────────────────────
-            if (activity != null && embedUrls.size > 1) {
-                Log.d(TAG, "[$tmdbId] Round1 failed — trying ${embedUrls.size - 1} fallback sources")
+            if (activity != null && embedUrls.size > 3) {
+                Log.d(TAG, "[$tmdbId] Top 3 failed — trying ${embedUrls.size - 3} fallback sources")
 
-                for ((srcName, fallbackUrl) in embedUrls.drop(1)) {
+                for ((srcName, fallbackUrl) in embedUrls.drop(3)) {
                     Log.d(TAG, "[$tmdbId] Fallback: $srcName")
                     val res = withTimeoutOrNull(12_000) {
                         StreamExtractor(context).extractStreamUrl(fallbackUrl, activity = activity)
