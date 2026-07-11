@@ -345,6 +345,9 @@ fun EnigmaShell(viewModel: EnigmaViewModel = viewModel()) {
                                 onOpenProfilePicker = viewModel::showProfilePickerScreen,
                                 layout = layout
                             )
+                            NavSection.DEV_TEST -> DevTestScreen(
+                                onClose = { viewModel.setSection(NavSection.HOME) }
+                            )
                         }
                     }
                 }

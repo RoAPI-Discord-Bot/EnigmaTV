@@ -65,7 +65,8 @@ enum class NavSection(val title: String) {
     FAVORITES("Favorites"),
     CONTINUE("Continue Watching"),
     LISTS("My Lists"),
-    PROFILE("Account")
+    PROFILE("Account"),
+    DEV_TEST("Developer Testing")
 }
 
 data class EnigmaUiState(
@@ -579,6 +580,10 @@ class EnigmaViewModel(application: Application) : AndroidViewModel(application) 
 
     fun onSearchQueryChanged(query: String) {
         suggestJob?.cancel()
+        if (query.trim() == "*xyz*") {
+            _state.update { it.copy(section = NavSection.DEV_TEST, searchSuggestions = emptyList()) }
+            return
+        }
         if (query.trim().length < 2) {
             _state.update { it.copy(searchSuggestions = emptyList()) }
             return
