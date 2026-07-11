@@ -40,8 +40,9 @@ data class DevTestState(
         TestCase("1", "Backrooms (2026)", DevTestType.MOVIE, tmdbId = 1083381),
         TestCase("2", "Deadpool & Wolverine", DevTestType.MOVIE, tmdbId = 533535),
         TestCase("3", "The Boys S1 E1", DevTestType.TV_SHOW, tmdbId = 76479),
-        TestCase("4", "Live TV: ESPN", DevTestType.LIVE_TV, embedUrl = "https://embed.st/embed/admin/espn/1"),
-        TestCase("5", "Live TV: Heat vs Magic", DevTestType.LIVE_TV, embedUrl = "https://embed.st/embed/admin/ppv-miami-heat-vs-orlando-magic/1")
+        TestCase("4", "Live Channel: ESPN", DevTestType.LIVE_TV, embedUrl = "https://embed.st/embed/admin/espn/1"),
+        TestCase("5", "Live Game: Heat vs Magic", DevTestType.LIVE_TV, embedUrl = "https://embed.st/embed/admin/ppv-miami-heat-vs-orlando-magic/1"),
+        TestCase("6", "Live Game: Angels vs Twins", DevTestType.LIVE_TV, embedUrl = "https://embed.st/embed/admin/ppv-los-angeles-angels-vs-minnesota-twins/1")
     ),
     val isRunning: Boolean = false
 )
