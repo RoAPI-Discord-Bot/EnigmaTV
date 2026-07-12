@@ -36,9 +36,10 @@ class StreamExtractor(private val context: Context) {
             Log.w(TAG, "extractStreamUrl: extractor returned null for $embedUrl")
             return null
         }
-        val streamUrl = result.first
-        val subtitleUrl = result.second
-        Log.i(TAG, "extractStreamUrl: RESOLVED url=$streamUrl subtitle=$subtitleUrl")
+        val streamUrl = result.streamUrl
+        val subtitleUrl = result.subtitleUrl
+        val thumbnailUrl = result.thumbnailUrl
+        Log.i(TAG, "extractStreamUrl: RESOLVED url=$streamUrl subtitle=$subtitleUrl thumb=$thumbnailUrl")
         // Use fromEmbed so the headers={} query param on the stream URL is parsed:
         // e.g. https://cdn.example.com/video.mp4?headers={"referer":"https://filmboom.top/","origin":"https://filmboom.top"}
         // fromEmbed() reads those and uses them as the actual Referer/Origin HTTP headers ExoPlayer sends.
@@ -46,21 +47,24 @@ class StreamExtractor(private val context: Context) {
             embedUrl = referer ?: embedUrl,
             streamUrl = streamUrl,
             provider = "webview"
-        ).copy(subtitleUrl = subtitleUrl)
+        ).copy(subtitleUrl = subtitleUrl, thumbnailUrl = thumbnailUrl)
     }
 
-    /** Returns Pair(streamUrl, subtitleUrl?) */
+    data class ExtractionResult(val streamUrl: String, val subtitleUrl: String?, val thumbnailUrl: String?)
+
+    /** Returns ExtractionResult */
     suspend fun extractStreamUrlAndSubtitle(
         embedUrl: String,
         referer: String? = null,
         activity: Activity? = null
-    ): Pair<String, String?>? {
+    ): ExtractionResult? {
         val hostActivity = activity ?: return null
         return withTimeoutOrNull(18_000) {
             withContext(Dispatchers.Main) {
                 suspendCancellableCoroutine { cont ->
                     val finished = AtomicBoolean(false)
                     val capturedSubtitle = AtomicReference<String?>(null)
+                    val capturedThumbnail = AtomicReference<String?>(null)
                     val capturedStream = AtomicReference<String?>(null)
                     var capturedStreamScore = -1  // Track quality score of best stream so far
                     val refererHeader = referer ?: embedUrl
@@ -76,7 +80,7 @@ class StreamExtractor(private val context: Context) {
                             webView = null
                             hostContainer = null
                             if (cont.isActive) cont.resume(
-                                if (url != null) url to capturedSubtitle.get() else null
+                                if (url != null) ExtractionResult(url, capturedSubtitle.get(), capturedThumbnail.get()) else null
                             )
                         }
                     }
@@ -138,7 +142,13 @@ class StreamExtractor(private val context: Context) {
                                             }
                                         }
                                     },
-                                    onSubtitle = { url -> capturedSubtitle.compareAndSet(null, url) }
+                                    onSubtitle = { url -> 
+                                        if (url.contains("thumbnail", ignoreCase = true) || url.contains("sprite", ignoreCase = true)) {
+                                            capturedThumbnail.compareAndSet(null, url)
+                                        } else {
+                                            capturedSubtitle.compareAndSet(null, url) 
+                                        }
+                                    }
                                 ),
                                 "EnigmaStream"
                             )
@@ -176,6 +186,9 @@ class StreamExtractor(private val context: Context) {
                                             val stream = capturedStream.get()
                                             if (stream != null) handler.post { complete(stream) }
                                         }
+                                    }
+                                    pickThumbnailUrl(reqUrl)?.let { thumb ->
+                                        capturedThumbnail.compareAndSet(null, thumb)
                                     }
                                     return super.shouldInterceptRequest(view, request)
                                 }
@@ -221,7 +234,7 @@ class StreamExtractor(private val context: Context) {
         embedUrl: String,
         referer: String? = null,
         activity: Activity? = null
-    ): String? = extractStreamUrlAndSubtitle(embedUrl, referer, activity)?.first
+    ): String? = extractStreamUrlAndSubtitle(embedUrl, referer, activity)?.streamUrl
 
     private fun safeDestroyWebView(webView: WebView?, container: FrameLayout?) {
         try {
@@ -288,6 +301,16 @@ class StreamExtractor(private val context: Context) {
         }
         // Accept any subtitle as fallback
         return cleanUrl(url)
+    }
+
+    private fun pickThumbnailUrl(url: String): String? {
+        val lower = url.lowercase()
+        if (!lower.startsWith("http")) return null
+        if (!lower.contains(".vtt")) return null
+        if (lower.contains("thumbnail") || lower.contains("sprite") || lower.contains("preview")) {
+            return cleanUrl(url)
+        }
+        return null
     }
 
     private fun cleanUrl(url: String): String =

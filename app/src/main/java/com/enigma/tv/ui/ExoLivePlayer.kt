@@ -100,6 +100,26 @@ fun ExoLivePlayer(
 ) {
     if (!visible) return
 
+    val context = LocalContext.current
+    val lifecycleOwner = LocalLifecycleOwner.current
+    var errorMessage by remember { mutableStateOf<String?>(null) }
+    var captionsEnabled by remember { mutableStateOf(true) }
+    var hasTextTracks by remember { mutableStateOf(false) }
+    
+    // Thumbnail scrubbing state
+    var thumbnailEntries by remember { mutableStateOf<List<com.enigma.tv.data.ThumbnailEntry>>(emptyList()) }
+    var scrubPositionMs by remember { mutableStateOf(0L) }
+    var isScrubbing by remember { mutableStateOf(false) }
+
+    LaunchedEffect(stream?.thumbnailUrl) {
+        val vttUrl = stream?.thumbnailUrl
+        if (!vttUrl.isNullOrBlank()) {
+            val entries = com.enigma.tv.data.VttThumbnailParser.parse(vttUrl)
+            thumbnailEntries = entries
+        } else {
+            thumbnailEntries = emptyList()
+        }
+    }
 
     val resolved = stream ?: streamUrl.takeIf { it.isNotBlank() }?.let {
         ResolvedStream(url = it, referer = "", provider = "direct")
@@ -119,7 +139,6 @@ fun ExoLivePlayer(
     val playUrl = resolved.url
     val playbackHeaders = resolved.playbackHeaders()
     val syncChrome = LocalPlayerChromeSync.current
-    val context = LocalContext.current
 
     // ── Keep screen on while the player is visible ────────────────────────────
     DisposableEffect(Unit) {
@@ -134,9 +153,6 @@ fun ExoLivePlayer(
     var retryCount by remember(playUrl) { mutableIntStateOf(0) }
     var showQualityPicker by remember { mutableStateOf(false) }
     var stripHeaders by remember { mutableStateOf(false) }
-    var errorMessage by remember { mutableStateOf<String?>(null) }
-    var hasTextTracks by remember { mutableStateOf(false) }
-    var captionsEnabled by remember { mutableStateOf(true) } // ON by default when tracks exist
     var hasReachedReady by remember(playUrl, playToken) { mutableStateOf(false) }
     var bingeCountdown by remember(playUrl, playToken) { mutableStateOf<Int?>(null) }
     
@@ -599,6 +615,21 @@ fun ExoLivePlayer(
                             ?.text = sourceLabel
                         // Next-server button
                         val nextBtn = view.findViewById<android.view.View>(com.enigma.tv.R.id.btn_enigma_next)
+                        
+                        // Thumbnail scrubber
+                        val timeBar = view.findViewById<androidx.media3.ui.TimeBar>(androidx.media3.ui.R.id.exo_progress)
+                        timeBar?.addListener(object : androidx.media3.ui.TimeBar.OnScrubListener {
+                            override fun onScrubStart(tb: androidx.media3.ui.TimeBar, position: Long) {
+                                scrubPositionMs = position
+                                isScrubbing = true
+                            }
+                            override fun onScrubMove(tb: androidx.media3.ui.TimeBar, position: Long) {
+                                scrubPositionMs = position
+                            }
+                            override fun onScrubStop(tb: androidx.media3.ui.TimeBar, position: Long, canceled: Boolean) {
+                                isScrubbing = false
+                            }
+                        })
                         if (showNextSource && onNextSource != null) {
                             nextBtn?.visibility = View.VISIBLE
                             nextBtn?.setOnClickListener { onNextSource() }
@@ -635,6 +666,45 @@ fun ExoLivePlayer(
                     },
                     modifier = Modifier.fillMaxSize()
                 )
+                
+                // Thumbnail Overlay
+                if (isScrubbing && thumbnailEntries.isNotEmpty()) {
+                    val thumb = thumbnailEntries.firstOrNull { scrubPositionMs >= it.startMs && scrubPositionMs < it.endMs }
+                        ?: thumbnailEntries.lastOrNull { scrubPositionMs >= it.startMs }
+                    if (thumb != null) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .padding(bottom = 120.dp), // hover above scrubber
+                            contentAlignment = Alignment.BottomCenter
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .width(with(androidx.compose.ui.platform.LocalDensity.current) { thumb.w.toDp() })
+                                    .height(with(androidx.compose.ui.platform.LocalDensity.current) { thumb.h.toDp() })
+                                    .border(2.dp, Color.White, RoundedCornerShape(4.dp))
+                                    .androidx.compose.ui.draw.clip(RoundedCornerShape(4.dp))
+                            ) {
+                                androidx.compose.foundation.Image(
+                                    painter = coil.compose.rememberAsyncImagePainter(
+                                        model = coil.request.ImageRequest.Builder(LocalContext.current)
+                                            .data(thumb.imageUrl)
+                                            .size(coil.size.Size.ORIGINAL)
+                                            .crossfade(true)
+                                            .build()
+                                    ),
+                                    contentDescription = "Preview",
+                                    contentScale = androidx.compose.ui.layout.ContentScale.None,
+                                    alignment = Alignment.TopStart,
+                                    modifier = Modifier.androidx.compose.foundation.layout.offset(
+                                        x = with(androidx.compose.ui.platform.LocalDensity.current) { (-thumb.x).toDp() },
+                                        y = with(androidx.compose.ui.platform.LocalDensity.current) { (-thumb.y).toDp() }
+                                    )
+                                )
+                            }
+                        }
+                    }
+                }
                 
                 if (showQualityPicker) {
                     QualityPickerDialog(

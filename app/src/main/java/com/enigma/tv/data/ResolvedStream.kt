@@ -12,6 +12,7 @@ data class ResolvedStream(
     val userAgent: String = StreamResolver.USER_AGENT,
     val provider: String = "direct",
     val subtitleUrl: String? = null,
+    val thumbnailUrl: String? = null,
     val cookies: String = ""
 ) {
     fun playbackHeaders(): Map<String, String> {
@@ -29,9 +30,16 @@ data class ResolvedStream(
             var origin = embedOrigin(embedUrl)
 
             if (embedUrl.contains("streamed.su") || embedUrl.contains("streamed.pk") ||
-                embedUrl.contains("embed.st") || embedUrl.contains("strmd.st")) {
-                referer = "https://streamed.su/"
-                origin = "https://streamed.su"
+                embedUrl.contains("embed.st") || embedUrl.contains("strmd.st") || embedUrl.contains("sport-tv")) {
+                try {
+                    val uri = Uri.parse(embedUrl)
+                    val baseDomain = "${uri.scheme}://${uri.host}/"
+                    referer = baseDomain
+                    origin = "${uri.scheme}://${uri.host}"
+                } catch (e: Exception) {
+                    referer = "https://streamed.su/"
+                    origin = "https://streamed.su"
+                }
             }
 
             try {
