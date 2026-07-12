@@ -91,6 +91,7 @@ data class EnigmaUiState(
     val detail: MediaDetailUi? = null,
     val playerVisible: Boolean = false,
     val playerLoading: Boolean = false,
+    val playerLoadingMessage: String? = null,
     val playerTitle: String = "",
     val playerUrl: String = "",
     val playerLogoUrl: String? = null,
@@ -1100,6 +1101,18 @@ class EnigmaViewModel(application: Application) : AndroidViewModel(application) 
 
     fun clearPlayerStreamFailed() {
         _state.update { it.copy(playerStreamFailed = false, playerLoading = true) }
+    }
+
+    fun onPlayerPlaybackReady() {
+        _state.update { it.copy(playerLoading = false, playerStreamPlaying = true, playerLoadingMessage = null) }
+    }
+
+    fun onPlayerPageLoading(loading: Boolean) {
+        _state.update { it.copy(playerLoading = loading) }
+    }
+
+    fun setPlayerLoadingMessage(message: String?) {
+        _state.update { it.copy(playerLoadingMessage = message) }
     }
 
     fun playLiveNativeStream(streamUrl: String) {

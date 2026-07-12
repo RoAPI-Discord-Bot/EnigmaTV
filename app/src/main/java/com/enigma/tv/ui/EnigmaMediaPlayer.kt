@@ -53,6 +53,7 @@ fun EnigmaMediaPlayer(
     onClose: () -> Unit,
     onNextSource: () -> Unit,
     onLoadingChange: (Boolean) -> Unit,
+    onLoadingMessageChange: (String) -> Unit = {},
     onPlaybackEnded: (() -> Unit)? = null,
     onPlaybackReady: (() -> Unit)? = null,
     onPlaybackPositionMs: ((Long) -> Unit)? = null,
@@ -100,7 +101,8 @@ fun EnigmaMediaPlayer(
                 tmdbId = tmdbId,
                 type = playingType,
                 season = season,
-                episode = episode
+                episode = episode,
+                onStatus = { onLoadingMessageChange(it) }
             )
         }
         resolvingNative = false

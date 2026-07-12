@@ -69,7 +69,8 @@ object EmbedProvidersResolver {
         type: ContentType,
         season: Int,
         episode: Int,
-        preferredEmbedUrl: String? = null
+        preferredEmbedUrl: String? = null,
+        onStatus: (String) -> Unit = {}
     ): ResolvedStream? {
         val embedUrls = buildEmbedList(tmdbId, type, season, episode, preferredEmbedUrl)
         if (embedUrls.isEmpty()) return null
@@ -80,6 +81,8 @@ object EmbedProvidersResolver {
 
             val allJobs = mutableListOf<kotlinx.coroutines.Job>()
 
+            onStatus("Starting 6 concurrent scrapers...")
+
             // ── VidLink direct API (fast JSON, ~400ms) ────────────────────────
             allJobs += launch {
                 Log.d(TAG, "[$tmdbId] Concurrent/VidLinkAPI: starting")
@@ -88,13 +91,11 @@ object EmbedProvidersResolver {
                     ContentType.TV    -> VidLinkResolver.resolveTv(tmdbId, season, episode)
                 }
                 Log.d(TAG, "[$tmdbId] Concurrent/VidLinkAPI: ${if (r != null) "got stream" else "null"}")
+                if (r != null) onStatus("Found stream from VidLink API...")
                 resultsChannel.send("VidLink API" to r)
             }
 
             // ── All WebView sources concurrently ──────────────────────────────
-            // NOTE: Android can run many WebViews simultaneously but each allocates
-            // a renderer process. We cap at the top N to stay memory-safe on low-end
-            // Fire sticks. Top 5 sources covers all realistic "reliable" providers.
             val sourcesToRace = embedUrls.take(5)
             sourcesToRace.forEach { (srcName, url) ->
                 allJobs += launch {
@@ -107,6 +108,7 @@ object EmbedProvidersResolver {
                         StreamExtractor(context).extractStreamUrl(url, activity = activity)
                     }
                     Log.d(TAG, "[$tmdbId] Concurrent/WebView: $srcName ${if (r != null) "got stream" else "null"}")
+                    if (r != null) onStatus("Found stream from $srcName...")
                     resultsChannel.send(srcName to r)
                 }
             }
@@ -120,7 +122,10 @@ object EmbedProvidersResolver {
 
             while (receivedCount < totalExpected) {
                 val remaining = deadline - System.currentTimeMillis()
-                if (remaining <= 0L) break
+                if (remaining <= 0L) {
+                    if (collected.isNotEmpty()) onStatus("Scoring ${collected.size} streams...")
+                    break
+                }
 
                 val received = withTimeoutOrNull(remaining) { resultsChannel.receive() }
                     ?: break  // window expired
@@ -136,6 +141,7 @@ object EmbedProvidersResolver {
                     val best = collected.maxByOrNull { it.second.quality() }!!.second
                     if (best.isHls() && best.subtitleUrl != null) {
                         Log.d(TAG, "[$tmdbId] Early win: HLS+subtitle from ${collected.last().first}")
+                        onStatus("Perfect stream found. Optimizing playback...")
                         // Small delay to let any simultaneous subtitle-less result also arrive
                         kotlinx.coroutines.delay(EARLY_WIN_DELAY_MS)
                         allJobs.forEach { it.cancel() }
@@ -152,12 +158,14 @@ object EmbedProvidersResolver {
             resultsChannel.close()
 
             if (collected.isNotEmpty()) {
+                onStatus("Optimizing playback quality...")
                 return@coroutineScope pickBest(tmdbId, collected)
             }
 
             // ── Fallback: sequential pass through remaining sources ───────────
             if (activity != null && embedUrls.size > sourcesToRace.size) {
                 Log.d(TAG, "[$tmdbId] No results — trying ${embedUrls.size - sourcesToRace.size} remaining sources")
+                onStatus("No streams yet. Checking fallback servers...")
                 for ((srcName, fallbackUrl) in embedUrls.drop(sourcesToRace.size)) {
                     Log.d(TAG, "[$tmdbId] Fallback: $srcName")
                     val res = withTimeoutOrNull(10_000) {
@@ -165,6 +173,7 @@ object EmbedProvidersResolver {
                     }
                     if (res != null && !res.isExpiredMp4()) {
                         Log.d(TAG, "[$tmdbId] Fallback $srcName: SUCCESS score=${res.quality()}")
+                        onStatus("Fallback stream found. Starting playback...")
                         return@coroutineScope res
                     }
                     Log.d(TAG, "[$tmdbId] Fallback $srcName: failed")

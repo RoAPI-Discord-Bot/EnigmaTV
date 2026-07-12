@@ -85,7 +85,9 @@ fun PlayerFullscreenHost(
     showNextSource: Boolean = false,
     streamFailed: Boolean = false,
     streamLoading: Boolean = false,
+    streamLoadingMessage: String? = null,
     streamPlaying: Boolean = false,
+    isLiveBroadcast: Boolean = false,
     liveWaitingMessage: String? = null,
     tvControls: TvPlayerControls? = null,
     onPrevEpisode: (() -> Unit)? = null,
@@ -276,28 +278,11 @@ fun PlayerFullscreenHost(
                 !streamLoading
 
             if (streamLoading && !showLiveMessage) {
-                // Dynamic loading messages
-                val isLive = subtitle.contains("Live", ignoreCase = true)
-                var loadingMessage by remember(streamLoading) { 
-                    mutableStateOf(if (isLive) "Connecting to live feed..." else "Aggregating sources...")
-                }
-                
-                LaunchedEffect(streamLoading) {
-                    if (streamLoading && !isLive) {
-                        kotlinx.coroutines.delay(1200)
-                        loadingMessage = "Extracting media streams..."
-                        kotlinx.coroutines.delay(1500)
-                        loadingMessage = "Fetching player configuration..."
-                        kotlinx.coroutines.delay(1800)
-                        loadingMessage = "Optimizing playback quality..."
-                    }
-                }
-
                 // Show close button during loading so user can always exit
                 Box(Modifier.fillMaxSize()) {
                     EnigmaLoadingRing(
                         modifier = Modifier.fillMaxSize(),
-                        message = loadingMessage,
+                        message = streamLoadingMessage ?: if (isLiveBroadcast) "Connecting to live feed..." else "Aggregating sources...",
                         logoSize = 60.dp,
                         ringSize = 90.dp,
                         fullscreen = true

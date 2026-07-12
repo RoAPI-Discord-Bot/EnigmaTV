@@ -24,9 +24,10 @@ object StreamPlaybackResolver {
         tmdbId: Int?,
         type: ContentType?,
         season: Int = 1,
-        episode: Int = 1
+        episode: Int = 1,
+        onStatus: (String) -> Unit = {}
     ): ResolvedStream? = withTimeoutOrNull(45_000) {
-        resolveInternal(context, embedUrl, activity, tmdbId, type, season, episode)
+        resolveInternal(context, embedUrl, activity, tmdbId, type, season, episode, onStatus)
     }
 
     private suspend fun resolveInternal(
@@ -36,7 +37,8 @@ object StreamPlaybackResolver {
         tmdbId: Int?,
         type: ContentType?,
         season: Int,
-        episode: Int
+        episode: Int,
+        onStatus: (String) -> Unit
     ): ResolvedStream? {
         // Direct stream (already an .m3u8 or .mp4) — no extraction needed
         if (isDirectStream(embedUrl)) {
@@ -55,7 +57,8 @@ object StreamPlaybackResolver {
                 type = contentType,
                 season = season,
                 episode = episode,
-                preferredEmbedUrl = embedUrl
+                preferredEmbedUrl = embedUrl,
+                onStatus = onStatus
             )
         } else {
             // No TMDB ID — just try to extract the provided URL directly
