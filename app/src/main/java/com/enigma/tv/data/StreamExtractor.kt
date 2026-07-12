@@ -278,6 +278,9 @@ class StreamExtractor(private val context: Context) {
         val lower = url.lowercase()
         if (!lower.startsWith("http")) return null
         if (!lower.contains(".vtt") && !lower.contains(".srt")) return null
+        
+        // Prevent thumbnail/sprite VTT files from being parsed as captions
+        if (lower.contains("thumbnail") || lower.contains("sprite") || lower.contains("preview")) return null
         // Prefer English subtitle files
         if (lower.contains("eng") || lower.contains("en-") || lower.contains("/en/") ||
             lower.contains("english") || lower.contains("-2.vtt") || lower.contains("_en.")) {
