@@ -158,11 +158,22 @@ object VidLinkResolver {
     private fun scoreUrl(url: String): Int {
         val lower = url.lowercase()
         if (!lower.contains(".m3u8") && !lower.contains(".mp4")) return 0
-        // index.m3u8 is a quality-specific segment playlist (e.g. 360p/index.m3u8), NOT a master
+        
+        // True adaptive masters are best
         if (lower.contains("master.m3u8") || lower.contains("playlist.m3u8")) return 100
-        if (lower.contains(".m3u8") && !hasQualitySuffix(lower)) return 90
-        if (lower.contains(".mp4")) return 50
-        return 10 // quality-specific .m3u8
+        
+        // If it's a specific quality, score by resolution
+        if (lower.contains("4k") || lower.contains("2160p") || lower.contains("/2160/")) return 95
+        if (lower.contains("1080p") || lower.contains("/1080/")) return 90
+        if (lower.contains("720p") || lower.contains("/720/") || lower.contains("/hd/")) return 80
+        if (lower.contains("480p") || lower.contains("/480/") || lower.contains("/sd/")) return 70
+        if (lower.contains("360p") || lower.contains("/360/")) return 60
+        
+        // If it's an m3u8 with NO quality suffix (might be a master with a weird name)
+        if (lower.contains(".m3u8")) return 50
+        
+        // MP4 fallback (often 360p/480p from CDNs)
+        return 10
     }
 
     private fun hasQualitySuffix(lower: String): Boolean {

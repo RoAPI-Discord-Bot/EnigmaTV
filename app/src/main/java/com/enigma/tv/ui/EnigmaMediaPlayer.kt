@@ -60,6 +60,8 @@ fun EnigmaMediaPlayer(
     onPlaybackDurationMs: ((Long) -> Unit)? = null,
     onShowEpisodes: (() -> Unit)? = null,
     onNativePlayerActive: ((Boolean) -> Unit)? = null,
+    bingeNextLabel: String? = null,
+    onBingeNext: (() -> Unit)? = null,
     startPositionMs: Long = 0L,
     tvControls: TvPlayerControls? = null,
     resolveToken: Int = 0,
@@ -80,6 +82,7 @@ fun EnigmaMediaPlayer(
     var mode by remember(embedUrl, resolveToken) { mutableStateOf(MediaPlayMode.Embed) }
     var resolvingNative by remember(embedUrl, resolveToken) { mutableStateOf(true) }
     var streamFailed by remember(embedUrl, resolveToken) { mutableStateOf(false) }
+    var savedPositionMs by remember { mutableStateOf(startPositionMs) }
 
     // Start resolution immediately — show a loading spinner while we find the best stream.
     // Once found, seamlessly switch to ExoPlayer. If resolution fails, fall back to WebView.
@@ -139,9 +142,14 @@ fun EnigmaMediaPlayer(
                 tvControls = tvControls,
                 useExternalChrome = useExternalChrome,
                 onPlaybackEnded = onPlaybackEnded,
-                onPlaybackPositionMs = onPlaybackPositionMs,
+                onPlaybackPositionMs = { pos -> 
+                    savedPositionMs = pos
+                    onPlaybackPositionMs?.invoke(pos) 
+                },
                 onPlaybackDurationMs = onPlaybackDurationMs,
-                startPositionMs = startPositionMs,
+                bingeNextLabel = bingeNextLabel,
+                onBingeNext = onBingeNext,
+                startPositionMs = savedPositionMs,
                 actionDispatcher = actionDispatcher,
                 modifier = Modifier.fillMaxSize()
             )

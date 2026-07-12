@@ -32,9 +32,15 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.foundation.border
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.clickable
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.draw.clip
+import com.enigma.tv.ui.theme.EnigmaPink
+import androidx.compose.material3.*
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
@@ -94,6 +100,8 @@ fun ExoLivePlayer(
     onPlaybackReady: (() -> Unit)? = null,
     onPlaybackPositionMs: ((Long) -> Unit)? = null,
     onPlaybackDurationMs: ((Long) -> Unit)? = null,
+    bingeNextLabel: String? = null,
+    onBingeNext: (() -> Unit)? = null,
     startPositionMs: Long = 0L,
     actionDispatcher: PlayerActionDispatcher? = null,
     modifier: Modifier = Modifier.fillMaxSize()
@@ -206,7 +214,6 @@ fun ExoLivePlayer(
             }
     }
 
-    val lifecycleOwner = LocalLifecycleOwner.current
     DisposableEffect(lifecycleOwner, player) {
         val observer = LifecycleEventObserver { _, event ->
             when (event) {
@@ -515,6 +522,30 @@ fun ExoLivePlayer(
         }
     }
 
+    // Binge Mode loop
+    LaunchedEffect(player, bingeNextLabel) {
+        if (bingeNextLabel == null) return@LaunchedEffect
+        while (true) {
+            if (hasReachedReady && !isLiveBroadcast) {
+                val dur = player.duration
+                val pos = player.currentPosition
+                if (dur > 0 && pos > 0 && dur - pos <= 15000L) {
+                    val remaining = ((dur - pos) / 1000).toInt().coerceAtLeast(0)
+                    if (bingeCountdown != remaining) {
+                        bingeCountdown = remaining
+                    }
+                    if (remaining == 0) {
+                        onBingeNext?.invoke()
+                        break // Wait for recomposition to change the stream
+                    }
+                } else if (bingeCountdown != null) {
+                    bingeCountdown = null
+                }
+            }
+            delay(500)
+        }
+    }
+
     val videoContent: @Composable () -> Unit = {
             Box(
                 Modifier
@@ -617,7 +648,7 @@ fun ExoLivePlayer(
                         val nextBtn = view.findViewById<android.view.View>(com.enigma.tv.R.id.btn_enigma_next)
                         
                         // Thumbnail scrubber
-                        val timeBar = view.findViewById<androidx.media3.ui.TimeBar>(androidx.media3.ui.R.id.exo_progress)
+                        val timeBar = view.findViewById<androidx.media3.ui.DefaultTimeBar>(androidx.media3.ui.R.id.exo_progress)
                         timeBar?.addListener(object : androidx.media3.ui.TimeBar.OnScrubListener {
                             override fun onScrubStart(tb: androidx.media3.ui.TimeBar, position: Long) {
                                 scrubPositionMs = position
@@ -683,7 +714,7 @@ fun ExoLivePlayer(
                                     .width(with(androidx.compose.ui.platform.LocalDensity.current) { thumb.w.toDp() })
                                     .height(with(androidx.compose.ui.platform.LocalDensity.current) { thumb.h.toDp() })
                                     .border(2.dp, Color.White, RoundedCornerShape(4.dp))
-                                    .androidx.compose.ui.draw.clip(RoundedCornerShape(4.dp))
+                                    .clip(RoundedCornerShape(4.dp))
                             ) {
                                 androidx.compose.foundation.Image(
                                     painter = coil.compose.rememberAsyncImagePainter(
@@ -696,11 +727,51 @@ fun ExoLivePlayer(
                                     contentDescription = "Preview",
                                     contentScale = androidx.compose.ui.layout.ContentScale.None,
                                     alignment = Alignment.TopStart,
-                                    modifier = Modifier.androidx.compose.foundation.layout.offset(
+                                    modifier = Modifier.offset(
                                         x = with(androidx.compose.ui.platform.LocalDensity.current) { (-thumb.x).toDp() },
                                         y = with(androidx.compose.ui.platform.LocalDensity.current) { (-thumb.y).toDp() }
                                     )
                                 )
+                            }
+                        }
+                    }
+                }
+                
+                // Binge Countdown Overlay
+                if (bingeCountdown != null && bingeNextLabel != null) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(bottom = 120.dp, end = 60.dp),
+                        contentAlignment = Alignment.BottomEnd
+                    ) {
+                        var bingeFocused by remember { mutableStateOf(false) }
+                        Row(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(12.dp))
+                                .background(if (bingeFocused) Color.White.copy(alpha = 0.2f) else Color.Black.copy(alpha = 0.8f))
+                                .border(2.dp, if (bingeFocused) Color.White else Color.Transparent, RoundedCornerShape(12.dp))
+                                .clickable {
+                                    bingeCountdown = null
+                                    onBingeNext?.invoke() 
+                                }
+                                .onFocusChanged { bingeFocused = it.isFocused }
+                                .padding(16.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(16.dp)
+                        ) {
+                            Column {
+                                Text("Up Next", color = Color.White.copy(alpha = 0.7f), fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                                Text(bingeNextLabel!!, color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                            }
+                            Box(contentAlignment = Alignment.Center, modifier = Modifier.size(40.dp)) {
+                                androidx.compose.material3.CircularProgressIndicator(
+                                    progress = { bingeCountdown!!.toFloat() / 15f },
+                                    color = EnigmaPink,
+                                    trackColor = Color.White.copy(alpha = 0.2f),
+                                    strokeWidth = 3.dp
+                                )
+                                Text(bingeCountdown.toString(), color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Bold)
                             }
                         }
                     }

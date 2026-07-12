@@ -9,6 +9,9 @@ import com.google.gson.reflect.TypeToken
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
+import androidx.work.OneTimeWorkRequestBuilder
+import androidx.work.WorkManager
+import androidx.work.ExistingWorkPolicy
 
 private val Context.dataStore by preferencesDataStore("enigma_tv_prefs")
 
@@ -18,6 +21,13 @@ class ContinueWatchingStore(private val context: Context) {
     private val legacyCinetvKey = stringPreferencesKey("cinetv_cw")
 
     private fun key(profileId: String) = stringPreferencesKey("continue_$profileId")
+    
+    private fun triggerTvSync(profileId: String) {
+        if (profileId == ProfileScopedPrefs.DEFAULT_PROFILE_ID) {
+            val req = OneTimeWorkRequestBuilder<TvLauncherSyncWorker>().build()
+            WorkManager.getInstance(context).enqueueUniqueWork("tv_launcher_sync", ExistingWorkPolicy.REPLACE, req)
+        }
+    }
 
     fun watch(profileId: String): Flow<List<ContinueWatchingEntry>> = context.dataStore.data.map { prefs ->
         readList(jsonForProfile(prefs, profileId))
@@ -41,6 +51,7 @@ class ContinueWatchingStore(private val context: Context) {
         context.dataStore.edit { prefs ->
             prefs[key(profileId)] = gson.toJson(items.take(12))
         }
+        triggerTvSync(profileId)
     }
 
     suspend fun addOrUpdate(profileId: String, entry: ContinueWatchingEntry) {
@@ -52,6 +63,7 @@ class ContinueWatchingStore(private val context: Context) {
             }).take(12)
             prefs[key(profileId)] = gson.toJson(updated)
         }
+        triggerTvSync(profileId)
     }
 
     suspend fun updateProgress(profileId: String, id: Int, type: ContentType, season: Int, episode: Int, progressPercent: Int = 0) {
@@ -68,6 +80,7 @@ class ContinueWatchingStore(private val context: Context) {
                 prefs[key(profileId)] = gson.toJson(current)
             }
         }
+        triggerTvSync(profileId)
     }
 
     suspend fun removeEntry(profileId: String, id: Int, type: ContentType) {
@@ -76,6 +89,7 @@ class ContinueWatchingStore(private val context: Context) {
             val updated = current.filter { it.id != id || it.type != type }
             prefs[key(profileId)] = gson.toJson(updated)
         }
+        triggerTvSync(profileId)
     }
 
     private fun readList(json: String?): List<ContinueWatchingEntry> {

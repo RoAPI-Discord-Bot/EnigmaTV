@@ -13,8 +13,8 @@ android {
         applicationId = "com.enigmatv"
         minSdk = 26
         targetSdk = 35
-        versionCode = 22029
-        versionName = "2.20.29"
+        versionCode = 30000
+        versionName = "3.0.0"
     }
 
     signingConfigs {
@@ -83,7 +83,11 @@ dependencies {
 
     implementation(platform("com.google.firebase:firebase-bom:33.7.0"))
     implementation("com.google.firebase:firebase-auth-ktx")
-    implementation("com.google.firebase:firebase-database-ktx")
+    implementation("com.google.firebase:firebase-database")
+
+    implementation("androidx.palette:palette-ktx:1.0.0")
+    implementation("androidx.work:work-runtime-ktx:2.9.1")
+    implementation("androidx.tvprovider:tvprovider:1.0.0")
 
     debugImplementation("androidx.compose.ui:ui-tooling")
 }

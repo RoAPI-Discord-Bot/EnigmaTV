@@ -72,6 +72,9 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.foundation.lazy.items
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.material.icons.filled.Download
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
@@ -168,6 +171,9 @@ fun EnigmaShell(viewModel: EnigmaViewModel = viewModel()) {
             else -> showExitDialog = true
         }
     }
+
+    var showPlaylistPicker by remember { mutableStateOf(false) }
+    val context = LocalContext.current
 
     // Exit confirmation dialog
     if (showExitDialog) {
@@ -326,6 +332,7 @@ fun EnigmaShell(viewModel: EnigmaViewModel = viewModel()) {
                             NavSection.FAVORITES -> FavoritesContent(state, viewModel, layout)
                             NavSection.CONTINUE -> ContinueContent(state, viewModel, layout)
                             NavSection.LISTS -> ListsContent(state, viewModel, layout)
+                            NavSection.DOWNLOADS -> DownloadsContent(state, viewModel, layout)
                             NavSection.PROFILE -> ProfileScreen(
                                 isLoggedIn = state.isLoggedIn,
                                 email = state.userEmail,
@@ -465,11 +472,44 @@ fun EnigmaShell(viewModel: EnigmaViewModel = viewModel()) {
                 },
                 onToggleFavorite = { viewModel.toggleDetailFavorite() },
                 onSeasonChange = { viewModel.detailSeasonChange(it) },
-                onEpisodeSelect = { viewModel.detailEpisodeSelect(it) }
+                onEpisodeSelect = { viewModel.detailEpisodeSelect(it) },
+                onDownload = { viewModel.downloadDetailItem(context) },
+                onAddToPlaylist = { showPlaylistPicker = true },
+                onAccentColorExtracted = { viewModel.setPlayerAccentColor(it) }
             )
         }
 
         EnigmaPlayerOverlay(state = state, viewModel = viewModel, layout = layout)
+    }
+
+    if (showPlaylistPicker && state.detail != null) {
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = { showPlaylistPicker = false },
+            title = { Text("Add to Playlist") },
+            text = {
+                LazyColumn {
+                    items(state.playlists) { playlist ->
+                        TextButton(
+                            onClick = {
+                                val item = FavoriteItem(
+                                    id = state.detail!!.id,
+                                    type = state.detail!!.type,
+                                    title = state.detail!!.title,
+                                    poster = state.detail!!.posterUrl ?: "",
+                                    year = state.detail!!.releaseLabel?.take(4) ?: ""
+                                )
+                                viewModel.addToPlaylist(playlist.id, item)
+                                showPlaylistPicker = false
+                            },
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text(playlist.name, color = TextPrimary)
+                        }
+                    }
+                }
+            },
+            confirmButton = { TextButton(onClick = { showPlaylistPicker = false }) { Text("Close") } }
+        )
     }
 }
 
@@ -483,7 +523,8 @@ private fun EnigmaPlayerOverlay(
 
     androidx.activity.compose.BackHandler { viewModel.closePlayer() }
 
-    val accent = if (state.playerAccentMovie) MovieAccent else TvAccent
+    val defaultAccent = if (state.playerAccentMovie) MovieAccent else TvAccent
+    val accent = state.playerAccentColor?.let { androidx.compose.ui.graphics.Color(it) } ?: defaultAccent
     val tvControls = if (
         state.playingType == ContentType.TV &&
         state.seasons.isNotEmpty()
@@ -518,6 +559,9 @@ private fun EnigmaPlayerOverlay(
             streamFailed = state.playerStreamFailed,
             streamLoading = state.playerLoading && !state.playerStreamFailed,
             streamLoadingMessage = state.playerLoadingMessage,
+            bingeNextLabel = viewModel.getBingeNextLabel(),
+            onBingeNext = { viewModel.playBingeNext() },
+            isNativePlayerActive = isNativePlayerActive || state.playerHls,
             isLiveBroadcast = state.playerLiveTv,
             liveWaitingMessage = state.playerLiveHint,
             streamPlaying = state.playerStreamPlaying,
@@ -525,8 +569,7 @@ private fun EnigmaPlayerOverlay(
             onPrevEpisode = { viewModel.playAdjacentEpisode(forward = false) },
             onNextEpisode = { viewModel.playAdjacentEpisode(forward = true) },
             hasPrevEpisode = viewModel.hasAdjacentEpisode(forward = false),
-            hasNextEpisode = viewModel.hasAdjacentEpisode(forward = true),
-            isNativePlayerActive = isNativePlayerActive || state.playerHls
+            hasNextEpisode = viewModel.hasAdjacentEpisode(forward = true)
         ) { dispatcher ->
             when {
                 state.playerHls -> ExoLivePlayer(
@@ -565,6 +608,8 @@ private fun EnigmaPlayerOverlay(
                         onNativePlayerActive = { isNativePlayerActive = it },
                         startPositionMs = state.playbackPositionMs,
                         tvControls = tvControls,
+                        bingeNextLabel = viewModel.getBingeNextLabel(),
+                        onBingeNext = { viewModel.playBingeNext() },
                         resolveToken = state.playerResolveToken,
                         tmdbId = state.currentMovieId ?: state.currentShowId,
                         playingType = state.playingType,
@@ -695,6 +740,7 @@ private fun EnigmaDrawerContent(
         DrawerEntry(Icons.Default.Favorite, NavSection.FAVORITES, current, isExpanded, onSelect, onAnyItemFocused)
         DrawerEntry(Icons.Default.PlayCircle, NavSection.CONTINUE, current, isExpanded, onSelect, onAnyItemFocused)
         DrawerEntry(Icons.Default.PlaylistPlay, NavSection.LISTS, current, isExpanded, onSelect, onAnyItemFocused)
+        DrawerEntry(androidx.compose.material.icons.Icons.Default.Download, NavSection.DOWNLOADS, current, isExpanded, onSelect, onAnyItemFocused)
         DrawerEntry(Icons.Default.Person, NavSection.PROFILE, current, isExpanded, onSelect, onAnyItemFocused)
         Spacer(Modifier.weight(1f))
         NavigationDrawerItem(
@@ -1205,26 +1251,43 @@ private fun ListsContent(state: EnigmaUiState, vm: EnigmaViewModel, layout: Scre
                 }
             }
         } else {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                var backFocused by remember { mutableStateOf(false) }
-                IconButton(
-                    onClick = { vm.selectPlaylist(null) },
-                    modifier = Modifier
-                        .onFocusChanged { backFocused = it.isFocused }
-                        .then(if (backFocused) Modifier.border(2.dp, Color.White, CircleShape) else Modifier)
-                ) {
-                    Icon(Icons.Default.ArrowBack, contentDescription = "Back", tint = TextPrimary)
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween, modifier = Modifier.fillMaxWidth()) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    var backFocused by remember { mutableStateOf(false) }
+                    IconButton(
+                        onClick = { vm.selectPlaylist(null) },
+                        modifier = Modifier
+                            .onFocusChanged { backFocused = it.isFocused }
+                            .then(if (backFocused) Modifier.border(2.dp, Color.White, CircleShape) else Modifier)
+                    ) {
+                        Icon(Icons.Default.ArrowBack, contentDescription = "Back", tint = TextPrimary)
+                    }
+                    Text(selected.name, color = TextPrimary, fontSize = 18.sp, fontWeight = FontWeight.Bold)
                 }
-                Text(selected.name, color = TextPrimary, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                if (selected.items.isNotEmpty()) {
+                    var playFocused by remember { mutableStateOf(false) }
+                    Button(
+                        onClick = { vm.playPlaylistFrom(selected.id, 0) },
+                        modifier = Modifier
+                            .onFocusChanged { playFocused = it.isFocused }
+                            .then(if (playFocused) Modifier.border(2.dp, Color.White, RoundedCornerShape(24.dp)) else Modifier),
+                        colors = ButtonDefaults.buttonColors(containerColor = EnigmaPink),
+                        shape = RoundedCornerShape(24.dp)
+                    ) {
+                        Icon(Icons.Default.PlayCircle, contentDescription = null, modifier = Modifier.size(18.dp))
+                        Spacer(Modifier.width(6.dp))
+                        Text("Play All")
+                    }
+                }
             }
             Spacer(Modifier.height(12.dp))
             if (selected.items.isEmpty()) {
                 Text("This list is empty.", color = TextSecondary, modifier = Modifier.padding(8.dp))
             } else {
                 if (isTv) {
-                    TvPosterRow { selected.items.forEach { FavoritePosterCard(it, vm, cardW) } }
+                    TvPosterRow { selected.items.forEachIndexed { idx, item -> PlaylistItemCard(item, selected.id, idx, vm, cardW) } }
                 } else {
-                    PosterRow { selected.items.forEach { FavoritePosterCard(it, vm, cardW) } }
+                    PosterRow { selected.items.forEachIndexed { idx, item -> PlaylistItemCard(item, selected.id, idx, vm, cardW) } }
                 }
             }
         }
@@ -1351,6 +1414,54 @@ private fun FavoritePosterCard(item: FavoriteItem, vm: EnigmaViewModel, cardW: I
 }
 
 @Composable
+private fun PlaylistItemCard(item: FavoriteItem, playlistId: String, index: Int, vm: EnigmaViewModel, cardW: Int) {
+    val state by vm.state.collectAsState()
+    val accent = if (item.type == ContentType.MOVIE) MovieAccent else TvAccent
+    var showMenu by remember { mutableStateOf(false) }
+
+    Box {
+        PosterCard(
+            title = "${item.title} (${item.year})",
+            posterUrl = item.poster.ifBlank { null },
+            accent = accent,
+            badge = if (item.type == ContentType.MOVIE) "MOVIE" else "TV",
+            cardWidthDp = cardW,
+            onClick = { vm.playPlaylistFrom(playlistId, index) },
+            onLongClickPlay = { showMenu = true }
+        )
+        // Position badge
+        Box(
+            modifier = Modifier
+                .align(Alignment.TopStart)
+                .padding(6.dp)
+                .background(Color.Black.copy(alpha = 0.7f), RoundedCornerShape(4.dp))
+                .padding(horizontal = 6.dp, vertical = 2.dp)
+        ) {
+            Text("${index + 1}", color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+        }
+        if (showMenu) {
+            Box(
+                Modifier
+                    .matchParentSize()
+                    .background(Color.Black.copy(alpha = 0.75f), RoundedCornerShape(12.dp))
+                    .clickable { showMenu = false },
+                contentAlignment = Alignment.Center
+            ) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    IconButton(onClick = {
+                        showMenu = false
+                        vm.removeFromPlaylist(playlistId, item)
+                    }) {
+                        Icon(Icons.Default.Delete, contentDescription = "Remove from list", tint = EnigmaPink, modifier = Modifier.size(28.dp))
+                    }
+                    Text("Remove", color = EnigmaPink, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                }
+            }
+        }
+    }
+}
+
+@Composable
 private fun ErrorPanel(
     message: String,
     onDismiss: () -> Unit,
@@ -1391,5 +1502,140 @@ private fun ErrorPanel(
                 Text("Dismiss")
             }
         }
+    }
+}
+
+@androidx.annotation.OptIn(androidx.media3.common.util.UnstableApi::class)
+@Composable
+private fun DownloadsContent(state: EnigmaUiState, vm: EnigmaViewModel, layout: ScreenLayout) {
+    val context = LocalContext.current
+    var downloads by remember { mutableStateOf<List<androidx.media3.exoplayer.offline.Download>>(emptyList()) }
+    var totalBytes by remember { mutableStateOf(0L) }
+
+    LaunchedEffect(Unit) {
+        while (true) {
+            downloads = vm.getDownloads(context)
+            totalBytes = downloads.sumOf { it.bytesDownloaded }
+            kotlinx.coroutines.delay(2000)
+        }
+    }
+
+    val maxBytes = 10L * 1024 * 1024 * 1024
+    val usedGb = totalBytes / (1024f * 1024f * 1024f)
+    val maxGb = 10f
+    val usageFraction = (totalBytes.toFloat() / maxBytes.toFloat()).coerceIn(0f, 1f)
+    val usageColor = if (usageFraction > 0.85f) Color(0xFFFF5252) else EnigmaPink
+
+    val content = @Composable {
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text("Downloads", color = TextPrimary, fontSize = 20.sp, fontWeight = FontWeight.Bold)
+            Text(
+                "${"%.1f".format(usedGb)} / ${maxGb.toInt()} GB used",
+                color = usageColor,
+                fontSize = 13.sp,
+                fontWeight = FontWeight.Medium
+            )
+        }
+
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(6.dp)
+                .clip(RoundedCornerShape(3.dp))
+                .background(Color.White.copy(alpha = 0.1f))
+        ) {
+            Box(
+                modifier = Modifier
+                    .fillMaxHeight()
+                    .fillMaxWidth(usageFraction)
+                    .background(usageColor, RoundedCornerShape(3.dp))
+            )
+        }
+        Spacer(Modifier.height(24.dp))
+
+        if (downloads.isEmpty()) {
+            Text(
+                "No downloads yet. When streams are available, use the download icon on any title to save for offline viewing.",
+                color = TextSecondary,
+                modifier = Modifier.padding(8.dp)
+            )
+        } else {
+            downloads.forEach { dl ->
+                val progressPct = if (dl.contentLength > 0) (dl.bytesDownloaded * 100 / dl.contentLength).toInt() else -1
+                val statusLabel = when (dl.state) {
+                    androidx.media3.exoplayer.offline.Download.STATE_DOWNLOADING -> if (progressPct >= 0) "$progressPct%" else "Downloading..."
+                    androidx.media3.exoplayer.offline.Download.STATE_COMPLETED -> "Ready"
+                    androidx.media3.exoplayer.offline.Download.STATE_FAILED -> "Failed"
+                    androidx.media3.exoplayer.offline.Download.STATE_REMOVING -> "Removing..."
+                    else -> "Queued"
+                }
+                val statusColor = when (dl.state) {
+                    androidx.media3.exoplayer.offline.Download.STATE_COMPLETED -> Color(0xFF4CAF50)
+                    androidx.media3.exoplayer.offline.Download.STATE_FAILED -> Color(0xFFFF5252)
+                    else -> EnigmaPink
+                }
+                var itemFocused by remember { mutableStateOf(false) }
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(if (itemFocused) EnigmaPurple.copy(alpha = 0.5f) else Color.White.copy(alpha = 0.06f))
+                        .onFocusChanged { itemFocused = it.isFocused }
+                        .then(if (itemFocused) Modifier.border(2.dp, Color.White, RoundedCornerShape(8.dp)) else Modifier)
+                        .padding(16.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            dl.request.id,
+                            color = if (itemFocused) Color.White else TextPrimary,
+                            fontWeight = FontWeight.SemiBold,
+                            maxLines = 1,
+                            overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                        )
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Text(statusLabel, color = statusColor, fontSize = 12.sp)
+                            val sizeMb = dl.bytesDownloaded / (1024f * 1024f)
+                            if (sizeMb > 0.1f) {
+                                Text("${"%.0f".format(sizeMb)} MB", color = TextSecondary, fontSize = 12.sp)
+                            }
+                        }
+                        if (dl.state == androidx.media3.exoplayer.offline.Download.STATE_DOWNLOADING && progressPct >= 0) {
+                            Spacer(Modifier.height(4.dp))
+                            androidx.compose.material3.LinearProgressIndicator(
+                                progress = { progressPct / 100f },
+                                modifier = Modifier.fillMaxWidth(),
+                                color = EnigmaPink,
+                                trackColor = Color.White.copy(alpha = 0.1f)
+                            )
+                        }
+                    }
+                    var deleteFocused by remember { mutableStateOf(false) }
+                    IconButton(
+                        onClick = { vm.removeDownload(context, dl.request.id) },
+                        modifier = Modifier
+                            .onFocusChanged { deleteFocused = it.isFocused }
+                            .then(if (deleteFocused) Modifier.border(2.dp, Color.White, CircleShape) else Modifier)
+                    ) {
+                        Icon(Icons.Default.Delete, contentDescription = "Remove download", tint = if (deleteFocused) Color.White else Color(0xFFFF5252))
+                    }
+                }
+                Spacer(Modifier.height(8.dp))
+            }
+        }
+    }
+
+    if (layout.usePermanentDrawer()) {
+        LazyColumn(
+            contentPadding = PaddingValues(horizontal = layout.contentPaddingDp().dp, vertical = 24.dp),
+            modifier = Modifier.fillMaxSize()
+        ) { item { content() } }
+    } else {
+        ScrollableContent(padding = PaddingValues(layout.contentPaddingDp().dp)) { content() }
     }
 }

@@ -84,17 +84,19 @@ fun PlayerFullscreenHost(
     onNextSource: (() -> Unit)? = null,
     showNextSource: Boolean = false,
     streamFailed: Boolean = false,
-    streamLoading: Boolean = false,
-    streamLoadingMessage: String? = null,
-    streamPlaying: Boolean = false,
+    streamLoading: Boolean,
+    streamLoadingMessage: String?,
+    bingeNextLabel: String? = null,
+    onBingeNext: (() -> Unit)? = null,
+    isNativePlayerActive: Boolean = false,
     isLiveBroadcast: Boolean = false,
     liveWaitingMessage: String? = null,
+    streamPlaying: Boolean = false,
     tvControls: TvPlayerControls? = null,
     onPrevEpisode: (() -> Unit)? = null,
     onNextEpisode: (() -> Unit)? = null,
     hasPrevEpisode: Boolean = false,
     hasNextEpisode: Boolean = false,
-    isNativePlayerActive: Boolean = false,
     content: @Composable (PlayerActionDispatcher) -> Unit
 ) {
     // Chrome starts HIDDEN — only show on user interaction

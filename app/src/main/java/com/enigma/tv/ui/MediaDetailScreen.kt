@@ -40,6 +40,7 @@ import androidx.compose.material.icons.filled.Group
 import androidx.compose.material.icons.filled.GroupAdd
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.PlayCircle
+import androidx.compose.material.icons.filled.PlaylistAdd
 import androidx.compose.material.icons.outlined.FavoriteBorder
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -98,7 +99,10 @@ fun MediaDetailOverlay(
     onRemoveFromHistory: () -> Unit,
     onToggleFavorite: () -> Unit,
     onSeasonChange: (Int) -> Unit,
-    onEpisodeSelect: (Int) -> Unit
+    onEpisodeSelect: (Int) -> Unit,
+    onDownload: () -> Unit,
+    onAddToPlaylist: () -> Unit,
+    onAccentColorExtracted: ((Int) -> Unit)? = null
 ) {
     val context = LocalContext.current
 
@@ -132,7 +136,10 @@ fun MediaDetailOverlay(
                             runCatching {
                                 context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
                             }
-                        }
+                        },
+                        onDownload = onDownload,
+                        onAddToPlaylist = onAddToPlaylist,
+                        onAccentColorExtracted = onAccentColorExtracted
                     )
                 } else {
                     MobileDetailContent(
@@ -148,7 +155,10 @@ fun MediaDetailOverlay(
                             runCatching {
                                 context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
                             }
-                        }
+                        },
+                        onDownload = onDownload,
+                        onAddToPlaylist = onAddToPlaylist,
+                        onAccentColorExtracted = onAccentColorExtracted
                     )
                 }
             }
@@ -170,9 +180,13 @@ private fun TvDetailContent(
     onToggleFavorite: () -> Unit,
     onSeasonChange: (Int) -> Unit,
     onEpisodeSelect: (Int) -> Unit,
-    onPlayTrailer: (String) -> Unit
+    onPlayTrailer: (String) -> Unit,
+    onDownload: () -> Unit,
+    onAddToPlaylist: () -> Unit,
+    onAccentColorExtracted: ((Int) -> Unit)? = null
 ) {
-    val accent = if (detail.type == ContentType.MOVIE) MovieAccent else TvAccent
+    var dynamicAccent by remember { mutableStateOf<Color?>(null) }
+    val accent = dynamicAccent ?: if (detail.type == ContentType.MOVIE) MovieAccent else TvAccent
     val playFocusRequester = remember { FocusRequester() }
 
     // Auto-focus the Play button when the screen opens
@@ -184,11 +198,28 @@ private fun TvDetailContent(
     Box(Modifier.fillMaxSize().background(Color.Black)) {
         // Full-bleed backdrop
         if (detail.backdropUrl != null) {
+            val context = LocalContext.current
             AsyncImage(
-                model = detail.backdropUrl,
+                model = coil.request.ImageRequest.Builder(context)
+                    .data(detail.backdropUrl)
+                    .allowHardware(false)
+                    .crossfade(true)
+                    .build(),
                 contentDescription = null,
                 modifier = Modifier.fillMaxSize().alpha(0.75f),
-                contentScale = ContentScale.Crop
+                contentScale = ContentScale.Crop,
+                onSuccess = { state ->
+                    val drawable = state.result.drawable
+                    if (drawable is android.graphics.drawable.BitmapDrawable) {
+                        androidx.palette.graphics.Palette.from(drawable.bitmap).generate { palette ->
+                            val swatch = palette?.vibrantSwatch ?: palette?.mutedSwatch ?: palette?.dominantSwatch
+                            swatch?.rgb?.let { rgb ->
+                                dynamicAccent = Color(rgb)
+                                onAccentColorExtracted?.invoke(rgb)
+                            }
+                        }
+                    }
+                }
             )
             Box(
                 Modifier
@@ -424,6 +455,47 @@ private fun TvDetailContent(
                                 Spacer(Modifier.height(4.dp))
                                 Text("Party", color = TextPrimary, fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
                             }
+                            
+                            // Playlist Button
+                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                var playlistFocused by remember { mutableStateOf(false) }
+                                IconButton(
+                                    onClick = onAddToPlaylist,
+                                    modifier = Modifier
+                                        .size(64.dp)
+                                        .onFocusChanged { playlistFocused = it.isFocused }
+                                        .then(
+                                            if (playlistFocused) Modifier.border(3.dp, Color.White, RoundedCornerShape(32.dp))
+                                            else Modifier
+                                        )
+                                        .background(Color.White.copy(alpha = 0.2f), RoundedCornerShape(32.dp))
+                                ) {
+                                    Icon(Icons.Default.PlaylistAdd, contentDescription = "Add to list", tint = Color.White, modifier = Modifier.size(28.dp))
+                                }
+                                Spacer(Modifier.height(4.dp))
+                                Text("Add List", color = TextPrimary, fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
+                            }
+                            
+                            // Download Button
+                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                var downloadFocused by remember { mutableStateOf(false) }
+                                IconButton(
+                                    onClick = onDownload,
+                                    modifier = Modifier
+                                        .size(64.dp)
+                                        .onFocusChanged { downloadFocused = it.isFocused }
+                                        .then(
+                                            if (downloadFocused) Modifier.border(3.dp, Color.White, RoundedCornerShape(32.dp))
+                                            else Modifier
+                                        )
+                                        .background(Color.White.copy(alpha = 0.2f), RoundedCornerShape(32.dp))
+                                ) {
+                                    Icon(Icons.Default.Download, contentDescription = "Download", tint = Color.White, modifier = Modifier.size(28.dp))
+                                }
+                                Spacer(Modifier.height(4.dp))
+                                Text("Download", color = TextPrimary, fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
+                            }
+                            
                             if (partyState.showDialog) {
                                 WatchPartyDialog(
                                     state = partyState,
@@ -521,9 +593,13 @@ private fun MobileDetailContent(
     onToggleFavorite: () -> Unit,
     onSeasonChange: (Int) -> Unit,
     onEpisodeSelect: (Int) -> Unit,
-    onPlayTrailer: (String) -> Unit
+    onPlayTrailer: (String) -> Unit,
+    onDownload: () -> Unit,
+    onAddToPlaylist: () -> Unit,
+    onAccentColorExtracted: ((Int) -> Unit)? = null
 ) {
-    val accent = if (detail.type == ContentType.MOVIE) MovieAccent else TvAccent
+    var dynamicAccent by remember { mutableStateOf<Color?>(null) }
+    val accent = dynamicAccent ?: if (detail.type == ContentType.MOVIE) MovieAccent else TvAccent
     Column(Modifier.fillMaxSize()) {
         Box(Modifier.fillMaxWidth().height(220.dp)) {
             if (detail.backdropUrl != null) {
@@ -707,8 +783,16 @@ private fun MobileDetailContent(
             }
 
             if (detail.isPlayable) {
-                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
                     WatchPartyButton(partyState = partyState, onShowDialog = { partyVm.showDialog() })
+                    
+                    IconButton(onClick = onAddToPlaylist, modifier = Modifier.size(52.dp).background(Color.White.copy(alpha = 0.1f), RoundedCornerShape(10.dp))) {
+                        Icon(Icons.Default.PlaylistAdd, contentDescription = "Add List", tint = Color.White)
+                    }
+                    
+                    IconButton(onClick = onDownload, modifier = Modifier.size(52.dp).background(Color.White.copy(alpha = 0.1f), RoundedCornerShape(10.dp))) {
+                        Icon(Icons.Default.Download, contentDescription = "Download", tint = Color.White)
+                    }
 
                     Button(
                         onClick = onPlay,

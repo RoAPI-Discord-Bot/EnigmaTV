@@ -33,6 +33,8 @@ import com.enigma.tv.data.ViewerProfile
 import com.enigma.tv.data.TmdbRepository
 import com.enigma.tv.data.TvItem
 import com.enigma.tv.data.UserSessionStore
+import com.enigma.tv.EnigmaApplication
+import androidx.media3.exoplayer.offline.Download
 import com.enigma.tv.data.canStream
 import com.enigma.tv.data.comingSoonLabel
 import com.enigma.tv.data.firebase.FirebaseAuthService
@@ -65,6 +67,7 @@ enum class NavSection(val title: String) {
     FAVORITES("Favorites"),
     CONTINUE("Continue Watching"),
     LISTS("My Lists"),
+    DOWNLOADS("Downloads"),
     PROFILE("Account"),
     DEV_TEST("Developer Testing")
 }
@@ -97,6 +100,7 @@ data class EnigmaUiState(
     val playerLogoUrl: String? = null,
     val playerResolveToken: Int = 0,
     val playerAccentMovie: Boolean = true,
+    val playerAccentColor: Int? = null,
     val playerLiveTv: Boolean = false,
     val playerStreamFailed: Boolean = false,
     val playbackPositionMs: Long = 0L,
@@ -1103,16 +1107,14 @@ class EnigmaViewModel(application: Application) : AndroidViewModel(application) 
         _state.update { it.copy(playerStreamFailed = false, playerLoading = true) }
     }
 
-    fun onPlayerPlaybackReady() {
-        _state.update { it.copy(playerLoading = false, playerStreamPlaying = true, playerLoadingMessage = null) }
-    }
 
-    fun onPlayerPageLoading(loading: Boolean) {
-        _state.update { it.copy(playerLoading = loading) }
-    }
 
     fun setPlayerLoadingMessage(message: String?) {
         _state.update { it.copy(playerLoadingMessage = message) }
+    }
+    
+    fun setPlayerAccentColor(colorInt: Int) {
+        _state.update { it.copy(playerAccentColor = colorInt) }
     }
 
     fun playLiveNativeStream(streamUrl: String) {
@@ -1207,6 +1209,102 @@ class EnigmaViewModel(application: Application) : AndroidViewModel(application) 
         }
     }
 
+    fun removeFromPlaylist(playlistId: String, item: FavoriteItem) {
+        viewModelScope.launch {
+            playlistStore.removeItem(activeProfileId(), playlistId, item)
+            syncIfLoggedIn()
+        }
+    }
+
+    fun playPlaylistFrom(playlistId: String, startIndex: Int = 0) {
+        val playlist = _state.value.playlists.find { it.id == playlistId } ?: return
+        if (playlist.items.isEmpty()) return
+        val item = playlist.items.getOrNull(startIndex) ?: return
+        _state.update { it.copy(selectedPlaylistId = playlistId) }
+        playFavorite(item)
+    }
+
+    fun getPlaylistBingeNext(playlistId: String, currentItemId: Int, currentItemType: ContentType): String? {
+        val playlist = _state.value.playlists.find { it.id == playlistId } ?: return null
+        val idx = playlist.items.indexOfFirst { it.id == currentItemId && it.type == currentItemType }
+        val next = playlist.items.getOrNull(idx + 1) ?: return null
+        return next.title
+    }
+
+    // Downloads – 10 GB storage limit
+    private val maxDownloadBytes = 10L * 1024 * 1024 * 1024 // 10 GB
+
+    @androidx.annotation.OptIn(androidx.media3.common.util.UnstableApi::class)
+    fun enqueueDownload(context: android.content.Context, title: String, url: String) {
+        viewModelScope.launch(kotlinx.coroutines.Dispatchers.IO) {
+            val downloads = getDownloads(context)
+            val totalBytes = downloads.sumOf { it.bytesDownloaded }
+            if (totalBytes >= maxDownloadBytes) {
+                _state.update { it.copy(error = "Storage limit reached (10 GB). Delete downloads to free space.") }
+                return@launch
+            }
+            val uri = android.net.Uri.parse(url)
+            val request = androidx.media3.exoplayer.offline.DownloadRequest.Builder(url, uri).build()
+            androidx.media3.exoplayer.offline.DownloadService.sendAddDownload(
+                context,
+                com.enigma.tv.EnigmaDownloadService::class.java,
+                request,
+                false
+            )
+        }
+    }
+
+    fun downloadDetailItem(context: android.content.Context) {
+        val detail = _state.value.detail ?: return
+        val url = if (detail.type == ContentType.MOVIE) {
+            com.enigma.tv.data.StreamSources.movieUrl(_state.value.sourceIndex, detail.id).second
+        } else {
+            com.enigma.tv.data.StreamSources.tvUrl(_state.value.sourceIndex, detail.id, detail.selectedSeason, detail.selectedEpisode).second
+        }
+        
+        viewModelScope.launch {
+            try {
+                _state.update { it.copy(error = "Resolving stream for download...") }
+                val extractor = com.enigma.tv.data.StreamExtractor(context)
+                val result = extractor.extractStreamUrl(url)
+                if (result != null) {
+                    enqueueDownload(context, detail.title, result.url)
+                    _state.update { it.copy(error = "Download started.") }
+                } else {
+                    _state.update { it.copy(error = "Could not resolve stream for download.") }
+                }
+            } catch (e: Exception) {
+                _state.update { it.copy(error = "Failed to start download: ${e.message}") }
+            }
+        }
+    }
+
+    @androidx.annotation.OptIn(androidx.media3.common.util.UnstableApi::class)
+    fun removeDownload(context: android.content.Context, downloadId: String) {
+        androidx.media3.exoplayer.offline.DownloadService.sendRemoveDownload(
+            context,
+            com.enigma.tv.EnigmaDownloadService::class.java,
+            downloadId,
+            false
+        )
+    }
+
+    @androidx.annotation.OptIn(androidx.media3.common.util.UnstableApi::class)
+    fun getDownloads(context: android.content.Context): List<androidx.media3.exoplayer.offline.Download> {
+        val dm = EnigmaApplication.getDownloadManager(context)
+        val list = mutableListOf<androidx.media3.exoplayer.offline.Download>()
+        val cursor = dm.downloadIndex.getDownloads()
+        try {
+            while (cursor.moveToNext()) {
+                list.add(cursor.download)
+            }
+        } catch (e: Exception) {
+        } finally {
+            cursor.close()
+        }
+        return list
+    }
+
     fun selectShow(
         id: Int,
         name: String,
@@ -1282,13 +1380,47 @@ class EnigmaViewModel(application: Application) : AndroidViewModel(application) 
         if (play) playCurrentEpisode()
     }
 
-    fun onSeasonChange(season: Int) {
+    fun getBingeNextLabel(): String? {
+        val st = _state.value
+        if (st.playingType == ContentType.TV) {
+            val currEpIdx = st.episodes.indexOfFirst { it.first == st.selectedEpisode }
+            if (currEpIdx >= 0 && currEpIdx < st.episodes.size - 1) {
+                val nextEp = st.episodes[currEpIdx + 1]
+                return "S${st.selectedSeason}E${nextEp.first} - ${nextEp.second}"
+            } else if (st.seasons.contains(st.selectedSeason + 1)) {
+                return "Season ${st.selectedSeason + 1}"
+            }
+        }
+        // TODO: Playlist support
+        return null
+    }
+
+    fun playBingeNext() {
+        val st = _state.value
+        if (st.playingType == ContentType.TV) {
+            val currEpIdx = st.episodes.indexOfFirst { it.first == st.selectedEpisode }
+            if (currEpIdx >= 0 && currEpIdx < st.episodes.size - 1) {
+                val nextEp = st.episodes[currEpIdx + 1]
+                onEpisodeChange(nextEp.first)
+            } else if (st.seasons.contains(st.selectedSeason + 1)) {
+                viewModelScope.launch {
+                    val newEpisodes = repo.tvSeason(st.currentShowId!!, st.selectedSeason + 1).map { it.episodeNumber to it.name }.sortedBy { it.first }
+                    if (newEpisodes.isNotEmpty()) {
+                        _state.update { it.copy(selectedSeason = st.selectedSeason + 1, episodes = newEpisodes, selectedEpisode = newEpisodes.first().first) }
+                        playCurrentEpisode()
+                    }
+                }
+            }
+        }
+    }
+
+    fun onSeasonChange(seasonNumber: Int) {
         val showId = _state.value.currentShowId ?: return
         val keepEpisode = _state.value.selectedEpisode
         tvNavJob?.cancel()
         tvNavJob = viewModelScope.launch {
             _state.update { it.copy(playerLoading = true) }
-            loadEpisodesInternal(showId, season, keepEpisode, play = true)
+            loadEpisodesInternal(showId, seasonNumber, keepEpisode, play = true)
         }
     }
 
