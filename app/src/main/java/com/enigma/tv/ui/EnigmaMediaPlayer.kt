@@ -80,17 +80,18 @@ fun EnigmaMediaPlayer(
     var resolvingNative by remember(embedUrl, resolveToken) { mutableStateOf(true) }
     var streamFailed by remember(embedUrl, resolveToken) { mutableStateOf(false) }
 
-    // Start in Embed mode immediately — WebView loads while we probe for a native stream
+    // Start resolution immediately — show a loading spinner while we find the best stream.
+    // Once found, seamlessly switch to ExoPlayer. If resolution fails, fall back to WebView.
     LaunchedEffect(embedUrl, resolveToken, activity, tmdbId, playingType) {
         resolvingNative = true
         streamFailed = false
         resolvedStream = null
         mode = MediaPlayMode.Embed
         onNativePlayerActive?.invoke(false)
-        // Drop any loading overlay immediately — WebView renders transparently (like a browser).
-        // The spinner only makes sense for ExoPlayer buffering, not WebView page loads.
-        onLoadingChange(false)
-        // Probe for a native stream in the background while WebView is already visible
+        // Keep the loading spinner visible while we race all sources concurrently.
+        // This prevents the "black screen" gap between WebView rendering and ExoPlayer starting.
+        onLoadingChange(true)
+        // Race all providers concurrently, pick the best result
         resolvedStream = withContext(Dispatchers.IO) {
             StreamPlaybackResolver.resolve(
                 context = context,
@@ -104,13 +105,13 @@ fun EnigmaMediaPlayer(
         }
         resolvingNative = false
         if (resolvedStream != null) {
-            // Seamless upgrade: signal loading so ExoPlayer buffering spinner shows
-            onLoadingChange(true)
+            // Seamless: ExoPlayer takes over, its buffering state controls the spinner
             mode = MediaPlayMode.Native
             onNativePlayerActive?.invoke(true)
         } else {
-            // All API and fallback sources failed.
-            // Do not auto-skip; instead show an error so the user knows this title has no stream.
+            // All sources failed — fall back to WebView player so user still sees something
+            onLoadingChange(false)
+            mode = MediaPlayMode.Embed
             streamFailed = true
         }
     }

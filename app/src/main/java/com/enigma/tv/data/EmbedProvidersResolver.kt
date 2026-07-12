@@ -3,7 +3,7 @@ package com.enigma.tv.data
 import android.app.Activity
 import android.content.Context
 import android.util.Log
-import kotlinx.coroutines.async
+import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeoutOrNull
@@ -11,16 +11,56 @@ import kotlinx.coroutines.withTimeoutOrNull
 private const val TAG = "EmbedResolver"
 
 /**
+ * Scores a resolved stream so we can pick the best one from concurrent races.
+ *
+ * Points:
+ *   +40  HLS  (adaptive, no 403 expiry risk)
+ *   +20  has subtitle track
+ *   +10  VidLink API source (usually faster CDN)
+ *
+ * A higher score = better for the user.
+ */
+private fun ResolvedStream.quality(): Int {
+    var score = 0
+    val lower = url.lowercase()
+    if (lower.contains(".m3u8") || lower.contains("playlist") || lower.contains("/master.")) score += 40
+    if (!subtitleUrl.isNullOrBlank()) score += 20
+    if (provider.contains("vidlink", ignoreCase = true) || provider.contains("api", ignoreCase = true)) score += 10
+    return score
+}
+
+private fun ResolvedStream.isHls(): Boolean {
+    val lower = url.lowercase()
+    return lower.contains(".m3u8") || lower.contains("playlist") || lower.contains("/master.")
+}
+
+private fun ResolvedStream.isExpiredMp4(): Boolean {
+    if (isHls()) return false
+    val tParam = Regex("""[?&]t=(\d+)""").find(url)?.groupValues?.get(1)?.toLongOrNull() ?: return false
+    return System.currentTimeMillis() / 1000L > tParam
+}
+
+/**
  * Resolves a playable stream by:
  *
- *   Round 1 — Race VidLink direct API vs hidden WebView on primary embed URL.
- *             Whichever returns a non-null stream first wins.
+ *  Phase 1 — Fire ALL sources concurrently (VidLink API + ALL WebView sources).
+ *             Collect results for up to [COLLECTION_WINDOW_MS].
+ *             As soon as we get the first HLS stream with a subtitle, we return
+ *             immediately without waiting further (best case ~600ms).
  *
- *   Round 2 — If Round 1 fails (both return null), try ALL remaining embed
- *             sources sequentially via WebView until one works.
- *             This handles newer/obscure content that isn't on VidLink yet.
+ *  Phase 2 — After the collection window, pick the highest-scoring stream from
+ *             whatever came in: HLS beats MP4, subtitle beats none.
+ *
+ *  This eliminates the "pick one provider and cross your fingers" problem.
+ *  Every provider races in parallel and the best result wins.
  */
 object EmbedProvidersResolver {
+
+    /** How long to wait collecting results before picking the best one. */
+    private const val COLLECTION_WINDOW_MS = 5_000L
+
+    /** If a perfect stream (HLS + subtitle) arrives, return immediately after this delay. */
+    private const val EARLY_WIN_DELAY_MS = 300L
 
     suspend fun resolveFromAllProviders(
         context: Context,
@@ -32,13 +72,16 @@ object EmbedProvidersResolver {
         preferredEmbedUrl: String? = null
     ): ResolvedStream? {
         val embedUrls = buildEmbedList(tmdbId, type, season, episode, preferredEmbedUrl)
-        val primaryEmbedUrl = embedUrls.firstOrNull()?.second ?: return null
+        if (embedUrls.isEmpty()) return null
 
         return coroutineScope {
-            val resultsChannel = kotlinx.coroutines.channels.Channel<Pair<String, ResolvedStream?>>(capacity = kotlinx.coroutines.channels.Channel.UNLIMITED)
+            // Unlimited channel — all concurrent results land here
+            val resultsChannel = Channel<Pair<String, ResolvedStream?>>(capacity = Channel.UNLIMITED)
 
-            // ── Round 1: Race VidLink API vs Top 3 WebViews concurrently ──────────────────────────────
-            val apiJob = launch {
+            val allJobs = mutableListOf<kotlinx.coroutines.Job>()
+
+            // ── VidLink direct API (fast JSON, ~400ms) ────────────────────────
+            allJobs += launch {
                 Log.d(TAG, "[$tmdbId] Concurrent/VidLinkAPI: starting")
                 val r = when (type) {
                     ContentType.MOVIE -> VidLinkResolver.resolveMovie(tmdbId)
@@ -48,15 +91,19 @@ object EmbedProvidersResolver {
                 resultsChannel.send("VidLink API" to r)
             }
 
-            val topSources = embedUrls.take(3)
-            val webJobs = topSources.map { (srcName, url) ->
-                launch {
+            // ── All WebView sources concurrently ──────────────────────────────
+            // NOTE: Android can run many WebViews simultaneously but each allocates
+            // a renderer process. We cap at the top N to stay memory-safe on low-end
+            // Fire sticks. Top 5 sources covers all realistic "reliable" providers.
+            val sourcesToRace = embedUrls.take(5)
+            sourcesToRace.forEach { (srcName, url) ->
+                allJobs += launch {
                     if (activity == null) {
                         resultsChannel.send(srcName to null)
                         return@launch
                     }
                     Log.d(TAG, "[$tmdbId] Concurrent/WebView: starting $srcName")
-                    val r = withTimeoutOrNull(8_000) {
+                    val r = withTimeoutOrNull(COLLECTION_WINDOW_MS + 1_000) {
                         StreamExtractor(context).extractStreamUrl(url, activity = activity)
                     }
                     Log.d(TAG, "[$tmdbId] Concurrent/WebView: $srcName ${if (r != null) "got stream" else "null"}")
@@ -64,62 +111,60 @@ object EmbedProvidersResolver {
                 }
             }
 
-            val totalExpected = 1 + topSources.size
-            var bestMp4: ResolvedStream? = null
-            var finalResult: ResolvedStream? = null
+            val totalExpected = 1 + sourcesToRace.size
+            val collected = mutableListOf<Pair<String, ResolvedStream>>()
             var receivedCount = 0
 
+            // Collect results within the time window
+            val deadline = System.currentTimeMillis() + COLLECTION_WINDOW_MS
+
             while (receivedCount < totalExpected) {
-                val (sourceName, stream) = resultsChannel.receive()
+                val remaining = deadline - System.currentTimeMillis()
+                if (remaining <= 0L) break
+
+                val received = withTimeoutOrNull(remaining) { resultsChannel.receive() }
+                    ?: break  // window expired
+
+                val (srcName, stream) = received
                 receivedCount++
 
-                if (stream != null) {
-                    val isHls = stream.url.contains(".m3u8", ignoreCase = true)
-                    if (isHls) {
-                        Log.d(TAG, "[$tmdbId] $sourceName WON (HLS). Cancelling others.")
-                        finalResult = stream
-                        break
-                    } else {
-                        val tParam = Regex("""[?&]t=(\d+)""").find(stream.url)?.groupValues?.get(1)?.toLongOrNull()
-                        val nowSec = System.currentTimeMillis() / 1000L
-                        val isExpired = tParam != null && nowSec > tParam
-                        
-                        if (isExpired) {
-                            Log.w(TAG, "[$tmdbId] $sourceName MP4 is EXPIRED (t=$tParam now=$nowSec) — skipping.")
-                        } else {
-                            Log.d(TAG, "[$tmdbId] $sourceName WON (MP4). Cancelling others for speed.")
-                            finalResult = stream
-                            break
-                        }
+                if (stream != null && !stream.isExpiredMp4()) {
+                    Log.d(TAG, "[$tmdbId] $srcName → score=${stream.quality()} hls=${stream.isHls()} sub=${stream.subtitleUrl != null}")
+                    collected.add(srcName to stream)
+
+                    // Early win: if we have a perfect HLS+subtitle, no need to wait more
+                    val best = collected.maxByOrNull { it.second.quality() }!!.second
+                    if (best.isHls() && best.subtitleUrl != null) {
+                        Log.d(TAG, "[$tmdbId] Early win: HLS+subtitle from ${collected.last().first}")
+                        // Small delay to let any simultaneous subtitle-less result also arrive
+                        kotlinx.coroutines.delay(EARLY_WIN_DELAY_MS)
+                        allJobs.forEach { it.cancel() }
+                        resultsChannel.close()
+                        return@coroutineScope pickBest(tmdbId, collected)
                     }
+                } else if (stream != null) {
+                    Log.w(TAG, "[$tmdbId] $srcName MP4 is EXPIRED — skipping")
                 }
             }
 
-            // Clean up: cancel any unfinished background jobs
-            apiJob.cancel()
-            webJobs.forEach { it.cancel() }
+            // Cancel remaining and close channel
+            allJobs.forEach { it.cancel() }
             resultsChannel.close()
 
-            if (finalResult != null) {
-                return@coroutineScope finalResult
+            if (collected.isNotEmpty()) {
+                return@coroutineScope pickBest(tmdbId, collected)
             }
 
-            if (bestMp4 != null) {
-                Log.d(TAG, "[$tmdbId] All top sources finished without HLS. Falling back to MP4.")
-                return@coroutineScope bestMp4
-            }
-
-            // ── Round 2: Try remaining embed sources sequentially ────────────────────
-            if (activity != null && embedUrls.size > 3) {
-                Log.d(TAG, "[$tmdbId] Top 3 failed — trying ${embedUrls.size - 3} fallback sources")
-
-                for ((srcName, fallbackUrl) in embedUrls.drop(3)) {
+            // ── Fallback: sequential pass through remaining sources ───────────
+            if (activity != null && embedUrls.size > sourcesToRace.size) {
+                Log.d(TAG, "[$tmdbId] No results — trying ${embedUrls.size - sourcesToRace.size} remaining sources")
+                for ((srcName, fallbackUrl) in embedUrls.drop(sourcesToRace.size)) {
                     Log.d(TAG, "[$tmdbId] Fallback: $srcName")
-                    val res = withTimeoutOrNull(12_000) {
+                    val res = withTimeoutOrNull(10_000) {
                         StreamExtractor(context).extractStreamUrl(fallbackUrl, activity = activity)
                     }
-                    if (res != null) {
-                        Log.d(TAG, "[$tmdbId] Fallback $srcName: SUCCESS")
+                    if (res != null && !res.isExpiredMp4()) {
+                        Log.d(TAG, "[$tmdbId] Fallback $srcName: SUCCESS score=${res.quality()}")
                         return@coroutineScope res
                     }
                     Log.d(TAG, "[$tmdbId] Fallback $srcName: failed")
@@ -131,6 +176,12 @@ object EmbedProvidersResolver {
         }
     }
 
+    private fun pickBest(tmdbId: Int, results: List<Pair<String, ResolvedStream>>): ResolvedStream {
+        val best = results.maxByOrNull { it.second.quality() }!!
+        Log.d(TAG, "[$tmdbId] WINNER: ${best.first} score=${best.second.quality()} hls=${best.second.isHls()} sub=${best.second.subtitleUrl != null}")
+        return best.second
+    }
+
     private fun buildEmbedList(
         tmdbId: Int,
         type: ContentType,
@@ -138,7 +189,6 @@ object EmbedProvidersResolver {
         episode: Int,
         preferredEmbedUrl: String?
     ): List<Pair<String, String>> {
-        // Deduplicate by URL value — avoids racing the same dead site twice
         val seenUrls = mutableSetOf<String>()
         val list = mutableListOf<Pair<String, String>>()
         fun addIfNew(name: String, url: String) {
