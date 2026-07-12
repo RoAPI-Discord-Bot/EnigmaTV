@@ -56,10 +56,28 @@ class DevTestViewModel : ViewModel() {
         
         _state.update { it.copy(isRunning = true) }
         
-        val testsToRun = _state.value.tests.map { it.copy(status = TestStatus.IDLE, durationMs = 0, error = null) }
-        _state.update { it.copy(tests = testsToRun) }
-
+        val repo = com.enigma.tv.data.StreamedRepository()
+        
         viewModelScope.launch {
+            val liveMatches = try {
+                repo.loadEvents().filter { it.sources.isNotEmpty() }.take(2)
+            } catch (e: Exception) {
+                emptyList()
+            }
+            
+            val liveTestCases = liveMatches.mapIndexedNotNull { index, match ->
+                val source = match.sources.firstOrNull() ?: return@mapIndexedNotNull null
+                val streams = try { repo.fetchStreams(source.source, source.id) } catch (e: Exception) { emptyList() }
+                val embedUrl = streams.firstOrNull()?.embedUrl ?: return@mapIndexedNotNull null
+                TestCase("live_game_$index", "Live Game: ${match.title}", DevTestType.LIVE_TV, embedUrl = embedUrl)
+            }
+            
+            // Rebuild the tests list with the dynamic live games
+            val baseTests = _state.value.tests.filter { !it.name.startsWith("Live Game:") }
+            val testsToRun = (baseTests + liveTestCases).map { it.copy(status = TestStatus.IDLE, durationMs = 0, error = null) }
+            
+            _state.update { it.copy(tests = testsToRun) }
+
             val jobs = testsToRun.map { test ->
                 launch {
                     updateTestStatus(test.id, TestStatus.RUNNING)
