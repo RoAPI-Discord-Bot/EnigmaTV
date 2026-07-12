@@ -56,7 +56,7 @@ object EmbedProvidersResolver {
                         return@launch
                     }
                     Log.d(TAG, "[$tmdbId] Concurrent/WebView: starting $srcName")
-                    val r = withTimeoutOrNull(15_000) {
+                    val r = withTimeoutOrNull(8_000) {
                         StreamExtractor(context).extractStreamUrl(url, activity = activity)
                     }
                     Log.d(TAG, "[$tmdbId] Concurrent/WebView: $srcName ${if (r != null) "got stream" else "null"}")
@@ -80,9 +80,17 @@ object EmbedProvidersResolver {
                         finalResult = stream
                         break
                     } else {
-                        Log.d(TAG, "[$tmdbId] $sourceName WON (MP4). Cancelling others for speed.")
-                        finalResult = stream
-                        break
+                        val tParam = Regex("""[?&]t=(\d+)""").find(stream.url)?.groupValues?.get(1)?.toLongOrNull()
+                        val nowSec = System.currentTimeMillis() / 1000L
+                        val isExpired = tParam != null && nowSec > tParam
+                        
+                        if (isExpired) {
+                            Log.w(TAG, "[$tmdbId] $sourceName MP4 is EXPIRED (t=$tParam now=$nowSec) — skipping.")
+                        } else {
+                            Log.d(TAG, "[$tmdbId] $sourceName WON (MP4). Cancelling others for speed.")
+                            finalResult = stream
+                            break
+                        }
                     }
                 }
             }
