@@ -13,8 +13,8 @@ android {
         applicationId = "com.enigmatv"
         minSdk = 26
         targetSdk = 35
-        versionCode = 2222
-        versionName = "2.20.22"
+        versionCode = 2223
+        versionName = "2.20.23"
     }
 
     signingConfigs {

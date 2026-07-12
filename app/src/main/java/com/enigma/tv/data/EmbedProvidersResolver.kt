@@ -80,8 +80,9 @@ object EmbedProvidersResolver {
                         finalResult = stream
                         break
                     } else {
-                        Log.d(TAG, "[$tmdbId] $sourceName returned MP4. Saving as fallback.")
-                        if (bestMp4 == null) bestMp4 = stream
+                        Log.d(TAG, "[$tmdbId] $sourceName WON (MP4). Cancelling others for speed.")
+                        finalResult = stream
+                        break
                     }
                 }
             }
