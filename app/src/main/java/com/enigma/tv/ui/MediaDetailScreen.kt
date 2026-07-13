@@ -23,6 +23,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
@@ -783,34 +784,40 @@ private fun MobileDetailContent(
             }
 
             if (detail.isPlayable) {
-                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                Row(
+                    modifier = Modifier.fillMaxWidth().wrapContentHeight(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
                     WatchPartyButton(partyState = partyState, onShowDialog = { partyVm.showDialog() })
-                    
+
                     IconButton(onClick = onAddToPlaylist, modifier = Modifier.size(52.dp).background(Color.White.copy(alpha = 0.1f), RoundedCornerShape(10.dp))) {
                         Icon(Icons.Default.PlaylistAdd, contentDescription = "Add List", tint = Color.White)
                     }
-                    
+
                     IconButton(onClick = onDownload, modifier = Modifier.size(52.dp).background(Color.White.copy(alpha = 0.1f), RoundedCornerShape(10.dp))) {
                         Icon(Icons.Default.Download, contentDescription = "Download", tint = Color.White)
                     }
 
                     Button(
                         onClick = onPlay,
-                        modifier = Modifier.weight(1f).heightIn(min = 52.dp),
+                        modifier = Modifier.weight(1f).height(52.dp),
                         colors = ButtonDefaults.buttonColors(containerColor = accent),
-                        shape = RoundedCornerShape(10.dp)
+                        shape = RoundedCornerShape(10.dp),
+                        contentPadding = PaddingValues(horizontal = 12.dp)
                     ) {
-                        Icon(Icons.Default.PlayArrow, contentDescription = null, modifier = Modifier.size(28.dp))
+                        Icon(Icons.Default.PlayArrow, contentDescription = null, modifier = Modifier.size(22.dp))
                         Text(
                             when {
                                 detail.resumePositionMs > 0 && detail.type == ContentType.TV -> "Resume S${detail.selectedSeason}E${detail.selectedEpisode}"
-                                detail.resumePositionMs > 0 && detail.type == ContentType.MOVIE -> "Resume Movie"
+                                detail.resumePositionMs > 0 && detail.type == ContentType.MOVIE -> "Resume"
                                 detail.type == ContentType.TV -> "Play S${detail.selectedSeason}E${detail.selectedEpisode}"
                                 else -> "Play Now"
                             },
-                            modifier = Modifier.padding(start = 10.dp),
-                            fontSize = 17.sp,
-                            fontWeight = FontWeight.Bold
+                            modifier = Modifier.padding(start = 6.dp),
+                            fontSize = 15.sp,
+                            fontWeight = FontWeight.Bold,
+                            maxLines = 1
                         )
                     }
 
@@ -820,11 +827,12 @@ private fun MobileDetailContent(
                         }
                         Button(
                             onClick = onRestart,
-                            modifier = Modifier.heightIn(min = 52.dp),
+                            modifier = Modifier.height(52.dp),
                             colors = ButtonDefaults.buttonColors(containerColor = Color.White.copy(alpha = 0.15f)),
-                            shape = RoundedCornerShape(10.dp)
+                            shape = RoundedCornerShape(10.dp),
+                            contentPadding = PaddingValues(horizontal = 14.dp)
                         ) {
-                            Text("Restart", fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
+                            Text("Restart", fontSize = 15.sp, fontWeight = FontWeight.SemiBold, maxLines = 1)
                         }
                     }
                 }

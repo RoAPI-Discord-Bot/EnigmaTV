@@ -121,7 +121,7 @@ fun EnigmaMediaPlayer(
         }
     }
 
-    val nativeLabel = resolvedStream?.let { "$sourceLabel · ${it.provider}" } ?: sourceLabel
+    val nativeLabel = sourceLabel
 
     Box(contentModifier.background(BgDark)) {
         when (mode) {
