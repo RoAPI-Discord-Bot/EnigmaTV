@@ -22,4 +22,8 @@ class UserSessionStore(private val context: Context) {
     suspend fun setOnboardingComplete() {
         context.sessionDataStore.edit { it[onboardingKey] = true }
     }
+
+    suspend fun clearSession() {
+        context.sessionDataStore.edit { it.clear() }
+    }
 }
