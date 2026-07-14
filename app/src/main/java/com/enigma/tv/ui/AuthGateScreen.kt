@@ -36,6 +36,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -43,6 +44,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
+import kotlinx.coroutines.launch
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
@@ -63,10 +65,11 @@ fun AuthGateScreen(
     layout: ScreenLayout,
     loading: Boolean,
     error: String?,
+    message: String?,
     onSignIn: (String, String) -> Unit,
     onSignUp: (String, String, String) -> Unit,
     onResetPassword: (String) -> Unit,
-    onGuest: () -> Unit,
+    onGoogleSignIn: (String) -> Unit,
     onClearError: () -> Unit = {}
 ) {
     var mode by rememberSaveable { mutableStateOf("signin") }
@@ -82,6 +85,9 @@ fun AuthGateScreen(
             runCatching { firstFieldRequester.requestFocus() }
         }
     }
+
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val scope = rememberCoroutineScope()
 
     val bgRes = if (layout == ScreenLayout.PHONE) R.drawable.bg_auth_phone else R.drawable.bg_auth_tv
     val bgAlignment = if (layout == ScreenLayout.PHONE) Alignment.CenterEnd else Alignment.Center
@@ -185,6 +191,10 @@ fun AuthGateScreen(
                     Text(it, color = Color(0xFFFF6B6B), fontSize = 13.sp, modifier = Modifier.padding(top = 4.dp))
                 }
 
+                message?.let {
+                    Text(it, color = Color(0xFF4CAF50), fontSize = 13.sp, modifier = Modifier.padding(top = 4.dp))
+                }
+
                 if (mode == "signin") {
                     androidx.compose.material3.TextButton(
                         onClick = { onResetPassword(email) },
@@ -212,13 +222,22 @@ fun AuthGateScreen(
                     Text(if (mode == "signup") "Create account" else "Sign in", fontWeight = FontWeight.SemiBold)
                 }
 
+                Spacer(Modifier.height(8.dp))
                 OutlinedButton(
-                    onClick = onGuest,
+                    onClick = {
+                        scope.launch {
+                            com.enigma.tv.data.firebase.GoogleSignInHelper.getGoogleIdToken(context).onSuccess { idToken ->
+                                onGoogleSignIn(idToken)
+                            }.onFailure { e ->
+                                // Could show toast or pass error
+                            }
+                        }
+                    },
                     enabled = !loading,
                     modifier = Modifier.fillMaxWidth().height(48.dp),
                     shape = RoundedCornerShape(10.dp)
                 ) {
-                    Text("Continue as guest", color = TextPrimary)
+                    Text("Sign in with Google", color = TextPrimary)
                 }
             }
         }

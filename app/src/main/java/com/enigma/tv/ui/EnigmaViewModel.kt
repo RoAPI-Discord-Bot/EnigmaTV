@@ -1716,7 +1716,7 @@ class EnigmaViewModel(application: Application) : AndroidViewModel(application) 
             _state.update { it.copy(profileError = null) }
             authService.sendPasswordReset(email)
                 .onSuccess {
-                    _state.update { it.copy(profileMessage = "Password reset link sent to $email") }
+                    _state.update { it.copy(profileMessage = "Password reset link sent to $email. Please check your spam folder.") }
                 }
                 .onFailure { e ->
                     _state.update { it.copy(profileError = e.message ?: "Failed to send reset email") }
@@ -1733,7 +1733,54 @@ class EnigmaViewModel(application: Application) : AndroidViewModel(application) 
                     finishOnboarding()
                 }
                 .onFailure { e ->
-                    _state.update { it.copy(profileError = authErrorMessage(e), authLoading = false) }
+                    _state.update { it.copy(profileError = e.message ?: "Failed to sign in as guest", authLoading = false) }
+                }
+        }
+    }
+
+    fun clearProfileMessage() {
+        _state.update { it.copy(profileMessage = null) }
+    }
+
+    fun updateProfile(id: String, name: String) {
+        viewModelScope.launch {
+            _state.update { it.copy(profileError = null) }
+            runCatching { profileStore.updateProfile(id, name) }
+                .onSuccess {
+                    val p = profileStore.snapshot().first
+                    _state.update { it.copy(profiles = p, profileMessage = "Profile saved") }
+                    syncToCloud()
+                }
+                .onFailure { _state.update { it.copy(profileError = "Failed to update profile") } }
+        }
+    }
+
+    fun deleteProfile(id: String) {
+        viewModelScope.launch {
+            if (id == "default") {
+                _state.update { it.copy(profileError = "Cannot delete Main profile") }
+                return@launch
+            }
+            if (id == activeProfileId()) {
+                switchProfile("default")
+            }
+            profileStore.removeProfile(id)
+            val p = profileStore.snapshot().first
+            _state.update { it.copy(profiles = p, profileMessage = "Profile deleted") }
+            syncToCloud()
+        }
+    }
+
+    fun signInWithGoogle(idToken: String) {
+        viewModelScope.launch {
+            _state.update { it.copy(profileError = null, authLoading = true) }
+            authService.signInWithGoogle(idToken)
+                .onSuccess {
+                    pullCloudSafe()
+                    finishOnboarding()
+                }
+                .onFailure { e ->
+                    _state.update { it.copy(authLoading = false, profileError = e.message ?: "Google Sign-In failed") }
                 }
         }
     }
@@ -1751,8 +1798,19 @@ class EnigmaViewModel(application: Application) : AndroidViewModel(application) 
     }
 
     fun signOut() {
-        authService.signOut()
-        _state.update { it.copy(profileMessage = "Signed out") }
+        viewModelScope.launch {
+            sessionStore.clearSession()
+            authService.signOut()
+            _state.update { it.copy(
+                isLoggedIn = false,
+                sessionReady = true,
+                showAuthGate = true, 
+                showProfilePicker = false,
+                profileMessage = null,
+                profiles = emptyList(),
+                activeProfileId = "default"
+            ) }
+        }
     }
 
     fun syncToCloud() {

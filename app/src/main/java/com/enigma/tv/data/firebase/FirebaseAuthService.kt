@@ -39,5 +39,10 @@ class FirebaseAuthService {
         auth.sendPasswordResetEmail(email.trim()).await()
     }
 
+    suspend fun signInWithGoogle(idToken: String): Result<FirebaseUser> = runCatching {
+        val credential = com.google.firebase.auth.GoogleAuthProvider.getCredential(idToken, null)
+        auth.signInWithCredential(credential).await().user!!
+    }
+
     fun signOut() = auth.signOut()
 }
