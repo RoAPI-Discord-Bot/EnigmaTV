@@ -1704,10 +1704,22 @@ class EnigmaViewModel(application: Application) : AndroidViewModel(application) 
                 .onSuccess {
                     pullCloudSafe()
                     finishOnboarding()
-                    _state.update { it.copy(profileMessage = "Account created — profiles loaded") }
                 }
                 .onFailure { e ->
-                    _state.update { it.copy(profileError = authErrorMessage(e), authLoading = false) }
+                    _state.update { it.copy(authLoading = false, profileError = e.message ?: "Sign up failed") }
+                }
+        }
+    }
+
+    fun resetPassword(email: String) {
+        viewModelScope.launch {
+            _state.update { it.copy(profileError = null) }
+            authService.sendPasswordReset(email)
+                .onSuccess {
+                    _state.update { it.copy(profileMessage = "Password reset link sent to $email") }
+                }
+                .onFailure { e ->
+                    _state.update { it.copy(profileError = e.message ?: "Failed to send reset email") }
                 }
         }
     }

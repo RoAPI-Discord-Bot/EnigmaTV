@@ -175,8 +175,13 @@ fun ExoLivePlayer(
     val partyVm: WatchPartyViewModel = androidx.lifecycle.viewmodel.compose.viewModel()
     val partyState by partyVm.state.collectAsState()
 
-    val sidecarSubtitle = remember(playUrl, playToken, resolved.subtitleUrl) {
-        resolved.subtitleUrl?.takeIf { StreamResolver.isValidSubtitleUrl(it) }
+    var sidecarSubtitle by remember { mutableStateOf<String?>(null) }
+    LaunchedEffect(playUrl, playToken, resolved.subtitleUrl) {
+        sidecarSubtitle = null
+        val subUrl = resolved.subtitleUrl?.takeIf { StreamResolver.isValidSubtitleUrl(it) }
+        if (subUrl != null) {
+            sidecarSubtitle = EnigmaSubtitleHelper.getLocalSubtitleUri(context, subUrl, resolved.referer)
+        }
     }
 
     DisposableEffect(useExternalChrome) {
@@ -315,6 +320,7 @@ fun ExoLivePlayer(
                                 .setLanguage("en")
                                 .setLabel("English")
                                 .setSelectionFlags(C.SELECTION_FLAG_DEFAULT)
+                                .setRoleFlags(C.ROLE_FLAG_SUBTITLE)
                                 .build()
                         )
                     )
@@ -709,30 +715,36 @@ fun ExoLivePlayer(
                                 .padding(bottom = 120.dp), // hover above scrubber
                             contentAlignment = Alignment.BottomCenter
                         ) {
-                            Box(
-                                modifier = Modifier
-                                    .width(with(androidx.compose.ui.platform.LocalDensity.current) { thumb.w.toDp() })
-                                    .height(with(androidx.compose.ui.platform.LocalDensity.current) { thumb.h.toDp() })
-                                    .border(2.dp, Color.White, RoundedCornerShape(4.dp))
-                                    .clip(RoundedCornerShape(4.dp))
-                            ) {
-                                androidx.compose.foundation.Image(
-                                    painter = coil.compose.rememberAsyncImagePainter(
-                                        model = coil.request.ImageRequest.Builder(LocalContext.current)
-                                            .data(thumb.imageUrl)
-                                            .size(coil.size.Size.ORIGINAL)
-                                            .crossfade(true)
-                                            .build()
-                                    ),
-                                    contentDescription = "Preview",
-                                    contentScale = androidx.compose.ui.layout.ContentScale.None,
-                                    alignment = Alignment.TopStart,
-                                    modifier = Modifier.offset(
-                                        x = with(androidx.compose.ui.platform.LocalDensity.current) { (-thumb.x).toDp() },
-                                        y = with(androidx.compose.ui.platform.LocalDensity.current) { (-thumb.y).toDp() }
-                                    )
-                                )
-                            }
+                            val density = androidx.compose.ui.platform.LocalDensity.current.density
+                            coil.compose.SubcomposeAsyncImage(
+                                model = coil.request.ImageRequest.Builder(LocalContext.current)
+                                    .data(thumb.imageUrl)
+                                    .addHeader("Referer", resolved?.referer ?: "")
+                                    .allowHardware(false)
+                                    .build(),
+                                contentDescription = "Preview",
+                                loading = { /* empty */ },
+                                success = { state ->
+                                    val bitmap = (state.result.drawable as? android.graphics.drawable.BitmapDrawable)?.bitmap
+                                    if (bitmap != null) {
+                                        androidx.compose.foundation.Canvas(
+                                            modifier = Modifier
+                                                .width((thumb.w / density).dp)
+                                                .height((thumb.h / density).dp)
+                                                .border(2.dp, Color.White, RoundedCornerShape(4.dp))
+                                                .clip(RoundedCornerShape(4.dp))
+                                        ) {
+                                            drawImage(
+                                                image = androidx.compose.ui.graphics.asImageBitmap(bitmap),
+                                                srcOffset = androidx.compose.ui.unit.IntOffset(thumb.x, thumb.y),
+                                                srcSize = androidx.compose.ui.unit.IntSize(thumb.w, thumb.h),
+                                                dstOffset = androidx.compose.ui.unit.IntOffset.Zero,
+                                                dstSize = androidx.compose.ui.unit.IntSize(size.width.toInt(), size.height.toInt())
+                                            )
+                                        }
+                                    }
+                                }
+                            )
                         }
                     }
                 }

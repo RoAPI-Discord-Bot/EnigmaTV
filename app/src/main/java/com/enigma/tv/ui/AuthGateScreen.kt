@@ -64,6 +64,7 @@ fun AuthGateScreen(
     error: String?,
     onSignIn: (String, String) -> Unit,
     onSignUp: (String, String, String) -> Unit,
+    onResetPassword: (String) -> Unit,
     onGuest: () -> Unit,
     onClearError: () -> Unit = {}
 ) {
@@ -183,7 +184,17 @@ fun AuthGateScreen(
                     Text(it, color = Color(0xFFFF6B6B), fontSize = 13.sp, modifier = Modifier.padding(top = 4.dp))
                 }
 
-                Spacer(Modifier.height(4.dp))
+                if (mode == "signin") {
+                    androidx.compose.material3.TextButton(
+                        onClick = { onResetPassword(email) },
+                        modifier = Modifier.align(Alignment.End),
+                        contentPadding = PaddingValues(0.dp)
+                    ) {
+                        Text("Forgot password?", color = EnigmaPink, fontSize = 14.sp)
+                    }
+                } else {
+                    Spacer(Modifier.height(4.dp))
+                }
 
                 Button(
                     onClick = {

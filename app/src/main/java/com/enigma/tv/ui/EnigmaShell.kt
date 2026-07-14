@@ -137,6 +137,7 @@ fun EnigmaShell(viewModel: EnigmaViewModel = viewModel()) {
             error = state.profileError,
             onSignIn = viewModel::signIn,
             onSignUp = viewModel::signUp,
+            onResetPassword = viewModel::resetPassword,
             onGuest = viewModel::signInGuest,
             onClearError = { viewModel.clearAuthError() }
         )
