@@ -1,6 +1,7 @@
 {
   "project_info": {
     "project_number": "176690386204",
+    "firebase_url": "https://enigmatv-default-rtdb.firebaseio.com",
     "project_id": "enigmatv",
     "storage_bucket": "enigmatv.firebasestorage.app"
   },
@@ -12,7 +13,20 @@
           "package_name": "com.enigmatv"
         }
       },
-      "oauth_client": [],
+      "oauth_client": [
+        {
+          "client_id": "176690386204-l3d8tle86sjlp13r4uadp89a465n2po0.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.enigmatv",
+            "certificate_hash": "3d78647b2820192025450b4b054fdade8065a000"
+          }
+        },
+        {
+          "client_id": "176690386204-ag60eekolrog9qtk8mpb5h7vaf276ihv.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
       "api_key": [
         {
           "current_key": "AIzaSyB_dUFfwESAi0IGesvabOMKVqYG9JWXHlA"
@@ -20,7 +34,12 @@
       ],
       "services": {
         "appinvite_service": {
-          "other_platform_oauth_client": []
+          "other_platform_oauth_client": [
+            {
+              "client_id": "176690386204-ag60eekolrog9qtk8mpb5h7vaf276ihv.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
         }
       }
     }
