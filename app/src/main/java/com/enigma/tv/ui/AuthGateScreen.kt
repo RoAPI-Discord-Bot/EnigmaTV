@@ -66,6 +66,7 @@ fun AuthGateScreen(
     onSignIn: (String, String) -> Unit,
     onSignUp: (String, String, String) -> Unit,
     onResetPassword: (String) -> Unit,
+    onGoogleSignIn: (String) -> Unit,
     onGuest: () -> Unit,
     onClearError: () -> Unit = {}
 ) {
@@ -82,6 +83,9 @@ fun AuthGateScreen(
             runCatching { firstFieldRequester.requestFocus() }
         }
     }
+
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val scope = rememberCoroutineScope()
 
     val bgRes = if (layout == ScreenLayout.PHONE) R.drawable.bg_auth_phone else R.drawable.bg_auth_tv
     val bgAlignment = if (layout == ScreenLayout.PHONE) Alignment.CenterEnd else Alignment.Center
@@ -219,6 +223,26 @@ fun AuthGateScreen(
                     shape = RoundedCornerShape(10.dp)
                 ) {
                     Text("Continue as guest", color = TextPrimary)
+                }
+
+                if (layout != ScreenLayout.TV) {
+                    Spacer(Modifier.height(8.dp))
+                    OutlinedButton(
+                        onClick = {
+                            scope.launch {
+                                com.enigma.tv.data.firebase.GoogleSignInHelper.getGoogleIdToken(context).onSuccess { idToken ->
+                                    onGoogleSignIn(idToken)
+                                }.onFailure { e ->
+                                    // Could show toast or pass error
+                                }
+                            }
+                        },
+                        enabled = !loading,
+                        modifier = Modifier.fillMaxWidth().height(48.dp),
+                        shape = RoundedCornerShape(10.dp)
+                    ) {
+                        Text("Sign in with Google", color = TextPrimary)
+                    }
                 }
             }
         }

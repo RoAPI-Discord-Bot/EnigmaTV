@@ -1738,6 +1738,20 @@ class EnigmaViewModel(application: Application) : AndroidViewModel(application) 
         }
     }
 
+    fun signInWithGoogle(idToken: String) {
+        viewModelScope.launch {
+            _state.update { it.copy(profileError = null, authLoading = true) }
+            authService.signInWithGoogle(idToken)
+                .onSuccess {
+                    pullCloudSafe()
+                    finishOnboarding()
+                }
+                .onFailure { e ->
+                    _state.update { it.copy(authLoading = false, profileError = e.message ?: "Google Sign-In failed") }
+                }
+        }
+    }
+
     private fun authErrorMessage(e: Throwable): String {
         val msg = e.message.orEmpty()
         return when {

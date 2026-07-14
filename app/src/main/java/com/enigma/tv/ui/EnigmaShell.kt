@@ -138,6 +138,7 @@ fun EnigmaShell(viewModel: EnigmaViewModel = viewModel()) {
             onSignIn = viewModel::signIn,
             onSignUp = viewModel::signUp,
             onResetPassword = viewModel::resetPassword,
+            onGoogleSignIn = viewModel::signInWithGoogle,
             onGuest = viewModel::signInGuest,
             onClearError = { viewModel.clearAuthError() }
         )
