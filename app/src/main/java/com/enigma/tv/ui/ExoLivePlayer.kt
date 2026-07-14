@@ -43,6 +43,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -233,20 +234,64 @@ fun ExoLivePlayer(
         }
     }
 
-    DisposableEffect(actionDispatcher, player) {
+    var pendingSeekMs by remember { mutableStateOf<Long?>(null) }
+    var seekJob by remember { mutableStateOf<kotlinx.coroutines.Job?>(null) }
+    var wasPlayingBeforeSeek by remember { mutableStateOf(false) }
+
+    val debouncedPlayer = remember(player) {
+        object : androidx.media3.common.ForwardingPlayer(player) {
+            override fun seekTo(positionMs: Long) {
+                pendingSeekMs = positionMs
+                if (seekJob == null) {
+                    wasPlayingBeforeSeek = playWhenReady
+                    playWhenReady = false
+                }
+                seekJob?.cancel()
+                seekJob = scope.launch {
+                    kotlinx.coroutines.delay(600)
+                    super.seekTo(pendingSeekMs!!)
+                    playWhenReady = wasPlayingBeforeSeek
+                    pendingSeekMs = null
+                    seekJob = null
+                }
+            }
+
+            override fun seekTo(mediaItemIndex: Int, positionMs: Long) {
+                pendingSeekMs = positionMs
+                if (seekJob == null) {
+                    wasPlayingBeforeSeek = playWhenReady
+                    playWhenReady = false
+                }
+                seekJob?.cancel()
+                seekJob = scope.launch {
+                    kotlinx.coroutines.delay(600)
+                    super.seekTo(mediaItemIndex, pendingSeekMs!!)
+                    playWhenReady = wasPlayingBeforeSeek
+                    pendingSeekMs = null
+                    seekJob = null
+                }
+            }
+
+            override fun getCurrentPosition(): Long {
+                return pendingSeekMs ?: super.getCurrentPosition()
+            }
+        }
+    }
+
+    DisposableEffect(actionDispatcher, debouncedPlayer) {
         if (actionDispatcher != null) {
             actionDispatcher.onTogglePlay = {
-                if (player.isPlaying) player.pause() else player.play()
+                if (debouncedPlayer.isPlaying) debouncedPlayer.pause() else debouncedPlayer.play()
             }
             actionDispatcher.onSeekForward = {
-                player.seekTo(player.currentPosition + 10_000)
+                debouncedPlayer.seekTo(debouncedPlayer.currentPosition + 10_000)
             }
             actionDispatcher.onSeekBackward = {
-                player.seekTo(player.currentPosition - 10_000)
+                debouncedPlayer.seekTo(debouncedPlayer.currentPosition - 10_000)
             }
             actionDispatcher.onRestart = {
-                player.seekTo(0)
-                player.play()
+                debouncedPlayer.seekTo(0)
+                debouncedPlayer.play()
             }
         }
         onDispose {
@@ -625,7 +670,7 @@ fun ExoLivePlayer(
                         }
                     },
                     update = { view ->
-                        view.player = player
+                        view.player = debouncedPlayer
                         view.controllerShowTimeoutMs = 4000
                         // CC button
                         view.setShowSubtitleButton(false)
@@ -735,7 +780,7 @@ fun ExoLivePlayer(
                                                 .clip(RoundedCornerShape(4.dp))
                                         ) {
                                             drawImage(
-                                                image = androidx.compose.ui.graphics.asImageBitmap(bitmap),
+                                                image = bitmap.asImageBitmap(),
                                                 srcOffset = androidx.compose.ui.unit.IntOffset(thumb.x, thumb.y),
                                                 srcSize = androidx.compose.ui.unit.IntSize(thumb.w, thumb.h),
                                                 dstOffset = androidx.compose.ui.unit.IntOffset.Zero,
