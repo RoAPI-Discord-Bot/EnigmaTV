@@ -195,7 +195,7 @@ fun HomeQuickNav(
         QuickChip("Browse", current == NavSection.HOME) { onSelect(NavSection.HOME) }
         QuickChip("Live", current == NavSection.LIVE) { onSelect(NavSection.LIVE) }
         QuickChip("Continue", current == NavSection.CONTINUE) { onSelect(NavSection.CONTINUE) }
-        QuickChip("My List", current == NavSection.FAVORITES) { onSelect(NavSection.FAVORITES) }
+        QuickChip("Playlists", current == NavSection.PLAYLISTS) { onSelect(NavSection.PLAYLISTS) }
     }
 }
 

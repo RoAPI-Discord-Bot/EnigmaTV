@@ -311,7 +311,20 @@ fun EnigmaShell(viewModel: EnigmaViewModel = viewModel()) {
                         label = "main_section"
                     ) { section ->
                         when (section) {
-                            NavSection.HOME -> UnifiedHomeContent(state, viewModel, layout)
+                            NavSection.HOME -> {
+                                Column(Modifier.fillMaxSize()) {
+                                    if (state.isOffline) {
+                                        androidx.compose.material3.Text(
+                                            "You're offline - go to Downloads to watch saved content",
+                                            color = com.enigma.tv.ui.theme.EnigmaPink,
+                                            modifier = Modifier.fillMaxWidth().background(androidx.compose.ui.graphics.Color(0xFF220000)).padding(16.dp),
+                                            textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                                            fontWeight = androidx.compose.ui.text.font.FontWeight.Bold
+                                        )
+                                    }
+                                    UnifiedHomeContent(state, viewModel, layout)
+                                }
+                            }
                             NavSection.SEARCH -> if (layout.usePermanentDrawer()) {
                                 TvSearchContent(state, viewModel, layout)
                             } else {
@@ -331,7 +344,11 @@ fun EnigmaShell(viewModel: EnigmaViewModel = viewModel()) {
                                 onFavoritesOnly = viewModel::toggleLiveFavoritesOnly,
                                 onQuickPick = viewModel::liveQuickPick
                             )
-                            NavSection.FAVORITES -> FavoritesContent(state, viewModel, layout)
+                            NavSection.PLAYLISTS -> PlaylistsScreen(
+                                playlists = state.playlists,
+                                onCreatePlaylist = { name -> viewModel.createPlaylist(name) },
+                                onPlaylistItemClicked = { item -> viewModel.playPlaylistItem(item) }
+                            )
                             NavSection.CONTINUE -> ContinueContent(state, viewModel, layout)
                             NavSection.LISTS -> ListsContent(state, viewModel, layout)
                             NavSection.DOWNLOADS -> DownloadsContent(state, viewModel, layout)
@@ -472,7 +489,6 @@ fun EnigmaShell(viewModel: EnigmaViewModel = viewModel()) {
                     state.detail?.let { viewModel.removeFromContinue(it.id, it.type) }
                     viewModel.closeDetail()
                 },
-                onToggleFavorite = { viewModel.toggleDetailFavorite() },
                 onSeasonChange = { viewModel.detailSeasonChange(it) },
                 onEpisodeSelect = { viewModel.detailEpisodeSelect(it) },
                 onDownload = { viewModel.downloadDetailItem(context) },
@@ -739,7 +755,7 @@ private fun EnigmaDrawerContent(
         DrawerEntry(Icons.Default.Home, NavSection.HOME, current, isExpanded, onSelect, onAnyItemFocused)
         DrawerEntry(Icons.Default.Search, NavSection.SEARCH, current, isExpanded, onSelect, onAnyItemFocused)
         DrawerEntry(Icons.Default.LiveTv, NavSection.LIVE, current, isExpanded, onSelect, onAnyItemFocused)
-        DrawerEntry(Icons.Default.Favorite, NavSection.FAVORITES, current, isExpanded, onSelect, onAnyItemFocused)
+        DrawerEntry(Icons.Default.PlaylistPlay, NavSection.PLAYLISTS, current, isExpanded, onSelect, onAnyItemFocused)
         DrawerEntry(Icons.Default.PlayCircle, NavSection.CONTINUE, current, isExpanded, onSelect, onAnyItemFocused)
         DrawerEntry(Icons.Default.PlaylistPlay, NavSection.LISTS, current, isExpanded, onSelect, onAnyItemFocused)
         DrawerEntry(androidx.compose.material.icons.Icons.Default.Download, NavSection.DOWNLOADS, current, isExpanded, onSelect, onAnyItemFocused)
@@ -1057,36 +1073,7 @@ private fun TvSearchContent(state: EnigmaUiState, vm: EnigmaViewModel, layout: S
 
 @Composable
 private fun FavoritesContent(state: EnigmaUiState, vm: EnigmaViewModel, layout: ScreenLayout) {
-    val cardW = layout.posterWidthDp()
-    val isTv = layout.usePermanentDrawer()
-    
-    if (isTv) {
-        LazyColumn(
-            contentPadding = PaddingValues(horizontal = layout.contentPaddingDp().dp, vertical = 24.dp),
-            verticalArrangement = Arrangement.spacedBy(32.dp),
-            modifier = Modifier.fillMaxSize()
-        ) {
-            item {
-                if (state.favorites.isEmpty()) {
-                    Text("No favorites yet. Tap the heart on any title.", color = TextSecondary, modifier = Modifier.padding(24.dp))
-                } else {
-                    TvContentSection("Your Favorites") {
-                        TvPosterRow { state.favorites.forEach { FavoritePosterCard(it, vm, cardW) } }
-                    }
-                }
-            }
-        }
-    } else {
-        ScrollableContent(padding = androidx.compose.foundation.layout.PaddingValues(layout.contentPaddingDp().dp)) {
-            if (state.favorites.isEmpty()) {
-                Text("No favorites yet. Tap the heart on any title.", color = TextSecondary, modifier = Modifier.padding(24.dp))
-            } else {
-                ContentSection("Your Favorites") {
-                    PosterRow { state.favorites.forEach { FavoritePosterCard(it, vm, cardW) } }
-                }
-            }
-        }
-    }
+    // Favorites have been replaced by Playlists
 }
 
 @Composable
@@ -1329,8 +1316,6 @@ private fun ListsContent(state: EnigmaUiState, vm: EnigmaViewModel, layout: Scre
 
 @Composable
 private fun MediaMovieCard(movie: MovieItem, vm: EnigmaViewModel, cardW: Int) {
-    val state by vm.state.collectAsState()
-    val fav = state.favorites.any { it.id == movie.id && it.type == ContentType.MOVIE }
     val subtitle = movie.comingSoonLabel() ?: if (!movie.canStream()) "Unavailable" else null
     PosterCard(
         title = "${movie.title} (${movie.year})",
@@ -1339,8 +1324,6 @@ private fun MediaMovieCard(movie: MovieItem, vm: EnigmaViewModel, cardW: Int) {
         badge = "MOVIE",
         subtitle = subtitle,
         cardWidthDp = cardW,
-        isFavorite = fav,
-        onFavoriteClick = { vm.toggleFavorite(movie.toFavorite()) },
         onClick = { vm.openMovieDetail(movie) },
         onLongClickPlay = if (movie.canStream()) ({ vm.playMovie(movie) }) else null
     )
@@ -1348,8 +1331,6 @@ private fun MediaMovieCard(movie: MovieItem, vm: EnigmaViewModel, cardW: Int) {
 
 @Composable
 private fun MediaTvCard(show: TvItem, vm: EnigmaViewModel, cardW: Int) {
-    val state by vm.state.collectAsState()
-    val fav = state.favorites.any { it.id == show.id && it.type == ContentType.TV }
     PosterCard(
         title = "${show.displayName} (${show.year})",
         posterUrl = show.posterUrl,
@@ -1357,8 +1338,6 @@ private fun MediaTvCard(show: TvItem, vm: EnigmaViewModel, cardW: Int) {
         badge = "TV",
         subtitle = show.comingSoonLabel() ?: if (!show.canStream()) "Unavailable" else null,
         cardWidthDp = cardW,
-        isFavorite = fav,
-        onFavoriteClick = { vm.toggleFavorite(show.toFavorite()) },
         onClick = { vm.openTvDetail(show) },
         onLongClickPlay = if (show.canStream()) ({
             vm.selectShow(show.id, show.displayName, 1, 1)

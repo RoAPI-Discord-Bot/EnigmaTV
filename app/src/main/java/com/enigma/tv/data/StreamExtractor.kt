@@ -58,7 +58,7 @@ class StreamExtractor(private val context: Context) {
         referer: String? = null,
         activity: Activity? = null
     ): ExtractionResult? {
-        val hostActivity = activity ?: return null
+        val ctx = activity ?: context
         return withTimeoutOrNull(18_000) {
             withContext(Dispatchers.Main) {
                 suspendCancellableCoroutine { cont ->
@@ -90,15 +90,17 @@ class StreamExtractor(private val context: Context) {
                     }
 
                     try {
-                        hostContainer = FrameLayout(hostActivity).apply {
-                            layoutParams = FrameLayout.LayoutParams(1, 1)
-                            alpha = 0f
-                            isClickable = false
+                        if (activity != null) {
+                            hostContainer = FrameLayout(activity).apply {
+                                layoutParams = FrameLayout.LayoutParams(1, 1)
+                                alpha = 0f
+                                isClickable = false
+                            }
+                            val decor = activity.window.decorView as ViewGroup
+                            decor.addView(hostContainer)
                         }
-                        val decor = hostActivity.window.decorView as ViewGroup
-                        decor.addView(hostContainer)
 
-                        webView = WebView(hostActivity).apply {
+                        webView = WebView(ctx).apply {
                             settings.javaScriptEnabled = true
                             settings.domStorageEnabled = true
                             settings.mediaPlaybackRequiresUserGesture = false

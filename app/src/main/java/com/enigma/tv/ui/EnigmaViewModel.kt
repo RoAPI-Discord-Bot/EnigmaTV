@@ -6,7 +6,6 @@ import androidx.lifecycle.viewModelScope
 import com.enigma.tv.data.ContinueWatchingEntry
 import com.enigma.tv.data.ContinueWatchingStore
 import com.enigma.tv.data.ContentType
-import com.enigma.tv.data.FavoriteItem
 import com.enigma.tv.data.HomeRow
 import com.enigma.tv.data.IptvChannel
 import com.enigma.tv.data.IptvRepository
@@ -40,7 +39,6 @@ import com.enigma.tv.data.comingSoonLabel
 import com.enigma.tv.data.firebase.FirebaseAuthService
 import com.enigma.tv.data.firebase.FirebaseSyncService
 import com.enigma.tv.data.formatRuntime
-import com.enigma.tv.data.FavoritesStore
 import com.enigma.tv.data.ImgurUploadService
 import com.enigma.tv.data.ProfileImageStorage
 import com.enigma.tv.update.UpdateChecker
@@ -64,7 +62,7 @@ enum class NavSection(val title: String) {
     HOME("Home"),
     SEARCH("Search"),
     LIVE("Live TV"),
-    FAVORITES("Favorites"),
+    PLAYLISTS("Playlists"),
     CONTINUE("Continue Watching"),
     LISTS("My Lists"),
     DOWNLOADS("Downloads"),
@@ -81,7 +79,7 @@ data class EnigmaUiState(
     val section: NavSection = NavSection.HOME,
     val homeRows: List<HomeRow> = emptyList(),
     val continueWatching: List<ContinueWatchingEntry> = emptyList(),
-    val favorites: List<FavoriteItem> = emptyList(),
+    val isOffline: Boolean = false,
     val playlists: List<Playlist> = emptyList(),
     val liveTv: LiveTvBrowseState = LiveTvBrowseState(),
     val playerHls: Boolean = false,
@@ -136,7 +134,6 @@ data class EnigmaUiState(
 class EnigmaViewModel(application: Application) : AndroidViewModel(application) {
     private val repo = TmdbRepository()
     private val cwStore = ContinueWatchingStore(application)
-    private val favoritesStore = FavoritesStore(application)
     private val playlistStore = PlaylistStore(application)
     private val sessionStore = UserSessionStore(application)
     private val profileStore = ProfileStore(application)
@@ -215,15 +212,28 @@ class EnigmaViewModel(application: Application) : AndroidViewModel(application) 
                 _state.update { it.copy(profiles = profiles, activeProfileId = activeId) }
             }
         }
+        val cm = application.getSystemService(android.content.Context.CONNECTIVITY_SERVICE) as android.net.ConnectivityManager
+        val request = android.net.NetworkRequest.Builder().build()
+        cm.registerNetworkCallback(request, object : android.net.ConnectivityManager.NetworkCallback() {
+            override fun onAvailable(network: android.net.Network) {
+                _state.update { it.copy(isOffline = false) }
+            }
+            override fun onLost(network: android.net.Network) {
+                _state.update { it.copy(isOffline = true) }
+            }
+        })
+        if (cm.activeNetwork == null) {
+            _state.update { it.copy(isOffline = true) }
+        }
+
         viewModelScope.launch {
             profileStore.activeProfileId.flatMapLatest { profileId ->
                 combine(
-                    favoritesStore.watch(profileId),
                     playlistStore.watch(profileId),
                     cwStore.watch(profileId)
-                ) { f, p, c -> Triple(f, p, c) }
-            }.collect { (favs, lists, cw) ->
-                _state.update { it.copy(favorites = favs, playlists = lists, continueWatching = cw) }
+                ) { p, c -> Pair(p, c) }
+            }.collect { (lists, cw) ->
+                _state.update { it.copy(playlists = lists, continueWatching = cw) }
                 scheduleCloudSync()
             }
         }
@@ -645,11 +655,10 @@ class EnigmaViewModel(application: Application) : AndroidViewModel(application) 
         viewModelScope.launch {
             _state.update { it.copy(showDetail = true, detailLoading = true, detail = null) }
             try {
-                val fav = _state.value.favorites.any { it.id == id && it.type == type }
                 val cw = _state.value.continueWatching.find { it.id == id && it.type == type }
                 val detail = when (type) {
-                    ContentType.MOVIE -> buildMovieDetail(id, fav, cw)
-                    ContentType.TV -> buildTvDetail(id, fav, cw)
+                    ContentType.MOVIE -> buildMovieDetail(id, false, cw)
+                    ContentType.TV -> buildTvDetail(id, false, cw)
                 }
                 _state.update { it.copy(detailLoading = false, detail = detail) }
             } catch (e: Exception) {
@@ -807,22 +816,6 @@ class EnigmaViewModel(application: Application) : AndroidViewModel(application) 
         }
     }
 
-    fun toggleDetailFavorite() {
-        val d = _state.value.detail ?: return
-        val item = if (d.type == ContentType.MOVIE) {
-            FavoriteItem(d.id, d.title, d.posterUrl ?: "", ContentType.MOVIE)
-        } else {
-            FavoriteItem(d.id, d.title, d.posterUrl ?: "", ContentType.TV)
-        }
-        viewModelScope.launch {
-            favoritesStore.toggle(activeProfileId(), item)
-            _state.update { st ->
-                val detail = st.detail ?: return@update st
-                st.copy(detail = detail.copy(isFavorite = !detail.isFavorite))
-            }
-            syncIfLoggedIn()
-        }
-    }
 
     private fun prefetchHomePosters(rows: List<HomeRow>) {
         val urls = rows.flatMap { row ->
@@ -1175,19 +1168,6 @@ class EnigmaViewModel(application: Application) : AndroidViewModel(application) 
         removeFromContinue(entry.id, entry.type)
     }
 
-    fun playFavorite(item: FavoriteItem) {
-        when (item.type) {
-            ContentType.MOVIE -> openMovieDetail(MovieItem(item.id, item.title))
-            ContentType.TV -> openTvDetail(TvItem(item.id, item.title))
-        }
-    }
-
-    fun toggleFavorite(item: FavoriteItem) {
-        viewModelScope.launch {
-            favoritesStore.toggle(activeProfileId(), item)
-            syncIfLoggedIn()
-        }
-    }
 
     fun createPlaylist(name: String) {
         if (name.isBlank()) return
@@ -1224,7 +1204,10 @@ class EnigmaViewModel(application: Application) : AndroidViewModel(application) 
         if (playlist.items.isEmpty()) return
         val item = playlist.items.getOrNull(startIndex) ?: return
         _state.update { it.copy(selectedPlaylistId = playlistId) }
-        playFavorite(item)
+        when (item.type) {
+            ContentType.MOVIE -> openMovieDetail(MovieItem(item.id, item.title))
+            ContentType.TV -> openTvDetail(TvItem(item.id, item.title))
+        }
     }
 
     fun getPlaylistBingeNext(playlistId: String, currentItemId: Int, currentItemType: ContentType): String? {
@@ -1247,7 +1230,9 @@ class EnigmaViewModel(application: Application) : AndroidViewModel(application) 
                 return@launch
             }
             val uri = android.net.Uri.parse(url)
-            val request = androidx.media3.exoplayer.offline.DownloadRequest.Builder(url, uri).build()
+            val request = androidx.media3.exoplayer.offline.DownloadRequest.Builder(url, uri)
+                .setData(title.toByteArray(Charsets.UTF_8))
+                .build()
             androidx.media3.exoplayer.offline.DownloadService.sendAddDownload(
                 context,
                 com.enigma.tv.EnigmaDownloadService::class.java,
@@ -1554,7 +1539,6 @@ class EnigmaViewModel(application: Application) : AndroidViewModel(application) 
                 profileId = profileId,
                 displayName = profile?.name ?: "Profile",
                 email = s.userEmail,
-                favorites = favoritesStore.readOnce(profileId),
                 continueWatching = cwStore.readOnce(profileId),
                 playlists = playlistStore.readOnce(profileId)
             )
@@ -1855,7 +1839,6 @@ class EnigmaViewModel(application: Application) : AndroidViewModel(application) 
                 profileId = profile.id,
                 displayName = profile.name,
                 email = s.userEmail,
-                favorites = favoritesStore.readOnce(profile.id),
                 continueWatching = cwStore.readOnce(profile.id),
                 playlists = playlistStore.readOnce(profile.id)
             ).onFailure { ok = false }
@@ -1887,23 +1870,11 @@ class EnigmaViewModel(application: Application) : AndroidViewModel(application) 
         val profileIds = (account.profileData.keys + profileStore.snapshot().first.map { it.id }).toSet()
         for (profileId in profileIds) {
             val cloud = account.profileData[profileId]
-            val localFavs = favoritesStore.readOnce(profileId)
             val localCw = cwStore.readOnce(profileId)
             val localLists = playlistStore.readOnce(profileId)
-            favoritesStore.replaceAll(
-                profileId,
-                mergeFavorites(localFavs, cloud?.favorites.orEmpty())
-            )
-            cwStore.replaceAll(
-                profileId,
-                mergeContinueWatching(localCw, cloud?.continueWatching.orEmpty())
-            )
-            playlistStore.replaceAll(
-                profileId,
-                mergePlaylists(localLists, cloud?.playlists.orEmpty())
-            )
+            cwStore.replaceAll(profileId, mergeContinueWatching(localCw, cloud?.continueWatching.orEmpty()))
+            playlistStore.replaceAll(profileId, mergePlaylists(localLists, cloud?.playlists.orEmpty()))
         }
-
         val activeCloud = account.profileData[account.activeProfileId]
         _state.update {
             it.copy(
@@ -1925,13 +1896,6 @@ class EnigmaViewModel(application: Application) : AndroidViewModel(application) 
             .map { (_, entries) -> entries.maxBy { it.updatedAt } }
             .sortedByDescending { it.updatedAt }
             .take(12)
-    }
-
-    private fun mergeFavorites(local: List<FavoriteItem>, remote: List<FavoriteItem>): List<FavoriteItem> {
-        if (remote.isEmpty()) return local
-        if (local.isEmpty()) return remote
-        return (local + remote)
-            .distinctBy { "${it.type}_${it.id}" }
     }
 
     private fun mergePlaylists(local: List<Playlist>, remote: List<Playlist>): List<Playlist> {

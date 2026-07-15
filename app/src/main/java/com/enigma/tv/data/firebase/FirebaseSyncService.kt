@@ -58,7 +58,6 @@ class FirebaseSyncService {
         profileId: String,
         displayName: String,
         email: String,
-        favorites: List<FavoriteItem>,
         continueWatching: List<ContinueWatchingEntry>,
         playlists: List<Playlist>
     ) = runCatching {
@@ -71,7 +70,6 @@ class FirebaseSyncService {
                         "email" to email,
                         "updatedAt" to System.currentTimeMillis()
                     ),
-                    "favorites" to gson.toJson(favorites),
                     "continueWatching" to gson.toJson(continueWatching),
                     "playlists" to gson.toJson(playlists),
                     "libraryUpdatedAt" to System.currentTimeMillis()

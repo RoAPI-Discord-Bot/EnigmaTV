@@ -36,13 +36,11 @@ import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Download
-import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.Group
 import androidx.compose.material.icons.filled.GroupAdd
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.PlayCircle
 import androidx.compose.material.icons.filled.PlaylistAdd
-import androidx.compose.material.icons.outlined.FavoriteBorder
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.FilterChip
@@ -98,7 +96,6 @@ fun MediaDetailOverlay(
     onPlay: () -> Unit,
     onRestart: () -> Unit,
     onRemoveFromHistory: () -> Unit,
-    onToggleFavorite: () -> Unit,
     onSeasonChange: (Int) -> Unit,
     onEpisodeSelect: (Int) -> Unit,
     onDownload: () -> Unit,
@@ -130,7 +127,6 @@ fun MediaDetailOverlay(
                         onPlay = onPlay,
                         onRestart = onRestart,
                         onRemoveFromHistory = onRemoveFromHistory,
-                        onToggleFavorite = onToggleFavorite,
                         onSeasonChange = onSeasonChange,
                         onEpisodeSelect = onEpisodeSelect,
                         onPlayTrailer = { url ->
@@ -149,7 +145,6 @@ fun MediaDetailOverlay(
                         onPlay = onPlay,
                         onRestart = onRestart,
                         onRemoveFromHistory = onRemoveFromHistory,
-                        onToggleFavorite = onToggleFavorite,
                         onSeasonChange = onSeasonChange,
                         onEpisodeSelect = onEpisodeSelect,
                         onPlayTrailer = { url ->
@@ -178,7 +173,6 @@ private fun TvDetailContent(
     onPlay: () -> Unit,
     onRestart: () -> Unit,
     onRemoveFromHistory: () -> Unit,
-    onToggleFavorite: () -> Unit,
     onSeasonChange: (Int) -> Unit,
     onEpisodeSelect: (Int) -> Unit,
     onPlayTrailer: (String) -> Unit,
@@ -340,31 +334,7 @@ private fun TvDetailContent(
                                     fontWeight = FontWeight.Bold
                                 )
                             }
-                            
-                            // Favorite Button (Small Circle)
-                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                var favFocused by remember { mutableStateOf(false) }
-                                IconButton(
-                                    onClick = onToggleFavorite,
-                                    modifier = Modifier
-                                        .size(64.dp)
-                                        .onFocusChanged { favFocused = it.isFocused }
-                                        .then(
-                                            if (favFocused) Modifier.border(3.dp, Color.White, RoundedCornerShape(32.dp))
-                                            else Modifier
-                                        )
-                                        .background(Color.White.copy(alpha = 0.2f), RoundedCornerShape(32.dp))
-                                ) {
-                                    Icon(
-                                        if (detail.isFavorite) Icons.Filled.Favorite else Icons.Outlined.FavoriteBorder,
-                                        contentDescription = "Favorite",
-                                        tint = if (detail.isFavorite) EnigmaPink else Color.White,
-                                        modifier = Modifier.size(28.dp)
-                                    )
-                                }
-                                Spacer(Modifier.height(4.dp))
-                                Text("Favorite", color = TextPrimary, fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
-                            }
+                            // Favorite Button removed
 
                             // Restart Button
                             if (detail.resumePositionMs > 0) {
@@ -591,7 +561,6 @@ private fun MobileDetailContent(
     onPlay: () -> Unit,
     onRestart: () -> Unit,
     onRemoveFromHistory: () -> Unit,
-    onToggleFavorite: () -> Unit,
     onSeasonChange: (Int) -> Unit,
     onEpisodeSelect: (Int) -> Unit,
     onPlayTrailer: (String) -> Unit,
@@ -625,13 +594,6 @@ private fun MobileDetailContent(
             ) {
                 IconButton(onClick = onClose) {
                     Icon(Icons.Default.ArrowBack, contentDescription = "Back", tint = TextPrimary)
-                }
-                IconButton(onClick = onToggleFavorite) {
-                    Icon(
-                        if (detail.isFavorite) Icons.Filled.Favorite else Icons.Outlined.FavoriteBorder,
-                        contentDescription = "Favorite",
-                        tint = if (detail.isFavorite) EnigmaPink else TextPrimary
-                    )
                 }
             }
         }
