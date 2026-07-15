@@ -129,7 +129,8 @@ data class EnigmaUiState(
     val playerLiveHint: String? = null,
     val playerLiveEventStartMs: Long = 0L,
     val playerStreamPlaying: Boolean = false,
-    val updateInfo: UpdateInfo? = null
+    val updateInfo: UpdateInfo? = null,
+    val playerSubtitleUrl: String? = null
 )
 
 class EnigmaViewModel(application: Application) : AndroidViewModel(application) {
@@ -851,7 +852,7 @@ class EnigmaViewModel(application: Application) : AndroidViewModel(application) 
                 playerVisible = true,
                 playerLiveHint = null,
                 playerLiveEventStartMs = 0L,
-                playerLoading = false,
+                playerLoading = true,
                 playerHls = false,
                 playerTitle = movie.title,
                 playerUrl = url,
@@ -1318,7 +1319,7 @@ class EnigmaViewModel(application: Application) : AndroidViewModel(application) 
             _state.update {
                 it.copy(
                     playerVisible = true,
-                    playerLoading = false,
+                    playerLoading = true,
                     playerLiveHint = null,
                     playerLiveEventStartMs = 0L,
                     playerHls = false,
@@ -1564,12 +1565,23 @@ class EnigmaViewModel(application: Application) : AndroidViewModel(application) 
         when (s.playingType) {
             ContentType.MOVIE -> {
                 val id = s.currentMovieId ?: return
-                val next = (s.sourceIndex + 1) % StreamSources.movieSources.size
+                val next = s.sourceIndex + 1
+                // If we've cycled through all sources, show error instead of looping
+                if (next >= StreamSources.movieSources.size) {
+                    _state.update {
+                        it.copy(
+                            playerLoading = false,
+                            playerStreamFailed = true,
+                            playerLiveHint = "No playable sources found for this title."
+                        )
+                    }
+                    return
+                }
                 val (name, url) = StreamSources.movieUrl(next, id)
                 val resumeMs = s.playbackPositionMs
                 _state.update {
                     it.copy(
-                        playerLoading = false,
+                        playerLoading = true,
                         sourceIndex = next,
                         playerUrl = url,
                         playbackPositionMs = resumeMs,
@@ -1579,7 +1591,18 @@ class EnigmaViewModel(application: Application) : AndroidViewModel(application) 
                 }
             }
             ContentType.TV -> {
-                _state.update { it.copy(sourceIndex = it.sourceIndex + 1, playerResolveToken = it.playerResolveToken + 1) }
+                val nextIdx = s.sourceIndex + 1
+                if (nextIdx >= StreamSources.tvSources.size) {
+                    _state.update {
+                        it.copy(
+                            playerLoading = false,
+                            playerStreamFailed = true,
+                            playerLiveHint = "No playable sources found for this episode."
+                        )
+                    }
+                    return
+                }
+                _state.update { it.copy(sourceIndex = nextIdx, playerResolveToken = it.playerResolveToken + 1) }
                 playCurrentEpisode()
             }
             null -> {

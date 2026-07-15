@@ -784,55 +784,64 @@ private fun MobileDetailContent(
             }
 
             if (detail.isPlayable) {
-                Row(
-                    modifier = Modifier.fillMaxWidth().wrapContentHeight(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalAlignment = Alignment.CenterVertically
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    WatchPartyButton(partyState = partyState, onShowDialog = { partyVm.showDialog() })
-
-                    IconButton(onClick = onAddToPlaylist, modifier = Modifier.size(52.dp).background(Color.White.copy(alpha = 0.1f), RoundedCornerShape(10.dp))) {
-                        Icon(Icons.Default.PlaylistAdd, contentDescription = "Add List", tint = Color.White)
-                    }
-
-                    IconButton(onClick = onDownload, modifier = Modifier.size(52.dp).background(Color.White.copy(alpha = 0.1f), RoundedCornerShape(10.dp))) {
-                        Icon(Icons.Default.Download, contentDescription = "Download", tint = Color.White)
-                    }
-
-                    Button(
-                        onClick = onPlay,
-                        modifier = Modifier.weight(1f).height(52.dp),
-                        colors = ButtonDefaults.buttonColors(containerColor = accent),
-                        shape = RoundedCornerShape(10.dp),
-                        contentPadding = PaddingValues(horizontal = 12.dp)
+                    // Primary play row
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Icon(Icons.Default.PlayArrow, contentDescription = null, modifier = Modifier.size(22.dp))
-                        Text(
-                            when {
-                                detail.resumePositionMs > 0 && detail.type == ContentType.TV -> "Resume S${detail.selectedSeason}E${detail.selectedEpisode}"
-                                detail.resumePositionMs > 0 && detail.type == ContentType.MOVIE -> "Resume"
-                                detail.type == ContentType.TV -> "Play S${detail.selectedSeason}E${detail.selectedEpisode}"
-                                else -> "Play Now"
-                            },
-                            modifier = Modifier.padding(start = 6.dp),
-                            fontSize = 15.sp,
-                            fontWeight = FontWeight.Bold,
-                            maxLines = 1
-                        )
-                    }
-
-                    if (detail.resumePositionMs > 0) {
-                        IconButton(onClick = onRemoveFromHistory, modifier = Modifier.size(48.dp)) {
-                            Icon(Icons.Default.Delete, contentDescription = "Remove", tint = TextSecondary)
-                        }
                         Button(
-                            onClick = onRestart,
-                            modifier = Modifier.height(52.dp),
-                            colors = ButtonDefaults.buttonColors(containerColor = Color.White.copy(alpha = 0.15f)),
+                            onClick = onPlay,
+                            modifier = Modifier.weight(1f).height(52.dp),
+                            colors = ButtonDefaults.buttonColors(containerColor = accent),
                             shape = RoundedCornerShape(10.dp),
-                            contentPadding = PaddingValues(horizontal = 14.dp)
+                            contentPadding = PaddingValues(horizontal = 12.dp)
                         ) {
-                            Text("Restart", fontSize = 15.sp, fontWeight = FontWeight.SemiBold, maxLines = 1)
+                            Icon(Icons.Default.PlayArrow, contentDescription = null, modifier = Modifier.size(22.dp))
+                            Text(
+                                when {
+                                    detail.resumePositionMs > 0 && detail.type == ContentType.TV -> "Resume S${detail.selectedSeason}E${detail.selectedEpisode}"
+                                    detail.resumePositionMs > 0 && detail.type == ContentType.MOVIE -> "Resume"
+                                    detail.type == ContentType.TV -> "Play S${detail.selectedSeason}E${detail.selectedEpisode}"
+                                    else -> "Play Now"
+                                },
+                                modifier = Modifier.padding(start = 6.dp),
+                                fontSize = 15.sp,
+                                fontWeight = FontWeight.Bold,
+                                maxLines = 1
+                            )
+                        }
+                        if (detail.resumePositionMs > 0) {
+                            Button(
+                                onClick = onRestart,
+                                modifier = Modifier.height(52.dp),
+                                colors = ButtonDefaults.buttonColors(containerColor = Color.White.copy(alpha = 0.15f)),
+                                shape = RoundedCornerShape(10.dp),
+                                contentPadding = PaddingValues(horizontal = 14.dp)
+                            ) {
+                                Text("Restart", fontSize = 15.sp, fontWeight = FontWeight.SemiBold, maxLines = 1)
+                            }
+                            IconButton(onClick = onRemoveFromHistory, modifier = Modifier.size(52.dp)) {
+                                Icon(Icons.Default.Delete, contentDescription = "Remove", tint = TextSecondary)
+                            }
+                        }
+                    }
+                    // Secondary actions row
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        WatchPartyButton(partyState = partyState, onShowDialog = { partyVm.showDialog() })
+                        IconButton(onClick = onAddToPlaylist, modifier = Modifier.size(52.dp).background(Color.White.copy(alpha = 0.1f), RoundedCornerShape(10.dp))) {
+                            Icon(Icons.Default.PlaylistAdd, contentDescription = "Add List", tint = Color.White)
+                        }
+                        IconButton(onClick = onDownload, modifier = Modifier.size(52.dp).background(Color.White.copy(alpha = 0.1f), RoundedCornerShape(10.dp))) {
+                            Icon(Icons.Default.Download, contentDescription = "Download", tint = Color.White)
                         }
                     }
                 }

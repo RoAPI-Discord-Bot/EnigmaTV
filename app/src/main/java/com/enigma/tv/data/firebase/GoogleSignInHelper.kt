@@ -43,9 +43,11 @@ object GoogleSignInHelper {
                 Result.failure(Exception("Unexpected credential type"))
             }
         } catch (e: GetCredentialCancellationException) {
-            Result.failure(Exception("Sign in cancelled by user"))
+            Result.failure(Exception("Sign in cancelled"))
+        } catch (e: androidx.credentials.exceptions.NoCredentialException) {
+            Result.failure(Exception("No Google accounts found on this device. Please add a Google account in your Android settings first."))
         } catch (e: Exception) {
-            Result.failure(e)
+            Result.failure(Exception(e.localizedMessage ?: "Google Sign-In failed. Please try again."))
         }
     }
 }
