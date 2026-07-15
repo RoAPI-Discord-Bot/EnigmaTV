@@ -1361,8 +1361,8 @@ private fun FavoritePosterCard(item: FavoriteItem, vm: EnigmaViewModel, cardW: I
             badge = if (item.type == ContentType.MOVIE) "MOVIE" else "TV",
             cardWidthDp = cardW,
             isFavorite = true,
-            onFavoriteClick = { vm.toggleFavorite(item) },
-            onClick = { vm.playFavorite(item) }
+            onFavoriteClick = null,
+            onClick = { vm.playPlaylistItem(item) }
         )
         if (state.playlists.isNotEmpty()) {
             IconButton(

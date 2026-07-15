@@ -24,6 +24,7 @@ import com.enigma.tv.data.usContentRating
 import com.enigma.tv.data.MovieItem
 import com.enigma.tv.data.Playlist
 import com.enigma.tv.data.PlaylistStore
+import com.enigma.tv.data.FavoriteItem
 import com.enigma.tv.data.ProfileStore
 import com.enigma.tv.data.SearchResults
 import com.enigma.tv.data.SearchSuggestion
@@ -1146,6 +1147,11 @@ class EnigmaViewModel(application: Application) : AndroidViewModel(application) 
 
     fun getCachedSubtitle(): String? {
         return buildSubtitleKey()?.let { subtitleCache[it] }
+    }
+
+    /** Open detail screen for a FavoriteItem from a playlist. */
+    fun playPlaylistItem(item: FavoriteItem) {
+        loadDetail(item.type, item.id, item.title, item.poster.ifBlank { null })
     }
 
     fun openDetailFromContinue(entry: ContinueWatchingEntry) {
