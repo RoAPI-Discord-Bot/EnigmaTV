@@ -685,7 +685,8 @@ class EnigmaViewModel(application: Application) : AndroidViewModel(application) 
             trailers = mapTrailers(d.videos),
             isPlayable = movie.canStream(),
             isFavorite = isFavorite,
-            resumePositionMs = cw?.positionMs ?: 0L
+            resumePositionMs = cw?.positionMs ?: 0L,
+            isInContinueWatching = cw != null
         )
     }
 
@@ -725,7 +726,8 @@ class EnigmaViewModel(application: Application) : AndroidViewModel(application) 
             isFavorite = isFavorite,
             resumePositionMs = cw?.positionMs ?: 0L,
             resumeSeason = cw?.season,
-            resumeEpisode = cw?.episode
+            resumeEpisode = cw?.episode,
+            isInContinueWatching = cw != null
         )
     }
 

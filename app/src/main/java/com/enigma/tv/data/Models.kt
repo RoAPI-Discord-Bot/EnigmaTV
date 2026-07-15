@@ -287,5 +287,7 @@ data class MediaDetailUi(
     val isFavorite: Boolean = false,
     val resumePositionMs: Long = 0L,
     val resumeSeason: Int? = null,
-    val resumeEpisode: Int? = null
+    val resumeEpisode: Int? = null,
+    /** True when this item exists in the user's Continue Watching list, even if positionMs == 0 */
+    val isInContinueWatching: Boolean = false
 )

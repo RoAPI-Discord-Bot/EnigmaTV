@@ -815,18 +815,20 @@ private fun MobileDetailContent(
                                 maxLines = 1
                             )
                         }
-                        if (detail.resumePositionMs > 0) {
-                            Button(
-                                onClick = onRestart,
-                                modifier = Modifier.height(52.dp),
-                                colors = ButtonDefaults.buttonColors(containerColor = Color.White.copy(alpha = 0.15f)),
-                                shape = RoundedCornerShape(10.dp),
-                                contentPadding = PaddingValues(horizontal = 14.dp)
-                            ) {
-                                Text("Restart", fontSize = 15.sp, fontWeight = FontWeight.SemiBold, maxLines = 1)
+                        if (detail.isInContinueWatching) {
+                            if (detail.resumePositionMs > 0) {
+                                Button(
+                                    onClick = onRestart,
+                                    modifier = Modifier.height(52.dp),
+                                    colors = ButtonDefaults.buttonColors(containerColor = Color.White.copy(alpha = 0.15f)),
+                                    shape = RoundedCornerShape(10.dp),
+                                    contentPadding = PaddingValues(horizontal = 14.dp)
+                                ) {
+                                    Text("Restart", fontSize = 15.sp, fontWeight = FontWeight.SemiBold, maxLines = 1)
+                                }
                             }
                             IconButton(onClick = onRemoveFromHistory, modifier = Modifier.size(52.dp)) {
-                                Icon(Icons.Default.Delete, contentDescription = "Remove", tint = TextSecondary)
+                                Icon(Icons.Default.Delete, contentDescription = "Remove from history", tint = TextSecondary)
                             }
                         }
                     }

@@ -21,7 +21,7 @@ object GoogleSignInHelper {
             val googleIdOption = GetGoogleIdOption.Builder()
                 .setFilterByAuthorizedAccounts(false)
                 .setServerClientId(WEB_CLIENT_ID)
-                .setAutoSelectEnabled(true)
+                .setAutoSelectEnabled(false) // Must be false — true throws NoCredentialException when multiple accounts exist
                 .build()
 
             val request = GetCredentialRequest.Builder()
