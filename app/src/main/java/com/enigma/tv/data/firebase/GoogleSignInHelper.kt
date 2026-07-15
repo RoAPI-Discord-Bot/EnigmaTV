@@ -45,7 +45,7 @@ object GoogleSignInHelper {
         } catch (e: GetCredentialCancellationException) {
             Result.failure(Exception("Sign in cancelled"))
         } catch (e: androidx.credentials.exceptions.NoCredentialException) {
-            Result.failure(Exception("No Google accounts found on this device. Please add a Google account in your Android settings first."))
+            Result.failure(Exception("No Google accounts found, or Firebase SHA-1 is not configured. Please use Email/Password sign up."))
         } catch (e: Exception) {
             Result.failure(Exception(e.localizedMessage ?: "Google Sign-In failed. Please try again."))
         }

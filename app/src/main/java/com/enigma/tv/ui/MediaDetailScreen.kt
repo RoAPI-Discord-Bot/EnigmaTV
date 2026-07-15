@@ -358,26 +358,28 @@ private fun TvDetailContent(
                                 }
                                 
                                 // Delete History Button
-                                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                    var removeFocused by remember { mutableStateOf(false) }
-                                    IconButton(
-                                        onClick = {
-                                            onRemoveFromHistory()
-                                            onClose()
-                                        },
-                                        modifier = Modifier
-                                            .size(64.dp)
-                                            .onFocusChanged { removeFocused = it.isFocused }
-                                            .then(
-                                                if (removeFocused) Modifier.border(3.dp, Color.White, RoundedCornerShape(32.dp))
-                                                else Modifier
-                                            )
-                                            .background(Color.White.copy(alpha = 0.2f), RoundedCornerShape(32.dp))
-                                    ) {
-                                        Icon(Icons.Default.Delete, contentDescription = "Remove", tint = Color.White, modifier = Modifier.size(28.dp))
+                                if (detail.isInContinueWatching) {
+                                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                        var removeFocused by remember { mutableStateOf(false) }
+                                        IconButton(
+                                            onClick = {
+                                                onRemoveFromHistory()
+                                                onClose()
+                                            },
+                                            modifier = Modifier
+                                                .size(64.dp)
+                                                .onFocusChanged { removeFocused = it.isFocused }
+                                                .then(
+                                                    if (removeFocused) Modifier.border(3.dp, Color.White, RoundedCornerShape(32.dp))
+                                                    else Modifier
+                                                )
+                                                .background(Color.White.copy(alpha = 0.2f), RoundedCornerShape(32.dp))
+                                        ) {
+                                            Icon(Icons.Default.Delete, contentDescription = "Remove", tint = Color.White, modifier = Modifier.size(28.dp))
+                                        }
+                                        Spacer(Modifier.height(4.dp))
+                                        Text("Remove", color = TextPrimary, fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
                                     }
-                                    Spacer(Modifier.height(4.dp))
-                                    Text("Remove", color = TextPrimary, fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
                                 }
                             }
 
@@ -661,8 +663,10 @@ private fun MobileDetailContent(
                         }
                         Text("Restart", color = TextPrimary, fontSize = 10.sp, modifier = Modifier.padding(top = 4.dp))
                     }
-                    
-                    // Remove Button
+                }
+                
+                // Remove Button
+                if (detail.isInContinueWatching) {
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
                         IconButton(
                             onClick = {
@@ -789,8 +793,10 @@ private fun MobileDetailContent(
                                     Text("Restart", fontSize = 15.sp, fontWeight = FontWeight.SemiBold, maxLines = 1)
                                 }
                             }
-                            IconButton(onClick = onRemoveFromHistory, modifier = Modifier.size(52.dp)) {
-                                Icon(Icons.Default.Delete, contentDescription = "Remove from history", tint = TextSecondary)
+                            if (detail.isInContinueWatching) {
+                                IconButton(onClick = onRemoveFromHistory, modifier = Modifier.size(52.dp)) {
+                                    Icon(Icons.Default.Delete, contentDescription = "Remove from history", tint = TextSecondary)
+                                }
                             }
                         }
                     }

@@ -628,6 +628,8 @@ private fun EnigmaPlayerOverlay(
                         tvControls = tvControls,
                         bingeNextLabel = viewModel.getBingeNextLabel(),
                         onBingeNext = { viewModel.playBingeNext() },
+                        getCachedSubtitle = { viewModel.getCachedSubtitle() },
+                        onSubtitleCaptured = { viewModel.cacheSubtitle(it) },
                         resolveToken = state.playerResolveToken,
                         tmdbId = state.currentMovieId ?: state.currentShowId,
                         playingType = state.playingType,

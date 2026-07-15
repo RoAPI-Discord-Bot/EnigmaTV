@@ -62,6 +62,8 @@ fun EnigmaMediaPlayer(
     onNativePlayerActive: ((Boolean) -> Unit)? = null,
     bingeNextLabel: String? = null,
     onBingeNext: (() -> Unit)? = null,
+    getCachedSubtitle: () -> String? = { null },
+    onSubtitleCaptured: (String) -> Unit = {},
     startPositionMs: Long = 0L,
     tvControls: TvPlayerControls? = null,
     resolveToken: Int = 0,
@@ -265,7 +267,9 @@ fun EnigmaMediaPlayer(
                                         val subtitleUrl = capturedSubtitleUrl
                                             ?: kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
                                                 com.enigma.tv.data.StreamResolver.resolveSubtitleFromHls(captured)
-                                            }
+                                            } ?: getCachedSubtitle()
+
+                                        subtitleUrl?.let { onSubtitleCaptured(it) }
                                         android.util.Log.d("EnigmaCapture", "Final subtitle URL: $subtitleUrl")
                                         
                                         resolvedStream = com.enigma.tv.data.ResolvedStream.fromEmbed(embedUrl, captured, provider, mergedCookies, webViewUserAgent).copy(subtitleUrl = subtitleUrl)

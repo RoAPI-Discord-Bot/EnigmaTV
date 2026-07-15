@@ -139,13 +139,15 @@ class EnigmaViewModel(application: Application) : AndroidViewModel(application) 
     private val profileStore = ProfileStore(application)
     private val authService by lazy { FirebaseAuthService() }
     private val syncService by lazy { FirebaseSyncService() }
+    private val subtitleCache = mutableMapOf<String, String>()
+
+    private val _state = MutableStateFlow(EnigmaUiState())
+    val state: StateFlow<EnigmaUiState> = _state.asStateFlow()
     private val iptvRepo = IptvRepository()
     private val streamedRepo = StreamedRepository()
     private val liveChannelStore = LiveChannelFavoritesStore(application)
     private val imageLoader = ImageLoader(application)
 
-    private val _state = MutableStateFlow(EnigmaUiState())
-    val state: StateFlow<EnigmaUiState> = _state.asStateFlow()
     private var syncJob: Job? = null
     private var tvNavJob: Job? = null
     private var homeLoadJob: Job? = null
@@ -1126,6 +1128,24 @@ class EnigmaViewModel(application: Application) : AndroidViewModel(application) 
                 error = null
             )
         }
+    }
+
+    // Subtitle Management
+    private fun buildSubtitleKey(): String? {
+        val st = _state.value
+        val type = st.playingType ?: return null
+        val tmdbId = st.currentMovieId ?: st.currentShowId ?: return null
+        return if (type == ContentType.TV) "${tmdbId}_${st.selectedSeason}_${st.selectedEpisode}" else tmdbId.toString()
+    }
+
+    fun cacheSubtitle(url: String) {
+        val key = buildSubtitleKey() ?: return
+        subtitleCache[key] = url
+        _state.update { it.copy(playerSubtitleUrl = url) }
+    }
+
+    fun getCachedSubtitle(): String? {
+        return buildSubtitleKey()?.let { subtitleCache[it] }
     }
 
     fun openDetailFromContinue(entry: ContinueWatchingEntry) {

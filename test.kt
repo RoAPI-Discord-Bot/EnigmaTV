@@ -1,5 +1,4 @@
-import androidx.media3.common.Tracks
+import android.net.Uri
 fun main() {
-    val clazz = Tracks.Group::class.java
-    clazz.methods.forEach { println(it.name + ' ' + it.returnType.name) }
+    println(Uri.parse("https://example.com/?h={\"a\":1}").getQueryParameter("h"))
 }
