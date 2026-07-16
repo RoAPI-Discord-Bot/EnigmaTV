@@ -127,7 +127,7 @@ fun ProfilePickerGate(
 
     val initialFocusRequester = remember { FocusRequester() }
 
-    LaunchedEffect(isTv, profiles, focusedProfileId) {
+    LaunchedEffect(isTv, manageMode) {
         if (!isTv || profiles.isEmpty() || manageMode) return@LaunchedEffect
         kotlinx.coroutines.delay(280)
         runCatching { initialFocusRequester.requestFocus() }
