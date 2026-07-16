@@ -432,6 +432,7 @@ private fun LiveEventCard(match: LiveSportMatch, layout: ScreenLayout, onPlay: (
             .background(
                 if (focused) EnigmaPurple.copy(alpha = 0.85f) else Color.Transparent
             )
+            .border(if (focused) 2.dp else 0.dp, if (focused) Color.White else Color.Transparent, RoundedCornerShape(12.dp))
             .clickable { onPlay(match) }
             .onFocusChanged { focused = it.isFocused }
             .padding(horizontal = 14.dp, vertical = padV),
@@ -513,7 +514,11 @@ private fun LiveChannelRow(
                     else -> Color.Transparent
                 }
             )
-            .then(if (isActive && !focused) Modifier.border(2.dp, EnigmaPink.copy(alpha = 0.5f), RoundedCornerShape(10.dp)) else Modifier)
+            .border(
+                if (focused) 2.dp else if (isActive) 2.dp else 0.dp,
+                if (focused) Color.White else if (isActive) EnigmaPink.copy(alpha = 0.5f) else Color.Transparent,
+                RoundedCornerShape(10.dp)
+            )
             .clickable { onPlay(channel) }
             .onFocusChanged { focused = it.isFocused }
             .padding(horizontal = 12.dp),

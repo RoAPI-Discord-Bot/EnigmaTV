@@ -282,9 +282,9 @@ private fun TvDetailContent(
                             detail.contentRating?.let { ContentRatingBadge(it) }
                             Text(detail.genresText, color = TextSecondary, fontSize = 14.sp, modifier = Modifier.padding(start = 8.dp))
                         }
-                    }
 
-                    item {
+                        Spacer(Modifier.height(24.dp))
+
                         // Overview
                         Text(
                             detail.overview.ifBlank { "No description available." },
@@ -294,9 +294,9 @@ private fun TvDetailContent(
                             maxLines = 4,
                             overflow = TextOverflow.Ellipsis
                         )
-                    }
 
-                    item {
+                        Spacer(Modifier.height(24.dp))
+
                         Row(
                             horizontalArrangement = Arrangement.spacedBy(16.dp),
                             verticalAlignment = Alignment.Top,
@@ -933,8 +933,8 @@ private fun TvEpisodeRow(ep: TvEpisode, selected: Boolean, onSelect: (Int) -> Un
                 }
             )
             .border(
-                if (focused) 4.dp else 0.dp,
-                if (focused) EnigmaPurple else Color.Transparent,
+                if (focused) 2.dp else 0.dp,
+                if (focused) Color.White else Color.Transparent,
                 RoundedCornerShape(10.dp)
             )
             .focusable()
