@@ -326,6 +326,7 @@ fun ExoLivePlayer(
                     setDefaultRequestProperties(effectiveHeaders)
                 }
             }
+        val defaultDataSourceFactory = androidx.media3.datasource.DefaultDataSource.Factory(context, dataSourceFactory)
         try {
             val uri = android.net.Uri.parse(playUrl)
             if (!uri.scheme.isNullOrBlank()) {
@@ -375,7 +376,7 @@ fun ExoLivePlayer(
                 // Use DefaultMediaSourceFactory because it automatically merges sidecar SubtitleConfigurations 
                 // into a MergingMediaSource. HlsMediaSource/ProgressiveMediaSource ignore them!
                 android.util.Log.d("EnigmaPlayer", "Using DefaultMediaSourceFactory for: $playUrl")
-                val mediaSource = DefaultMediaSourceFactory(dataSourceFactory).createMediaSource(mediaItem)
+                val mediaSource = DefaultMediaSourceFactory(defaultDataSourceFactory).createMediaSource(mediaItem)
                 val startMs = if (isLiveBroadcast) C.TIME_UNSET else startPositionMs.coerceAtLeast(0L)
                 player.setMediaSource(mediaSource, startMs)
                 player.prepare()

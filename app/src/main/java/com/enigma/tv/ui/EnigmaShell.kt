@@ -347,6 +347,9 @@ fun EnigmaShell(viewModel: EnigmaViewModel = viewModel()) {
                             NavSection.PLAYLISTS -> PlaylistsScreen(
                                 playlists = state.playlists,
                                 onCreatePlaylist = { name -> viewModel.createPlaylist(name) },
+                                onDeletePlaylist = { id -> viewModel.deletePlaylist(id) },
+                                onPlayAll = { id -> viewModel.playPlaylistFrom(id, 0) },
+                                onRemoveItem = { playlistId, item -> viewModel.removeFromPlaylist(playlistId, item) },
                                 onPlaylistItemClicked = { item -> viewModel.playPlaylistItem(item) }
                             )
                             NavSection.CONTINUE -> ContinueContent(state, viewModel, layout)

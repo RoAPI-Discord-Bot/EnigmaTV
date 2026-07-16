@@ -29,6 +29,9 @@ import com.enigma.tv.data.Playlist
 fun PlaylistsScreen(
     playlists: List<Playlist>,
     onCreatePlaylist: (String) -> Unit,
+    onDeletePlaylist: (String) -> Unit,
+    onPlayAll: (String) -> Unit,
+    onRemoveItem: (String, FavoriteItem) -> Unit,
     onPlaylistItemClicked: (FavoriteItem) -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -89,6 +92,9 @@ fun PlaylistsScreen(
                             if (isExpanded) expandedPlaylists.remove(playlist.id)
                             else expandedPlaylists.add(playlist.id)
                         },
+                        onPlayAll = { onPlayAll(playlist.id) },
+                        onDeletePlaylist = { onDeletePlaylist(playlist.id) },
+                        onRemoveItem = { item -> onRemoveItem(playlist.id, item) },
                         onItemClick = onPlaylistItemClicked
                     )
                 }
@@ -135,6 +141,9 @@ private fun PlaylistCard(
     playlist: Playlist,
     isExpanded: Boolean,
     onClick: () -> Unit,
+    onPlayAll: () -> Unit,
+    onDeletePlaylist: () -> Unit,
+    onRemoveItem: (FavoriteItem) -> Unit,
     onItemClick: (FavoriteItem) -> Unit
 ) {
     Card(
@@ -164,6 +173,25 @@ private fun PlaylistCard(
             
             if (isExpanded) {
                 Spacer(modifier = Modifier.height(16.dp))
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp)
+                ) {
+                    if (playlist.items.isNotEmpty()) {
+                        Button(
+                            onClick = onPlayAll,
+                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFE50914))
+                        ) {
+                            Text("Play All", color = Color.White)
+                        }
+                    }
+                    Button(
+                        onClick = onDeletePlaylist,
+                        colors = ButtonDefaults.buttonColors(containerColor = Color.DarkGray)
+                    ) {
+                        Text("Delete Playlist", color = Color.White)
+                    }
+                }
                 if (playlist.items.isEmpty()) {
                     Text(
                         text = "This playlist is empty.",
@@ -177,7 +205,11 @@ private fun PlaylistCard(
                         modifier = Modifier.fillMaxWidth()
                     ) {
                         items(playlist.items) { item ->
-                            PlaylistItemCard(item = item, onClick = { onItemClick(item) })
+                            PlaylistItemCard(
+                                item = item, 
+                                onClick = { onItemClick(item) },
+                                onRemoveClick = { onRemoveItem(item) }
+                            )
                         }
                     }
                 }
@@ -189,23 +221,32 @@ private fun PlaylistCard(
 @Composable
 private fun PlaylistItemCard(
     item: FavoriteItem,
-    onClick: () -> Unit
+    onClick: () -> Unit,
+    onRemoveClick: () -> Unit
 ) {
     Column(
         modifier = Modifier
             .width(120.dp)
             .clickable(onClick = onClick)
     ) {
-        AsyncImage(
-            model = item.poster.takeIf { it.isNotBlank() },
-            contentDescription = item.title,
-            contentScale = ContentScale.Crop,
-            modifier = Modifier
-                .fillMaxWidth()
-                .aspectRatio(2f / 3f)
-                .clip(RoundedCornerShape(8.dp))
-                .background(Color.DarkGray)
-        )
+        Box {
+            AsyncImage(
+                model = item.poster.takeIf { it.isNotBlank() },
+                contentDescription = item.title,
+                contentScale = ContentScale.Crop,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .aspectRatio(2f / 3f)
+                    .clip(RoundedCornerShape(8.dp))
+                    .background(Color.DarkGray)
+            )
+            IconButton(
+                onClick = onRemoveClick,
+                modifier = Modifier.align(Alignment.TopEnd).padding(4.dp).size(24.dp).background(Color.Black.copy(alpha = 0.6f), RoundedCornerShape(12.dp))
+            ) {
+                Icon(androidx.compose.material.icons.Icons.Default.Close, contentDescription = "Remove", tint = Color.White, modifier = Modifier.size(16.dp))
+            }
+        }
         Spacer(modifier = Modifier.height(8.dp))
         Text(
             text = item.title,
