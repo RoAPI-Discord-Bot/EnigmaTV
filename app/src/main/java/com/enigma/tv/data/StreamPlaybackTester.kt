@@ -53,7 +53,7 @@ object StreamPlaybackTester {
                 .build()
 
             val playbackHeaders = resolved.playbackHeaders()
-            android.util.Log.i("EnigmaDevTest", "Testing stream: url=${resolved.url} referer=${resolved.referer} origin=${resolved.origin} headers=$playbackHeaders")
+            android.util.Log.i("EnigmaDevTest", "Testing stream: url=${resolved.url} referer=${resolved.referer} origin=${resolved.origin} cookies=${resolved.cookies.take(80)} headers=$playbackHeaders")
 
             val dataSourceFactory = DefaultHttpDataSource.Factory()
                 .setUserAgent(resolved.userAgent)
