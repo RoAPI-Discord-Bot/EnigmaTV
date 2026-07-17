@@ -116,6 +116,7 @@ object EmbedProvidersResolver {
             val totalExpected = 1 + sourcesToRace.size
             val collected = mutableListOf<Pair<String, ResolvedStream>>()
             var receivedCount = 0
+            var foundSubtitle: String? = null
 
             // Collect results within the time window
             val deadline = System.currentTimeMillis() + COLLECTION_WINDOW_MS
@@ -133,6 +134,10 @@ object EmbedProvidersResolver {
                 val (srcName, stream) = received
                 receivedCount++
 
+                if (stream?.subtitleUrl != null && foundSubtitle == null) {
+                    foundSubtitle = stream.subtitleUrl
+                }
+
                 if (stream != null && !stream.isExpiredMp4()) {
                     Log.d(TAG, "[$tmdbId] $srcName → score=${stream.quality()} hls=${stream.isHls()} sub=${stream.subtitleUrl != null}")
                     collected.add(srcName to stream)
@@ -146,7 +151,7 @@ object EmbedProvidersResolver {
                         kotlinx.coroutines.delay(EARLY_WIN_DELAY_MS)
                         allJobs.forEach { it.cancel() }
                         resultsChannel.close()
-                        return@coroutineScope pickBest(tmdbId, collected)
+                        return@coroutineScope pickBest(tmdbId, collected, foundSubtitle)
                     }
                 } else if (stream != null) {
                     Log.w(TAG, "[$tmdbId] $srcName MP4 is EXPIRED — skipping")
@@ -159,7 +164,7 @@ object EmbedProvidersResolver {
 
             if (collected.isNotEmpty()) {
                 onStatus("Optimizing playback quality...")
-                return@coroutineScope pickBest(tmdbId, collected)
+                return@coroutineScope pickBest(tmdbId, collected, foundSubtitle)
             }
 
             // ── Fallback: sequential pass through remaining sources ───────────
@@ -174,7 +179,12 @@ object EmbedProvidersResolver {
                     if (res != null && !res.isExpiredMp4()) {
                         Log.d(TAG, "[$tmdbId] Fallback $srcName: SUCCESS score=${res.quality()}")
                         onStatus("Source found. Starting playback...")
-                        return@coroutineScope res
+                        return@coroutineScope if (res.subtitleUrl == null && foundSubtitle != null) {
+                            res.copy(subtitleUrl = foundSubtitle)
+                        } else res
+                    }
+                    if (res?.subtitleUrl != null && foundSubtitle == null) {
+                        foundSubtitle = res.subtitleUrl
                     }
                     Log.d(TAG, "[$tmdbId] Fallback $srcName: failed")
                 }
@@ -185,10 +195,14 @@ object EmbedProvidersResolver {
         }
     }
 
-    private fun pickBest(tmdbId: Int, results: List<Pair<String, ResolvedStream>>): ResolvedStream {
+    private fun pickBest(tmdbId: Int, results: List<Pair<String, ResolvedStream>>, fallbackSubtitle: String?): ResolvedStream {
         val best = results.maxByOrNull { it.second.quality() }!!
-        Log.d(TAG, "[$tmdbId] WINNER: ${best.first} score=${best.second.quality()} hls=${best.second.isHls()} sub=${best.second.subtitleUrl != null}")
-        return best.second
+        val stream = best.second
+        val finalStream = if (stream.subtitleUrl == null && fallbackSubtitle != null) {
+            stream.copy(subtitleUrl = fallbackSubtitle)
+        } else stream
+        Log.d(TAG, "[$tmdbId] WINNER: ${best.first} score=${finalStream.quality()} hls=${finalStream.isHls()} sub=${finalStream.subtitleUrl != null}")
+        return finalStream
     }
 
     private fun buildEmbedList(
