@@ -348,14 +348,12 @@ fun ExoLivePlayer(
         // Use OkHttpDataSource instead of DefaultHttpDataSource. DefaultHttpDataSource drops
         // headers upon cross-origin redirects (which HLS segments often do, going from CDN origin
         // to node IP). OkHttpDataSource handles cookies and redirects much better.
-        val okHttpClient = remember {
-            okhttp3.OkHttpClient.Builder()
-                .followRedirects(true)
-                .followSslRedirects(true)
-                .connectTimeout(8, java.util.concurrent.TimeUnit.SECONDS)
-                .readTimeout(8, java.util.concurrent.TimeUnit.SECONDS)
-                .build()
-        }
+        val okHttpClient = okhttp3.OkHttpClient.Builder()
+            .followRedirects(true)
+            .followSslRedirects(true)
+            .connectTimeout(8, java.util.concurrent.TimeUnit.SECONDS)
+            .readTimeout(8, java.util.concurrent.TimeUnit.SECONDS)
+            .build()
         
         val dataSourceFactory = OkHttpDataSource.Factory(okHttpClient)
             .setUserAgent(resolved.userAgent)
