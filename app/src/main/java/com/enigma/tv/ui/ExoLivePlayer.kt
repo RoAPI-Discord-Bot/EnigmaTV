@@ -214,8 +214,19 @@ fun ExoLivePlayer(
                 .setForceHighestSupportedBitrate(true)
         )
 
-        val renderersFactory = DefaultRenderersFactory(context)
-            .experimentalSetLegacyTextDecodingEnabled(true) // Required for sidecar VTT/SRT via SingleSampleMediaSource
+        val renderersFactory = object : DefaultRenderersFactory(context) {
+            override fun buildTextRenderers(
+                context: android.content.Context,
+                output: androidx.media3.exoplayer.text.TextOutput,
+                outputLooper: android.os.Looper,
+                extensionRendererMode: Int,
+                out: java.util.ArrayList<androidx.media3.exoplayer.Renderer>
+            ) {
+                val renderer = androidx.media3.exoplayer.text.TextRenderer(output, outputLooper)
+                renderer.experimentalSetLegacyDecodingEnabled(true)
+                out.add(renderer)
+            }
+        }
 
         ExoPlayer.Builder(context)
             .setRenderersFactory(renderersFactory)
