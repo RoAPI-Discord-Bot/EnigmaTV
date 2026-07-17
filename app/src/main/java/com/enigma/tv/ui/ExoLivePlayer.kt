@@ -66,6 +66,7 @@ import androidx.media3.common.Tracks
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.datasource.DefaultHttpDataSource
 import androidx.media3.exoplayer.DefaultLoadControl
+import androidx.media3.exoplayer.DefaultRenderersFactory
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.hls.HlsMediaSource
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
@@ -213,7 +214,11 @@ fun ExoLivePlayer(
                 .setForceHighestSupportedBitrate(true)
         )
 
+        val renderersFactory = DefaultRenderersFactory(context)
+            .experimentalSetLegacyTextDecodingEnabled(true) // Required for sidecar VTT/SRT via SingleSampleMediaSource
+
         ExoPlayer.Builder(context)
+            .setRenderersFactory(renderersFactory)
             .setTrackSelector(trackSelector)
             .setBandwidthMeter(bandwidthMeter)
             .setLoadControl(loadControl)
