@@ -70,6 +70,8 @@ import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.hls.HlsMediaSource
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import androidx.media3.exoplayer.source.MediaSource
+import androidx.media3.exoplayer.source.MergingMediaSource
+import androidx.media3.exoplayer.source.SingleSampleMediaSource
 import androidx.media3.ui.PlayerView
 import androidx.media3.ui.R as MediaUiR
 import com.enigma.tv.data.ResolvedStream
@@ -177,12 +179,15 @@ fun ExoLivePlayer(
     val partyState by partyVm.state.collectAsState()
 
     var sidecarSubtitle by remember { mutableStateOf<String?>(null) }
+    var subtitleResolved by remember { mutableStateOf(false) }
     LaunchedEffect(playUrl, playToken, resolved.subtitleUrl) {
         sidecarSubtitle = null
+        subtitleResolved = false
         val subUrl = resolved.subtitleUrl?.takeIf { StreamResolver.isValidSubtitleUrl(it) }
         if (subUrl != null) {
             sidecarSubtitle = EnigmaSubtitleHelper.getLocalSubtitleUri(context, subUrl, resolved.referer)
         }
+        subtitleResolved = true
     }
 
     DisposableEffect(useExternalChrome) {
@@ -304,7 +309,8 @@ fun ExoLivePlayer(
 
     val effectiveHeaders = if (stripHeaders) emptyMap() else playbackHeaders
 
-    DisposableEffect(playUrl, playToken, effectiveHeaders, sidecarSubtitle) {
+    DisposableEffect(playUrl, playToken, effectiveHeaders, subtitleResolved) {
+        if (!subtitleResolved) return@DisposableEffect onDispose { }
         errorMessage = null
         hasReachedReady = false
         onLoadingChange(true)
@@ -353,30 +359,33 @@ fun ExoLivePlayer(
                     itemBuilder.setMimeType(mainMimeType)
                 }
                 
-                sidecarSubtitle?.let { sub ->
-                    val subUri = android.net.Uri.parse(sub)
+                val primaryMediaItem = itemBuilder.build()
+                
+                android.util.Log.d("EnigmaPlayer", "Using DefaultMediaSourceFactory for: $playUrl")
+                var mediaSource: MediaSource = DefaultMediaSourceFactory(defaultDataSourceFactory).createMediaSource(primaryMediaItem)
+                
+                val subUri = sidecarSubtitle?.let { android.net.Uri.parse(it) }
+                if (subUri != null) {
                     val mime = when {
-                        sub.contains(".srt", ignoreCase = true) -> MimeTypes.APPLICATION_SUBRIP
+                        resolved.subtitleUrl?.contains(".vtt", ignoreCase = true) == true -> MimeTypes.TEXT_VTT
+                        resolved.subtitleUrl?.contains(".srt", ignoreCase = true) == true -> MimeTypes.APPLICATION_SUBRIP
                         else -> MimeTypes.TEXT_VTT
                     }
-                    itemBuilder.setSubtitleConfigurations(
-                        listOf(
-                            MediaItem.SubtitleConfiguration.Builder(subUri)
-                                .setMimeType(mime)
-                                .setLanguage("en")
-                                .setLabel("English")
-                                .setSelectionFlags(C.SELECTION_FLAG_DEFAULT)
-                                .setRoleFlags(C.ROLE_FLAG_SUBTITLE)
-                                .build()
-                        )
-                    )
+                    val subtitleConfig = MediaItem.SubtitleConfiguration.Builder(subUri)
+                        .setMimeType(mime)
+                        .setLanguage("en")
+                        .setLabel("English")
+                        .setSelectionFlags(C.SELECTION_FLAG_DEFAULT)
+                        .setRoleFlags(C.ROLE_FLAG_SUBTITLE)
+                        .build()
+                        
+                    val subSource = SingleSampleMediaSource.Factory(defaultDataSourceFactory)
+                        .setTreatLoadErrorsAsEndOfStream(true) // Ignore 403 errors to prevent crashing the video
+                        .createMediaSource(subtitleConfig, C.TIME_UNSET)
+                        
+                    mediaSource = MergingMediaSource(mediaSource, subSource)
                 }
-                val mediaItem = itemBuilder.build()
-                
-                // Use DefaultMediaSourceFactory because it automatically merges sidecar SubtitleConfigurations 
-                // into a MergingMediaSource. HlsMediaSource/ProgressiveMediaSource ignore them!
-                android.util.Log.d("EnigmaPlayer", "Using DefaultMediaSourceFactory for: $playUrl")
-                val mediaSource = DefaultMediaSourceFactory(defaultDataSourceFactory).createMediaSource(mediaItem)
+
                 val startMs = if (isLiveBroadcast) C.TIME_UNSET else startPositionMs.coerceAtLeast(0L)
                 player.setMediaSource(mediaSource, startMs)
                 player.prepare()
