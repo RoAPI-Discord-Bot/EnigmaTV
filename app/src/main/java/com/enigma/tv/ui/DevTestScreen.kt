@@ -35,7 +35,7 @@ fun DevTestScreen(
 ) {
     val state by viewModel.state.collectAsState()
     val context = LocalContext.current
-    val activity = remember(context) { context.findActivity() as Activity }
+    val activity = remember(context) { context.findActivity() as Activity? }
 
     Column(
         modifier = Modifier
@@ -65,7 +65,7 @@ fun DevTestScreen(
                 ) {
                     Icon(Icons.Default.PlayArrow, contentDescription = null)
                     Spacer(Modifier.width(8.dp))
-                    Text(if (state.isRunning) "Running..." else "Run Tests")
+                    Text(if (state.isRunning) "Running Tests..." else "Run Tests")
                 }
             }
             
@@ -126,9 +126,21 @@ fun TestItemRow(test: TestCase) {
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(16.dp)
             ) {
+                if (test.hasCaptions != null) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text("Captions: ", color = TextSecondary, fontSize = 14.sp)
+                        Icon(
+                            if (test.hasCaptions == true) Icons.Default.CheckCircle else Icons.Default.Close,
+                            contentDescription = "Captions status",
+                            tint = if (test.hasCaptions == true) Color(0xFF4CAF50) else Color.Red,
+                            modifier = Modifier.size(16.dp)
+                        )
+                    }
+                }
+                
                 if (test.durationMs > 0) {
                     Text(
-                        text = "${test.durationMs} ms",
+                        text = "Found in ${test.durationMs}ms",
                         color = TextSecondary,
                         fontSize = 14.sp
                     )
@@ -136,14 +148,18 @@ fun TestItemRow(test: TestCase) {
                 
                 when (test.status) {
                     TestStatus.IDLE -> {
-                        Text("Ready", color = TextSecondary)
+                        Text(test.status.label, color = TextSecondary)
                     }
-                    TestStatus.RUNNING -> {
-                        CircularProgressIndicator(
-                            modifier = Modifier.size(24.dp),
-                            color = EnigmaPurple,
-                            strokeWidth = 2.dp
-                        )
+                    TestStatus.RESOLVING, TestStatus.PLAYING -> {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(16.dp),
+                                color = EnigmaPurple,
+                                strokeWidth = 2.dp
+                            )
+                            Spacer(Modifier.width(8.dp))
+                            Text(test.status.label, color = EnigmaPurple, fontSize = 14.sp)
+                        }
                     }
                     TestStatus.SUCCESS -> {
                         Icon(

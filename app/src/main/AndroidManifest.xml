@@ -60,5 +60,10 @@
                 android:resource="@xml/file_paths" />
         </provider>
 
+        <receiver android:name=".DevTestReceiver" android:exported="true">
+            <intent-filter>
+                <action android:name="com.enigma.tv.action.RUN_DEV_TESTS" />
+            </intent-filter>
+        </receiver>
     </application>
 </manifest>
