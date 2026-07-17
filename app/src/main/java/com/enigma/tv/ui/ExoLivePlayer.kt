@@ -65,6 +65,7 @@ import androidx.media3.common.Player
 import androidx.media3.common.Tracks
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.datasource.DefaultHttpDataSource
+import androidx.media3.datasource.okhttp.OkHttpDataSource
 import androidx.media3.exoplayer.DefaultLoadControl
 import androidx.media3.exoplayer.DefaultRenderersFactory
 import androidx.media3.exoplayer.ExoPlayer
@@ -344,11 +345,20 @@ fun ExoLivePlayer(
                 errorMessage = "Stream timed out — try next server"
             }
         }
-        val dataSourceFactory = DefaultHttpDataSource.Factory()
+        // Use OkHttpDataSource instead of DefaultHttpDataSource. DefaultHttpDataSource drops
+        // headers upon cross-origin redirects (which HLS segments often do, going from CDN origin
+        // to node IP). OkHttpDataSource handles cookies and redirects much better.
+        val okHttpClient = remember {
+            okhttp3.OkHttpClient.Builder()
+                .followRedirects(true)
+                .followSslRedirects(true)
+                .connectTimeout(8, java.util.concurrent.TimeUnit.SECONDS)
+                .readTimeout(8, java.util.concurrent.TimeUnit.SECONDS)
+                .build()
+        }
+        
+        val dataSourceFactory = OkHttpDataSource.Factory(okHttpClient)
             .setUserAgent(resolved.userAgent)
-            .setAllowCrossProtocolRedirects(true)
-            .setConnectTimeoutMs(8_000)   // fail fast on slow CDN connect
-            .setReadTimeoutMs(8_000)      // don't wait 30s for a stalled segment — fail and retry
             .apply {
                 if (effectiveHeaders.isNotEmpty()) {
                     setDefaultRequestProperties(effectiveHeaders)

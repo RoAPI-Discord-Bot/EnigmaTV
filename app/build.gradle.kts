@@ -13,8 +13,8 @@ android {
         applicationId = "com.enigmatv"
         minSdk = 26
         targetSdk = 35
-        versionCode = 30207
-        versionName = "3.2.7"
+        versionCode = 30208
+        versionName = "3.2.8"
     }
 
     signingConfigs {
@@ -82,6 +82,7 @@ dependencies {
     implementation("androidx.media3:media3-exoplayer-workmanager:1.4.1")
     implementation("androidx.media3:media3-database:1.4.1")
     implementation("androidx.media3:media3-datasource:1.4.1")
+    implementation("androidx.media3:media3-datasource-okhttp:1.4.1")
 
     implementation(platform("com.google.firebase:firebase-bom:33.7.0"))
     implementation("com.google.firebase:firebase-auth-ktx")

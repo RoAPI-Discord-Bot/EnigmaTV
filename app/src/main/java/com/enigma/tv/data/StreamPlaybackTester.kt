@@ -9,6 +9,7 @@ import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.datasource.DefaultHttpDataSource
+import androidx.media3.datasource.okhttp.OkHttpDataSource
 import androidx.media3.exoplayer.DefaultRenderersFactory
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
@@ -55,11 +56,15 @@ object StreamPlaybackTester {
             val playbackHeaders = resolved.playbackHeaders()
             android.util.Log.i("EnigmaDevTest", "Testing stream: url=${resolved.url} referer=${resolved.referer} origin=${resolved.origin} cookies=${resolved.cookies.take(80)} headers=$playbackHeaders")
 
-            val dataSourceFactory = DefaultHttpDataSource.Factory()
+            val okHttpClient = okhttp3.OkHttpClient.Builder()
+                .followRedirects(true)
+                .followSslRedirects(true)
+                .connectTimeout(8, java.util.concurrent.TimeUnit.SECONDS)
+                .readTimeout(8, java.util.concurrent.TimeUnit.SECONDS)
+                .build()
+
+            val dataSourceFactory = OkHttpDataSource.Factory(okHttpClient)
                 .setUserAgent(resolved.userAgent)
-                .setAllowCrossProtocolRedirects(true)
-                .setConnectTimeoutMs(8_000)
-                .setReadTimeoutMs(8_000)
                 .apply {
                     // Always inject all headers including User-Agent explicitly
                     val allHeaders = buildMap {
