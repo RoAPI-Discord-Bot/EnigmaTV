@@ -186,7 +186,13 @@ fun ExoLivePlayer(
         subtitleResolved = false
         val subUrl = resolved.subtitleUrl?.takeIf { StreamResolver.isValidSubtitleUrl(it) }
         if (subUrl != null) {
-            sidecarSubtitle = EnigmaSubtitleHelper.getLocalSubtitleUri(context, subUrl, resolved.referer)
+            // Pass the URL directly to ExoPlayer instead of pre-downloading.
+            // Pre-downloading via EnigmaSubtitleHelper was getting HTTP 403 on signed CDN URLs
+            // (e.g. CloudFront-signed hakunaymatata URLs). ExoPlayer's SingleSampleMediaSource
+            // handles the CDN request natively and setTreatLoadErrorsAsEndOfStream(true) silently
+            // absorbs any load failure — the video keeps playing without subtitles.
+            sidecarSubtitle = subUrl
+            android.util.Log.d("EnigmaCapture", "Subtitle URL set directly (no pre-download): $subUrl")
         }
         subtitleResolved = true
     }
@@ -383,6 +389,8 @@ fun ExoLivePlayer(
                 val subUri = sidecarSubtitle?.let { android.net.Uri.parse(it) }
                 if (subUri != null) {
                     val mime = when {
+                        sidecarSubtitle?.substringBefore("?")?.endsWith(".vtt", ignoreCase = true) == true -> MimeTypes.TEXT_VTT
+                        sidecarSubtitle?.substringBefore("?")?.endsWith(".srt", ignoreCase = true) == true -> MimeTypes.APPLICATION_SUBRIP
                         resolved.subtitleUrl?.contains(".vtt", ignoreCase = true) == true -> MimeTypes.TEXT_VTT
                         resolved.subtitleUrl?.contains(".srt", ignoreCase = true) == true -> MimeTypes.APPLICATION_SUBRIP
                         else -> MimeTypes.TEXT_VTT
