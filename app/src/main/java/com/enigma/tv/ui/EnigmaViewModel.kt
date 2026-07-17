@@ -434,8 +434,11 @@ class EnigmaViewModel(application: Application) : AndroidViewModel(application) 
     fun refreshProfilesFromCloud() {
         if (!_state.value.isLoggedIn || profileSelectionInProgress) return
         viewModelScope.launch {
-            syncIfLoggedIn()
+            // Pull FIRST so cloud profiles aren't overwritten by stale local data.
+            // Only push back after we've merged, so we sync local-only items like
+            // continue-watching, but never stomp cloud-only profiles.
             pullCloudSafe()
+            syncIfLoggedIn()
         }
     }
 

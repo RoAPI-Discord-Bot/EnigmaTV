@@ -156,9 +156,10 @@ class ProfileStore(private val context: Context) {
 
         context.profileDataStore.edit { store ->
             store[profilesKey] = gson.toJson(final)
-            val currentActive = store[activeKey]
-            val active = currentActive?.takeIf { id -> final.any { it.id == id } }
-                ?: activeId?.takeIf { id -> final.any { it.id == id } }
+            // Cloud activeProfileId is the source of truth.
+            // Only fall back to the current local active if cloud didn't specify one.
+            val active = activeId?.takeIf { id -> final.any { it.id == id } }
+                ?: store[activeKey]?.takeIf { id -> final.any { it.id == id } }
                 ?: final.first().id
             store[activeKey] = active
         }
