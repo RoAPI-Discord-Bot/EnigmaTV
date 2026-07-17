@@ -182,7 +182,7 @@
                 android:textSize="14sp" />
 
             <ImageButton
-                android:id="@id/exo_subtitle"
+                android:id="@+id/btn_enigma_cc"
                 android:layout_width="48dp"
                 android:layout_height="48dp"
                 android:layout_marginStart="8dp"

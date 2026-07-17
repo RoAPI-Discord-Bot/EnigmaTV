@@ -718,8 +718,9 @@ fun ExoLivePlayer(
                         view.controllerShowTimeoutMs = 4000
                         // CC button
                         view.setShowSubtitleButton(false)
-                        val ccBtn = view.findViewById<android.widget.ImageButton>(androidx.media3.ui.R.id.exo_subtitle)
+                        val ccBtn = view.findViewById<android.widget.ImageButton>(com.enigma.tv.R.id.btn_enigma_cc)
                         ccBtn?.visibility = android.view.View.VISIBLE
+                        val showCcButton = hasTextTracks
                         if (showCcButton) {
                             ccBtn?.alpha = 1.0f
                             ccBtn?.setColorFilter(if (captionsEnabled) android.graphics.Color.parseColor("#9C27B0") else android.graphics.Color.WHITE)
