@@ -20,7 +20,10 @@ object EnigmaSubtitleHelper {
 
     suspend fun getLocalSubtitleUri(context: Context, url: String, referer: String): String? = withContext(Dispatchers.IO) {
         try {
-            val file = File(context.cacheDir, "temp_subtitle.vtt")
+            // Detect file type from URL: SRT or VTT
+            val isSrt = url.substringBefore("?").endsWith(".srt", ignoreCase = true)
+            val ext = if (isSrt) "srt" else "vtt"
+            val file = File(context.cacheDir, "temp_subtitle.$ext")
             if (file.exists()) {
                 file.delete()
             }
@@ -39,6 +42,7 @@ object EnigmaSubtitleHelper {
             val body = response.body?.string() ?: return@withContext null
             file.writeText(body)
             
+            Log.d(TAG, "Subtitle saved as $ext: ${file.absolutePath}")
             return@withContext Uri.fromFile(file).toString()
         } catch (e: Exception) {
             Log.e(TAG, "Error downloading subtitle", e)
@@ -46,3 +50,4 @@ object EnigmaSubtitleHelper {
         }
     }
 }
+

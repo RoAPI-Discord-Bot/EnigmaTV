@@ -27,6 +27,7 @@ import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.shape.CircleShape
@@ -54,6 +55,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -71,6 +73,7 @@ import androidx.compose.foundation.layout.offset
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import kotlinx.coroutines.launch
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.foundation.focusable
@@ -183,6 +186,8 @@ private fun TvDetailContent(
     var dynamicAccent by remember { mutableStateOf<Color?>(null) }
     val accent = dynamicAccent ?: if (detail.type == ContentType.MOVIE) MovieAccent else TvAccent
     val playFocusRequester = remember { FocusRequester() }
+    val listState = rememberLazyListState()
+    val scope = rememberCoroutineScope()
 
     // Auto-focus the Play button when the screen opens
     LaunchedEffect(Unit) {
@@ -265,6 +270,7 @@ private fun TvDetailContent(
                 }
 
                 LazyColumn(
+                    state = listState,
                     modifier = Modifier.fillMaxSize(),
                     verticalArrangement = Arrangement.spacedBy(24.dp),
                     contentPadding = PaddingValues(bottom = 40.dp)
@@ -316,7 +322,12 @@ private fun TvDetailContent(
                                 modifier = Modifier
                                     .height(64.dp)
                                     .focusRequester(playFocusRequester)
-                                    .onFocusChanged { playFocused = it.isFocused }
+                                    .onFocusChanged { 
+                                        playFocused = it.isFocused
+                                        if (it.isFocused) {
+                                            scope.launch { listState.animateScrollToItem(0) }
+                                        }
+                                    }
                                     .then(
                                         if (playFocused) Modifier.border(3.dp, Color.White, RoundedCornerShape(32.dp))
                                         else Modifier
@@ -924,22 +935,22 @@ private fun TvEpisodeRow(ep: TvEpisode, selected: Boolean, onSelect: (Int) -> Un
     Row(
         Modifier
             .fillMaxWidth()
+            .onFocusChanged { focused = it.isFocused }
+            .border(
+                if (focused) 3.dp else if (selected) 2.dp else 0.dp,
+                if (focused) Color.White else if (selected) EnigmaPurple else Color.Transparent,
+                RoundedCornerShape(10.dp)
+            )
             .clip(RoundedCornerShape(10.dp))
             .background(
                 when {
-                    focused -> Color.White
+                    focused -> EnigmaPurple.copy(alpha = 0.85f)
                     selected -> EnigmaPurple.copy(alpha = 0.35f)
                     else -> Color.White.copy(alpha = 0.05f)
                 }
             )
-            .border(
-                if (focused) 2.dp else 0.dp,
-                if (focused) Color.White else Color.Transparent,
-                RoundedCornerShape(10.dp)
-            )
             .focusable()
             .clickable { onSelect(ep.episodeNumber) }
-            .onFocusChanged { focused = it.isFocused }
             .padding(14.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {

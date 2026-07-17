@@ -427,14 +427,14 @@ private fun LiveEventCard(match: LiveSportMatch, layout: ScreenLayout, onPlay: (
         Modifier
             .fillMaxWidth()
             .scale(scale)
+            .onFocusChanged { focused = it.isFocused }
+            .border(if (focused) 3.dp else 0.dp, if (focused) Color.White else Color.Transparent, RoundedCornerShape(12.dp))
             .clip(RoundedCornerShape(12.dp))
             .glassSurface(cornerRadius = 12.dp, accentBorder = focused)
             .background(
                 if (focused) EnigmaPurple.copy(alpha = 0.85f) else Color.Transparent
             )
-            .border(if (focused) 2.dp else 0.dp, if (focused) Color.White else Color.Transparent, RoundedCornerShape(12.dp))
             .clickable { onPlay(match) }
-            .onFocusChanged { focused = it.isFocused }
             .padding(horizontal = 14.dp, vertical = padV),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(14.dp)
@@ -505,6 +505,12 @@ private fun LiveChannelRow(
             .fillMaxWidth()
             .height(rowH)
             .scale(scale)
+            .onFocusChanged { focused = it.isFocused }
+            .border(
+                if (focused) 3.dp else if (isActive) 2.dp else 0.dp,
+                if (focused) Color.White else if (isActive) EnigmaPink.copy(alpha = 0.5f) else Color.Transparent,
+                RoundedCornerShape(10.dp)
+            )
             .clip(RoundedCornerShape(10.dp))
             .glassSurface(cornerRadius = 10.dp, accentBorder = focused || isActive)
             .background(
@@ -514,13 +520,7 @@ private fun LiveChannelRow(
                     else -> Color.Transparent
                 }
             )
-            .border(
-                if (focused) 2.dp else if (isActive) 2.dp else 0.dp,
-                if (focused) Color.White else if (isActive) EnigmaPink.copy(alpha = 0.5f) else Color.Transparent,
-                RoundedCornerShape(10.dp)
-            )
             .clickable { onPlay(channel) }
-            .onFocusChanged { focused = it.isFocused }
             .padding(horizontal = 12.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {

@@ -35,6 +35,7 @@ object StreamResolver {
         val u = url.trim().lowercase()
         if (!u.startsWith("http")) return false
         if (u.contains(".json") || u.contains("/api/")) return false
+        if (u.contains("thumbnail", ignoreCase = true)) return false
         return u.contains(".vtt") || u.contains(".srt") || u.contains("subtitle") || u.contains("/sub/")
     }
 
@@ -49,12 +50,15 @@ object StreamResolver {
             client.newCall(request).execute().use { response ->
                 if (!response.isSuccessful) return@withContext null
                 val html = response.body?.string() ?: return@withContext null
-                vttRegex.find(html)?.groupValues?.get(1)?.let { sub ->
-                    return@withContext clean(sub).takeIf { isValidSubtitleUrl(it) }
-                }
-                srtRegex.find(html)?.groupValues?.get(1)?.let { sub ->
-                    return@withContext clean(sub).takeIf { isValidSubtitleUrl(it) }
-                }
+                vttRegex.findAll(html)
+                    .map { it.groupValues[1] }
+                    .firstOrNull { isValidSubtitleUrl(clean(it)) }
+                    ?.let { return@withContext clean(it) }
+
+                srtRegex.findAll(html)
+                    .map { it.groupValues[1] }
+                    .firstOrNull { isValidSubtitleUrl(clean(it)) }
+                    ?.let { return@withContext clean(it) }
             }
         } catch (_: Exception) {
             null
