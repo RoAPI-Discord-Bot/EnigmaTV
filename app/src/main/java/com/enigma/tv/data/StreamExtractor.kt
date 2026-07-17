@@ -46,11 +46,12 @@ class StreamExtractor(private val context: Context) {
         return ResolvedStream.fromEmbed(
             embedUrl = referer ?: embedUrl,
             streamUrl = streamUrl,
-            provider = "webview"
+            provider = "webview",
+            cookies = result.cookies
         ).copy(subtitleUrl = subtitleUrl, thumbnailUrl = thumbnailUrl)
     }
 
-    data class ExtractionResult(val streamUrl: String, val subtitleUrl: String?, val thumbnailUrl: String?)
+    data class ExtractionResult(val streamUrl: String, val subtitleUrl: String?, val thumbnailUrl: String?, val cookies: String = "")
 
     /** Returns ExtractionResult */
     suspend fun extractStreamUrlAndSubtitle(
@@ -76,11 +77,26 @@ class StreamExtractor(private val context: Context) {
                         handler.post {
                             if (!finished.compareAndSet(false, true)) return@post
                             handler.removeCallbacksAndMessages(null)
+                            // Capture cookies from the WebView session BEFORE destroying it.
+                            // AutoEmbed CDN URLs are session-signed — ExoPlayer needs these
+                            // cookies to fetch segments without getting 403.
+                            val cookieStr = try {
+                                val cm = android.webkit.CookieManager.getInstance()
+                                val streamUrl = capturedStream.get()
+                                if (url != null && streamUrl != null) {
+                                    // Get cookies for both the CDN and embed domains
+                                    val cdnCookies = cm.getCookie(url) ?: ""
+                                    val embedCookies = cm.getCookie(embedUrl) ?: ""
+                                    listOf(cdnCookies, embedCookies)
+                                        .filter { it.isNotBlank() }
+                                        .joinToString("; ")
+                                } else ""
+                            } catch (_: Exception) { "" }
                             safeDestroyWebView(webView, hostContainer)
                             webView = null
                             hostContainer = null
                             if (cont.isActive) cont.resume(
-                                if (url != null) ExtractionResult(url, capturedSubtitle.get(), capturedThumbnail.get()) else null
+                                if (url != null) ExtractionResult(url, capturedSubtitle.get(), capturedThumbnail.get(), cookieStr) else null
                             )
                         }
                     }
