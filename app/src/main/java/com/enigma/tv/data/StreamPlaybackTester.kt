@@ -37,22 +37,14 @@ object StreamPlaybackTester {
             val renderersFactory = object : DefaultRenderersFactory(context) {
                 override fun buildTextRenderers(
                     context: Context,
+                    output: androidx.media3.exoplayer.text.TextOutput,
+                    outputLooper: android.os.Looper,
                     extensionRendererMode: Int,
-                    messageHandler: android.os.Handler,
-                    textOutput: androidx.media3.exoplayer.text.TextOutput,
                     out: java.util.ArrayList<androidx.media3.exoplayer.Renderer>
                 ) {
-                    super.buildTextRenderers(context, extensionRendererMode, messageHandler, textOutput, out)
-                    for (renderer in out) {
-                        if (renderer.trackType == C.TRACK_TYPE_TEXT) {
-                            try {
-                                val method = renderer.javaClass.getMethod("experimentalSetLegacyDecodingEnabled", Boolean::class.javaPrimitiveType)
-                                method.invoke(renderer, true)
-                            } catch (e: Exception) {
-                                // Ignore if not available
-                            }
-                        }
-                    }
+                    val renderer = androidx.media3.exoplayer.text.TextRenderer(output, outputLooper)
+                    renderer.experimentalSetLegacyDecodingEnabled(true)
+                    out.add(renderer)
                 }
             }
 
@@ -60,19 +52,21 @@ object StreamPlaybackTester {
                 .setRenderersFactory(renderersFactory)
                 .build()
 
+            val playbackHeaders = resolved.playbackHeaders()
+            android.util.Log.i("EnigmaDevTest", "Testing stream: url=${resolved.url} referer=${resolved.referer} origin=${resolved.origin} headers=$playbackHeaders")
+
             val dataSourceFactory = DefaultHttpDataSource.Factory()
                 .setUserAgent(resolved.userAgent)
                 .setAllowCrossProtocolRedirects(true)
                 .setConnectTimeoutMs(8_000)
                 .setReadTimeoutMs(8_000)
                 .apply {
-                    val headers = resolved.headers.toMutableMap()
-                    if (resolved.referer.isNotBlank()) {
-                        headers["Referer"] = resolved.referer
+                    // Always inject all headers including User-Agent explicitly
+                    val allHeaders = buildMap {
+                        putAll(playbackHeaders)
+                        put("User-Agent", resolved.userAgent)
                     }
-                    if (headers.isNotEmpty()) {
-                        setDefaultRequestProperties(headers)
-                    }
+                    setDefaultRequestProperties(allHeaders)
                 }
 
             val defaultDataSourceFactory = androidx.media3.datasource.DefaultDataSource.Factory(context, dataSourceFactory)
