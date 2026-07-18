@@ -97,8 +97,7 @@ fun EnigmaMediaPlayer(
         // Keep the loading spinner visible while we race all sources concurrently.
         // This prevents the "black screen" gap between WebView rendering and ExoPlayer starting.
         onLoadingChange(true)
-        // Race all providers concurrently, pick the best result
-        resolvedStream = withContext(Dispatchers.IO) {
+        val result = withContext(Dispatchers.IO) {
             StreamPlaybackResolver.resolve(
                 context = context,
                 embedUrl = embedUrl,
@@ -110,15 +109,19 @@ fun EnigmaMediaPlayer(
                 onStatus = { onLoadingMessageChange(it) }
             )
         }
-        resolvingNative = false
-        if (resolvedStream != null) {
-            // Seamless: ExoPlayer takes over, its buffering state controls the spinner
-            mode = MediaPlayMode.Native
-            onNativePlayerActive?.invoke(true)
-        } else {
-            // All sources failed — fall back to WebView player so user still sees something
-            onLoadingChange(false)
-            mode = MediaPlayMode.Embed
+        
+        if (mode != MediaPlayMode.Native) {
+            resolvedStream = result
+            resolvingNative = false
+            if (resolvedStream != null) {
+                // Seamless: ExoPlayer takes over, its buffering state controls the spinner
+                mode = MediaPlayMode.Native
+                onNativePlayerActive?.invoke(true)
+            } else {
+                // All sources failed — fall back to WebView player so user still sees something
+                onLoadingChange(false)
+                mode = MediaPlayMode.Embed
+            }
         }
     }
 
