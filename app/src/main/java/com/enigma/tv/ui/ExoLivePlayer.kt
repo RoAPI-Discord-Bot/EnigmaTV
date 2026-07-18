@@ -23,6 +23,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -118,18 +119,8 @@ fun ExoLivePlayer(
     var errorMessage by remember { mutableStateOf<String?>(null) }
     var captionsEnabled by remember { mutableStateOf(true) }
     var hasTextTracks by remember { mutableStateOf(false) }
-    // Real-time fetch progress counter (AtomicLong updated from OkHttp network interceptor)
-    val bytesRef = remember(playUrl) { java.util.concurrent.atomic.AtomicLong(0L) }
+    // Real-time fetch progress (updated from network interceptor)
     var fetchedBytes by remember { mutableLongStateOf(0L) }
-
-    // Poll the bytes counter while the player is still loading so the UI can show progress
-    LaunchedEffect(streamLoading, playUrl) {
-        if (!streamLoading) return@LaunchedEffect
-        while (true) {
-            fetchedBytes = bytesRef.get()
-            kotlinx.coroutines.delay(250)
-        }
-    }
     
     // Thumbnail scrubbing state
     var thumbnailEntries by remember { mutableStateOf<List<com.enigma.tv.data.ThumbnailEntry>>(emptyList()) }
@@ -165,7 +156,19 @@ fun ExoLivePlayer(
     val playbackHeaders = resolved.playbackHeaders()
     val syncChrome = LocalPlayerChromeSync.current
 
-    // â”€â”€ Keep screen on while the player is visible â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    // Real-time fetch progress counter (AtomicLong updated from OkHttp network interceptor)
+    val bytesRef = remember(playUrl) { java.util.concurrent.atomic.AtomicLong(0L) }
+    
+    // Poll the bytes counter while the player is still loading so the UI can show progress
+    LaunchedEffect(streamLoading, playUrl) {
+        if (!streamLoading) return@LaunchedEffect
+        while (true) {
+            fetchedBytes = bytesRef.get()
+            kotlinx.coroutines.delay(250)
+        }
+    }
+
+    // ── Keep screen on while the player is visible ────────────────────────────€€€€€€€€€€€€€€€€€€€€€€€€€€€€€
     DisposableEffect(Unit) {
         val activity = context as? Activity
         activity?.window?.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
@@ -376,13 +379,13 @@ fun ExoLivePlayer(
                     override fun contentLength() = body.contentLength()
                     override fun source(): okio.BufferedSource {
                         val rawSource = body.source()
-                        return object : okio.ForwardingSource(rawSource) {
+                        return okio.Okio.buffer(object : okio.ForwardingSource(rawSource) {
                             override fun read(sink: okio.Buffer, byteCount: Long): Long {
                                 val bytesRead = super.read(sink, byteCount)
                                 if (bytesRead > 0) bytesRef.addAndGet(bytesRead)
                                 return bytesRead
                             }
-                        }.buffer()
+                        })
                     }
                 }
                 response.newBuilder().body(countingBody).build()
