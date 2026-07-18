@@ -1859,7 +1859,7 @@ class EnigmaViewModel(application: Application) : AndroidViewModel(application) 
     }
 
     private suspend fun syncIfLoggedIn(): Boolean {
-        if (!_state.value.isLoggedIn || cloudSyncBlocked()) return false
+        if (cloudSyncBlocked()) return false
         val s = _state.value
         val (profiles, activeId) = profileStore.snapshot()
         var ok = syncService.pushAccountMeta(activeId, profiles).isSuccess
@@ -1890,7 +1890,7 @@ class EnigmaViewModel(application: Application) : AndroidViewModel(application) 
     }
 
     private suspend fun pullCloudSafe() {
-        if (!_state.value.isLoggedIn || cloudSyncBlocked()) return
+        if (cloudSyncBlocked()) return
         val account = syncService.pullAccount() ?: return
 
         profileStore.importFromCloud(account.profiles, account.activeProfileId)
