@@ -60,7 +60,7 @@ object EmbedProvidersResolver {
     private const val COLLECTION_WINDOW_MS = 5_000L
 
     /** If a perfect stream (HLS + subtitle) arrives, return immediately after this delay. */
-    private const val EARLY_WIN_DELAY_MS = 300L
+    private const val EARLY_WIN_DELAY_MS = 100L
 
     suspend fun resolveFromAllProviders(
         context: Context,
@@ -124,7 +124,7 @@ object EmbedProvidersResolver {
             while (receivedCount < totalExpected) {
                 val remaining = deadline - System.currentTimeMillis()
                 if (remaining <= 0L) {
-                    if (collected.isNotEmpty()) onStatus("Optimizing playback quality...")
+                    if (collected.isNotEmpty()) onStatus("Stream found — starting player...")
                     break
                 }
 
@@ -146,7 +146,7 @@ object EmbedProvidersResolver {
                     val best = collected.maxByOrNull { it.second.quality() }!!.second
                     if (best.isHls() && best.subtitleUrl != null) {
                         Log.d(TAG, "[$tmdbId] Early win: HLS+subtitle from ${collected.last().first}")
-                        onStatus("Perfect stream found. Optimizing playback...")
+                        onStatus("Stream ready — loading player...")
                         // Small delay to let any simultaneous subtitle-less result also arrive
                         kotlinx.coroutines.delay(EARLY_WIN_DELAY_MS)
                         allJobs.forEach { it.cancel() }
@@ -163,7 +163,7 @@ object EmbedProvidersResolver {
             resultsChannel.close()
 
             if (collected.isNotEmpty()) {
-                onStatus("Optimizing playback quality...")
+                onStatus("Stream found — starting player...")
                 return@coroutineScope pickBest(tmdbId, collected, foundSubtitle)
             }
 

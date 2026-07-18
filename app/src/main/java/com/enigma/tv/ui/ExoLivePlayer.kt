@@ -118,6 +118,18 @@ fun ExoLivePlayer(
     var errorMessage by remember { mutableStateOf<String?>(null) }
     var captionsEnabled by remember { mutableStateOf(true) }
     var hasTextTracks by remember { mutableStateOf(false) }
+    // Real-time fetch progress counter (AtomicLong updated from OkHttp network interceptor)
+    val bytesRef = remember(playUrl) { java.util.concurrent.atomic.AtomicLong(0L) }
+    var fetchedBytes by remember { mutableLongStateOf(0L) }
+
+    // Poll the bytes counter while the player is still loading so the UI can show progress
+    LaunchedEffect(streamLoading, playUrl) {
+        if (!streamLoading) return@LaunchedEffect
+        while (true) {
+            fetchedBytes = bytesRef.get()
+            kotlinx.coroutines.delay(250)
+        }
+    }
     
     // Thumbnail scrubbing state
     var thumbnailEntries by remember { mutableStateOf<List<com.enigma.tv.data.ThumbnailEntry>>(emptyList()) }
@@ -142,7 +154,7 @@ fun ExoLivePlayer(
         Box(Modifier.fillMaxSize().background(BgDark)) {
             EnigmaLoadingRing(
                 modifier = Modifier.fillMaxSize(),
-                message = "LOADING STREAM",
+                message = "FINDING STREAM",
                 fullscreen = true
             )
         }
@@ -153,7 +165,7 @@ fun ExoLivePlayer(
     val playbackHeaders = resolved.playbackHeaders()
     val syncChrome = LocalPlayerChromeSync.current
 
-    // ── Keep screen on while the player is visible ────────────────────────────
+    // â”€â”€ Keep screen on while the player is visible â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     DisposableEffect(Unit) {
         val activity = context as? Activity
         activity?.window?.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
@@ -191,7 +203,7 @@ fun ExoLivePlayer(
             // Pre-downloading via EnigmaSubtitleHelper was getting HTTP 403 on signed CDN URLs
             // (e.g. CloudFront-signed hakunaymatata URLs). ExoPlayer's SingleSampleMediaSource
             // handles the CDN request natively and setTreatLoadErrorsAsEndOfStream(true) silently
-            // absorbs any load failure — the video keeps playing without subtitles.
+            // absorbs any load failure â€” the video keeps playing without subtitles.
             sidecarSubtitle = subUrl
             android.util.Log.d("EnigmaCapture", "Subtitle URL set directly (no pre-download): $subUrl")
         }
@@ -207,7 +219,9 @@ fun ExoLivePlayer(
         // V3: Adaptive bandwidth meter + aggressive buffer for best quality
         val bandwidthMeter = androidx.media3.exoplayer.upstream.DefaultBandwidthMeter.Builder(context).build()
         val loadControl = DefaultLoadControl.Builder()
-            .setBufferDurationsMs(32_000, 120_000, 2_500, 5_000)
+            // Reduced min buffer (15sâ†’ready) so playback starts much faster.
+            // Max is still 120s so it keeps buffering in the background.
+            .setBufferDurationsMs(15_000, 120_000, 1_500, 3_000)
             .setPrioritizeTimeOverSizeThresholds(true)
             .build()
 
@@ -342,18 +356,47 @@ fun ExoLivePlayer(
             delay(35_000)
             if (player.playbackState != Player.STATE_READY) {
                 onLoadingChange(false)
-                errorMessage = "Stream timed out — try next server"
+                errorMessage = "Stream timed out â€” try next server"
             }
         }
         // Use OkHttpDataSource instead of DefaultHttpDataSource. DefaultHttpDataSource drops
         // headers upon cross-origin redirects (which HLS segments often do, going from CDN origin
         // to node IP). OkHttpDataSource handles cookies and redirects much better.
+        //
+        // We add a CountingInterceptor so we can show real-time fetch progress ("Fetching... X MB")
+        // to the user, letting them distinguish a slow CDN from an app problem.
+        // Reset progress counter for fresh load (bytesRef is declared at composable scope)
+        bytesRef.set(0L)
+        val progressInterceptor = okhttp3.Interceptor { chain ->
+            val response = chain.proceed(chain.request())
+            val body = response.body
+            if (body != null) {
+                val countingBody = object : okhttp3.ResponseBody() {
+                    override fun contentType() = body.contentType()
+                    override fun contentLength() = body.contentLength()
+                    override fun source(): okio.BufferedSource {
+                        val rawSource = body.source()
+                        return object : okio.ForwardingSource(rawSource) {
+                            override fun read(sink: okio.Buffer, byteCount: Long): Long {
+                                val bytesRead = super.read(sink, byteCount)
+                                if (bytesRead > 0) bytesRef.addAndGet(bytesRead)
+                                return bytesRead
+                            }
+                        }.buffer()
+                    }
+                }
+                response.newBuilder().body(countingBody).build()
+            } else response
+        }
         val okHttpClient = okhttp3.OkHttpClient.Builder()
             .followRedirects(true)
             .followSslRedirects(true)
             .connectTimeout(8, java.util.concurrent.TimeUnit.SECONDS)
             .readTimeout(8, java.util.concurrent.TimeUnit.SECONDS)
+            .addNetworkInterceptor(progressInterceptor)
             .build()
+        
+        // (progress reset already done above, before interceptor definition)
         
         val dataSourceFactory = OkHttpDataSource.Factory(okHttpClient)
             .setUserAgent(resolved.userAgent)
@@ -428,7 +471,7 @@ fun ExoLivePlayer(
         }
         if (!prepared) {
             onLoadingChange(false)
-            errorMessage = "Stream unavailable — try another source"
+            errorMessage = "Stream unavailable â€” try another source"
             return@DisposableEffect onDispose { }
         }
         var initialQualityForced = false
@@ -473,7 +516,7 @@ fun ExoLivePlayer(
                         }
                     }
                     Player.STATE_BUFFERING -> {
-                        // Never show loading spinner during mid-play rebuffer — just
+                        // Never show loading spinner during mid-play rebuffer â€” just
                         // buffer silently. Only show spinner on initial load.
                         if (!hasReachedReady) onLoadingChange(true)
                     }
@@ -535,7 +578,7 @@ fun ExoLivePlayer(
                 }
 
                 if (!isRealBlock && retryCount < 1) {
-                    // Network/connection error on Fire TV — retry once immediately
+                    // Network/connection error on Fire TV â€” retry once immediately
                     retryCount++
                     playToken++
                     return
@@ -544,13 +587,13 @@ fun ExoLivePlayer(
                 onLoadingChange(false)
                 errorMessage = when {
                     isHttpError && (httpCode == 403 || httpCode == 401) ->
-                        "Stream blocked (HTTP $httpCode) — try next server"
+                        "Stream blocked (HTTP $httpCode) â€” try next server"
                     isHttpError && httpCode in 400..499 ->
-                        "Stream unavailable (HTTP $httpCode) — try next server"
+                        "Stream unavailable (HTTP $httpCode) â€” try next server"
                     isHttpError && httpCode in 500..599 ->
-                        "Server error — try next server"
+                        "Server error â€” try next server"
                     else ->
-                        "Connection failed — try next server"
+                        "Connection failed â€” try next server"
                 }
             }
         }
@@ -569,7 +612,7 @@ fun ExoLivePlayer(
     // Show CC button when the stream has text tracks (including live) or a sidecar subtitle
     val showCcButton = hasTextTracks || sidecarSubtitle != null
 
-    // Sync captionsEnabled → text renderer whenever it changes
+    // Sync captionsEnabled â†’ text renderer whenever it changes
     LaunchedEffect(captionsEnabled, hasTextTracks) {
         if (hasTextTracks) {
             val exo = (player as? ExoPlayer) ?: return@LaunchedEffect
@@ -666,7 +709,7 @@ fun ExoLivePlayer(
                                 totalDx += dragAmount
                                 val seekSeconds = (totalDx / playerWidthPx * 90).toInt()
                                 if (edgeSide == 0 && hasReachedReady) {
-                                    val icon = if (seekSeconds > 0) "⏩" else "⏪"
+                                    val icon = if (seekSeconds > 0) "â©" else "âª"
                                     gestureLabel = "$icon ${kotlin.math.abs(seekSeconds)}s"
                                     gestureIcon = icon
                                 } else if (edgeSide == -1) {
@@ -677,7 +720,7 @@ fun ExoLivePlayer(
                                         val newBrightness = (cur + (dragAmount * -0.5f)).toInt().coerceIn(10, 255)
                                         Settings.System.putInt(cr, Settings.System.SCREEN_BRIGHTNESS, newBrightness)
                                         val pct = (newBrightness / 255f * 100).toInt()
-                                        gestureLabel = "☀️ $pct%"
+                                        gestureLabel = "â˜€ï¸ $pct%"
                                     } catch (_: Exception) {}
                                 } else if (edgeSide == 1) {
                                     // Right edge: volume
@@ -688,7 +731,7 @@ fun ExoLivePlayer(
                                     )
                                     val maxVol = audioManager.getStreamMaxVolume(AudioManager.STREAM_MUSIC)
                                     val curVol = audioManager.getStreamVolume(AudioManager.STREAM_MUSIC)
-                                    gestureLabel = "🔊 ${(curVol * 100 / maxVol)}%"
+                                    gestureLabel = "ðŸ”Š ${(curVol * 100 / maxVol)}%"
                                 }
                             }
                         )
@@ -885,9 +928,15 @@ fun ExoLivePlayer(
                     )
                 }
                 if (streamLoading) {
+                    val fetchLabel = when {
+                        fetchedBytes >= 1_048_576L -> "FETCHING STREAM  %.1f MB".format(fetchedBytes / 1_048_576.0)
+                        fetchedBytes >= 1024L      -> "FETCHING STREAM  ${fetchedBytes / 1024} KB"
+                        fetchedBytes > 0L          -> "FETCHING STREAM  $fetchedBytes B"
+                        else                       -> "LOADING STREAM"
+                    }
                     EnigmaLoadingRing(
                         modifier = Modifier.fillMaxSize().background(BgDark.copy(alpha = 0.85f)),
-                        message = "LOADING STREAM",
+                        message = fetchLabel,
                         logoSize = 72.dp,
                         ringSize = 100.dp
                     )
@@ -1060,3 +1109,4 @@ fun QualityPickerDialog(
         }
     }
 }
+
