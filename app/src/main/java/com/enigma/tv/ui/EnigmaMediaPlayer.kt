@@ -119,7 +119,6 @@ fun EnigmaMediaPlayer(
             // All sources failed — fall back to WebView player so user still sees something
             onLoadingChange(false)
             mode = MediaPlayMode.Embed
-            streamFailed = true
         }
     }
 
@@ -237,7 +236,10 @@ fun EnigmaMediaPlayer(
                             // We already cleared loading above; don't let it re-raise the overlay.
                             onLoadingChange = { /* WebView renders like a browser — no spinner */ },
                             onPlaybackReady = { /* no-op: WebView is already visible */ },
-                            onStreamFailed = { onLoadingChange(false) },
+                            onStreamFailed = { 
+                                onLoadingChange(false)
+                                streamFailed = true 
+                            },
                             tvControls = null,
                             liveTv = false,
                             useExternalChrome = true,
