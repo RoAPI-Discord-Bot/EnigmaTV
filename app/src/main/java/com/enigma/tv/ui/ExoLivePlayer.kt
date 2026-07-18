@@ -123,6 +123,8 @@ fun ExoLivePlayer(
     var hasTextTracks by remember { mutableStateOf(false) }
     // Real-time fetch progress (updated from network interceptor)
     var fetchedBytes by remember { mutableLongStateOf(0L) }
+    var speedBps by remember { mutableLongStateOf(0L) }
+    var elapsedSecs by remember { mutableLongStateOf(0L) }
     
     // Thumbnail scrubbing state
     var thumbnailEntries by remember { mutableStateOf<List<com.enigma.tv.data.ThumbnailEntry>>(emptyList()) }
@@ -162,15 +164,25 @@ fun ExoLivePlayer(
     val bytesRef = remember(playUrl) { java.util.concurrent.atomic.AtomicLong(0L) }
     
     // Poll the bytes counter while the player is still loading so the UI can show progress
-    LaunchedEffect(streamLoading, playUrl) {
+    LaunchedEffect(streamLoading, playUrl, playToken) {
         if (!streamLoading) return@LaunchedEffect
+        val startTime = System.currentTimeMillis()
         while (true) {
             fetchedBytes = bytesRef.get()
+            val elapsedMs = System.currentTimeMillis() - startTime
+            elapsedSecs = (elapsedMs / 1000L).coerceAtLeast(1L)
+            speedBps = fetchedBytes / elapsedSecs
+            
+            val speedLabel = when {
+                speedBps >= 1_048_576L -> "%.1f MB/s".format(speedBps / 1_048_576.0)
+                speedBps >= 1024L      -> "${speedBps / 1024} KB/s"
+                else                   -> "$speedBps B/s"
+            }
             
             val fetchLabel = when {
-                fetchedBytes >= 1_048_576L -> "FETCHING STREAM  %.1f MB".format(fetchedBytes / 1_048_576.0)
-                fetchedBytes >= 1024L      -> "FETCHING STREAM  ${fetchedBytes / 1024} KB"
-                fetchedBytes > 0L          -> "FETCHING STREAM  $fetchedBytes B"
+                fetchedBytes >= 1_048_576L -> "FETCHING STREAM  %.1f MB ($speedLabel) • ${elapsedSecs}s".format(fetchedBytes / 1_048_576.0)
+                fetchedBytes >= 1024L      -> "FETCHING STREAM  ${fetchedBytes / 1024} KB ($speedLabel) • ${elapsedSecs}s"
+                fetchedBytes > 0L          -> "FETCHING STREAM  $fetchedBytes B ($speedLabel) • ${elapsedSecs}s"
                 else                       -> "LOADING STREAM"
             }
             onLoadingMessageChange?.invoke(fetchLabel)
@@ -943,10 +955,15 @@ fun ExoLivePlayer(
                 }
                 
                 if (streamLoading && !useExternalChrome) {
+                    val currentSpeedLabel = when {
+                        speedBps >= 1_048_576L -> "%.1f MB/s".format(speedBps / 1_048_576.0)
+                        speedBps >= 1024L      -> "${speedBps / 1024} KB/s"
+                        else                   -> "$speedBps B/s"
+                    }
                     val fetchLabel = when {
-                        fetchedBytes >= 1_048_576L -> "FETCHING STREAM  %.1f MB".format(fetchedBytes / 1_048_576.0)
-                        fetchedBytes >= 1024L      -> "FETCHING STREAM  ${fetchedBytes / 1024} KB"
-                        fetchedBytes > 0L          -> "FETCHING STREAM  $fetchedBytes B"
+                        fetchedBytes >= 1_048_576L -> "FETCHING STREAM  %.1f MB ($currentSpeedLabel) • ${elapsedSecs}s".format(fetchedBytes / 1_048_576.0)
+                        fetchedBytes >= 1024L      -> "FETCHING STREAM  ${fetchedBytes / 1024} KB ($currentSpeedLabel) • ${elapsedSecs}s"
+                        fetchedBytes > 0L          -> "FETCHING STREAM  $fetchedBytes B ($currentSpeedLabel) • ${elapsedSecs}s"
                         else                       -> "LOADING STREAM"
                     }
                     EnigmaLoadingRing(
