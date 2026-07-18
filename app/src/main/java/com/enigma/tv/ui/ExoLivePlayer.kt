@@ -160,36 +160,7 @@ fun ExoLivePlayer(
     val playbackHeaders = resolved.playbackHeaders()
     val syncChrome = LocalPlayerChromeSync.current
 
-    // Real-time fetch progress counter (AtomicLong updated from OkHttp network interceptor)
-    val bytesRef = remember(playUrl) { java.util.concurrent.atomic.AtomicLong(0L) }
-    
-    // Poll the bytes counter while the player is still loading so the UI can show progress
-    LaunchedEffect(streamLoading, playUrl, playToken) {
-        if (!streamLoading) return@LaunchedEffect
-        val startTime = System.currentTimeMillis()
-        while (true) {
-            fetchedBytes = bytesRef.get()
-            val elapsedMs = System.currentTimeMillis() - startTime
-            elapsedSecs = (elapsedMs / 1000L).coerceAtLeast(1L)
-            speedBps = fetchedBytes / elapsedSecs
-            
-            val speedLabel = when {
-                speedBps >= 1_048_576L -> "%.1f MB/s".format(speedBps / 1_048_576.0)
-                speedBps >= 1024L      -> "${speedBps / 1024} KB/s"
-                else                   -> "$speedBps B/s"
-            }
-            
-            val fetchLabel = when {
-                fetchedBytes >= 1_048_576L -> "FETCHING STREAM  %.1f MB ($speedLabel) • ${elapsedSecs}s".format(fetchedBytes / 1_048_576.0)
-                fetchedBytes >= 1024L      -> "FETCHING STREAM  ${fetchedBytes / 1024} KB ($speedLabel) • ${elapsedSecs}s"
-                fetchedBytes > 0L          -> "FETCHING STREAM  $fetchedBytes B ($speedLabel) • ${elapsedSecs}s"
-                else                       -> "LOADING STREAM"
-            }
-            onLoadingMessageChange?.invoke(fetchLabel)
-            
-            kotlinx.coroutines.delay(250)
-        }
-    }
+    var fetchLabelText by remember { mutableStateOf("LOADING STREAM") }
 
     // ── Keep screen on while the player is visible ────────────────────────────€€€€€€€€€€€€€€€€€€€€€€€€€€€€€
     DisposableEffect(Unit) {
@@ -203,7 +174,7 @@ fun ExoLivePlayer(
     var playToken by remember { mutableIntStateOf(0) }
     var retryCount by remember(playUrl) { mutableIntStateOf(0) }
     var showQualityPicker by remember { mutableStateOf(false) }
-    var stripHeaders by remember(playUrl) { mutableStateOf(false) }
+    var stripHeaders by remember(playUrl) { mutableStateOf(true) }
     var hasReachedReady by remember(playUrl, playToken) { mutableStateOf(false) }
     var bingeCountdown by remember(playUrl, playToken) { mutableStateOf<Int?>(null) }
     
@@ -287,6 +258,39 @@ fun ExoLivePlayer(
                 volume = 1f
             }
     }
+
+      // Real-time fetch progress counter (AtomicLong updated from OkHttp network interceptor)
+      val bytesRef = remember(playUrl) { java.util.concurrent.atomic.AtomicLong(0L) }
+      
+      // Poll the bytes counter while the player is still loading so the UI can show progress
+      LaunchedEffect(streamLoading, playUrl, playToken) {
+          if (!streamLoading) return@LaunchedEffect
+          val startTime = System.currentTimeMillis()
+          while (true) {
+              fetchedBytes = bytesRef.get()
+              val elapsedMs = System.currentTimeMillis() - startTime
+              elapsedSecs = (elapsedMs / 1000L).coerceAtLeast(1L)
+              speedBps = fetchedBytes / elapsedSecs
+              
+              val speedLabel = when {
+                  speedBps >= 1_048_576L -> "%.1f MB/s".format(speedBps / 1_048_576.0)
+                  speedBps >= 1024L      -> "${speedBps / 1024} KB/s"
+                  else                   -> "$speedBps B/s"
+              }
+              
+              val bufferedSecs = player.bufferedPosition / 1000L
+              fetchLabelText = when {
+                  !isLiveBroadcast && bufferedSecs > 0L -> "FETCHED ${bufferedSecs} OF 15s ($speedLabel)"
+                  fetchedBytes >= 1_048_576L -> "FETCHING STREAM  %.1f MB ($speedLabel) • ${elapsedSecs}s".format(fetchedBytes / 1_048_576.0)
+                  fetchedBytes >= 1024L      -> "FETCHING STREAM  ${fetchedBytes / 1024} KB ($speedLabel) • ${elapsedSecs}s"
+                  fetchedBytes > 0L          -> "FETCHING STREAM  $fetchedBytes B ($speedLabel) • ${elapsedSecs}s"
+                  else                       -> "LOADING STREAM"
+              }
+              onLoadingMessageChange?.invoke(fetchLabelText)
+              
+              kotlinx.coroutines.delay(250)
+          }
+      }
 
     DisposableEffect(lifecycleOwner, player) {
         val observer = LifecycleEventObserver { _, event ->
@@ -596,9 +600,9 @@ fun ExoLivePlayer(
 
                 val isRealBlock = isHttpError && (httpCode == 403 || httpCode == 401)
 
-                if (isRealBlock && !stripHeaders) {
-                    // 403/401 and headers haven't been stripped yet? Try stripping headers and retry.
-                    stripHeaders = true
+                if (isRealBlock && stripHeaders) {
+                    // 403/401 and headers were stripped? Try WITH headers and retry.
+                    stripHeaders = false
                     playToken++
                     return
                 }
@@ -955,20 +959,9 @@ fun ExoLivePlayer(
                 }
                 
                 if (streamLoading && !useExternalChrome) {
-                    val currentSpeedLabel = when {
-                        speedBps >= 1_048_576L -> "%.1f MB/s".format(speedBps / 1_048_576.0)
-                        speedBps >= 1024L      -> "${speedBps / 1024} KB/s"
-                        else                   -> "$speedBps B/s"
-                    }
-                    val fetchLabel = when {
-                        fetchedBytes >= 1_048_576L -> "FETCHING STREAM  %.1f MB ($currentSpeedLabel) • ${elapsedSecs}s".format(fetchedBytes / 1_048_576.0)
-                        fetchedBytes >= 1024L      -> "FETCHING STREAM  ${fetchedBytes / 1024} KB ($currentSpeedLabel) • ${elapsedSecs}s"
-                        fetchedBytes > 0L          -> "FETCHING STREAM  $fetchedBytes B ($currentSpeedLabel) • ${elapsedSecs}s"
-                        else                       -> "LOADING STREAM"
-                    }
                     EnigmaLoadingRing(
                         modifier = Modifier.fillMaxSize().background(BgDark.copy(alpha = 0.85f)),
-                        message = fetchLabel,
+                        message = fetchLabelText,
                         logoSize = 72.dp,
                         ringSize = 100.dp
                     )
