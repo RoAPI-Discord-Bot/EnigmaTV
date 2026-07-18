@@ -81,7 +81,7 @@ object EmbedProvidersResolver {
 
             val allJobs = mutableListOf<kotlinx.coroutines.Job>()
 
-            onStatus("Searching for stream...")
+            onStatus("Searching for best stream...")
 
             // ── VidLink direct API (fast JSON, ~400ms) ────────────────────────
             allJobs += launch {
@@ -163,14 +163,12 @@ object EmbedProvidersResolver {
             resultsChannel.close()
 
             if (collected.isNotEmpty()) {
-                onStatus("Stream found — starting player...")
                 return@coroutineScope pickBest(tmdbId, collected, foundSubtitle)
             }
 
             // ── Fallback: sequential pass through remaining sources ───────────
             if (activity != null && embedUrls.size > sourcesToRace.size) {
                 Log.d(TAG, "[$tmdbId] No results — trying ${embedUrls.size - sourcesToRace.size} remaining sources")
-                onStatus("Trying alternate sources...")
                 for ((srcName, fallbackUrl) in embedUrls.drop(sourcesToRace.size)) {
                     Log.d(TAG, "[$tmdbId] Fallback: $srcName")
                     val res = withTimeoutOrNull(10_000) {
@@ -178,7 +176,6 @@ object EmbedProvidersResolver {
                     }
                     if (res != null && !res.isExpiredMp4()) {
                         Log.d(TAG, "[$tmdbId] Fallback $srcName: SUCCESS score=${res.quality()}")
-                        onStatus("Source found. Starting playback...")
                         return@coroutineScope if (res.subtitleUrl == null && foundSubtitle != null) {
                             res.copy(subtitleUrl = foundSubtitle)
                         } else res
