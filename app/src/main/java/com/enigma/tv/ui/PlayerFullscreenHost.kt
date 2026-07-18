@@ -136,8 +136,8 @@ fun PlayerFullscreenHost(
         if (streamLoading || streamFailed) chromeVisible = true
     }
 
-    // Live WebView: keep fullscreen layout stable when toggling chrome (avoids resize/black screen on tap)
-    ImmersiveSystemBars(enabled = !isLivePlayer && !chromeVisible && !episodePanelOpen)
+    // Keep fullscreen layout stable when toggling chrome (avoids resize/black screen on tap)
+    ImmersiveSystemBars(enabled = !chromeVisible && !episodePanelOpen)
 
     BackHandler {
         when {

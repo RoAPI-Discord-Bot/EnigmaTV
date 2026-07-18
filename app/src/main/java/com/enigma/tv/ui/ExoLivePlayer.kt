@@ -97,6 +97,7 @@ fun ExoLivePlayer(
     streamLoading: Boolean,
     onClose: () -> Unit,
     onLoadingChange: (Boolean) -> Unit,
+    onLoadingMessageChange: ((String) -> Unit)? = null,
     isLiveBroadcast: Boolean = false,
     showNextSource: Boolean = false,
     onNextSource: (() -> Unit)? = null,
@@ -165,6 +166,15 @@ fun ExoLivePlayer(
         if (!streamLoading) return@LaunchedEffect
         while (true) {
             fetchedBytes = bytesRef.get()
+            
+            val fetchLabel = when {
+                fetchedBytes >= 1_048_576L -> "FETCHING STREAM  %.1f MB".format(fetchedBytes / 1_048_576.0)
+                fetchedBytes >= 1024L      -> "FETCHING STREAM  ${fetchedBytes / 1024} KB"
+                fetchedBytes > 0L          -> "FETCHING STREAM  $fetchedBytes B"
+                else                       -> "LOADING STREAM"
+            }
+            onLoadingMessageChange?.invoke(fetchLabel)
+            
             kotlinx.coroutines.delay(250)
         }
     }
@@ -931,7 +941,8 @@ fun ExoLivePlayer(
                         onDismiss = { showQualityPicker = false }
                     )
                 }
-                if (streamLoading) {
+                
+                if (streamLoading && !useExternalChrome) {
                     val fetchLabel = when {
                         fetchedBytes >= 1_048_576L -> "FETCHING STREAM  %.1f MB".format(fetchedBytes / 1_048_576.0)
                         fetchedBytes >= 1024L      -> "FETCHING STREAM  ${fetchedBytes / 1024} KB"

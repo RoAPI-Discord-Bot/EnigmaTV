@@ -617,6 +617,7 @@ private fun EnigmaPlayerOverlay(
                     onNextSource = { viewModel.nextSource() },
                     onClose = { viewModel.closePlayer() },
                     onLoadingChange = { viewModel.onPlayerPageLoading(it) },
+                    onLoadingMessageChange = { viewModel.setPlayerLoadingMessage(it) },
                     useExternalChrome = true,
                     actionDispatcher = dispatcher,
                     modifier = Modifier.fillMaxSize()
