@@ -82,6 +82,7 @@ import com.enigma.tv.data.StreamResolver
 import com.enigma.tv.ui.theme.BgDark
 import com.enigma.tv.ui.theme.EnigmaPurple
 import com.enigma.tv.ui.theme.TextPrimary
+import okio.buffer
 
 @OptIn(UnstableApi::class)
 @Composable
@@ -379,13 +380,13 @@ fun ExoLivePlayer(
                     override fun contentLength() = body.contentLength()
                     override fun source(): okio.BufferedSource {
                         val rawSource = body.source()
-                        return okio.Okio.buffer(object : okio.ForwardingSource(rawSource) {
+                        return object : okio.ForwardingSource(rawSource) {
                             override fun read(sink: okio.Buffer, byteCount: Long): Long {
                                 val bytesRead = super.read(sink, byteCount)
                                 if (bytesRead > 0) bytesRef.addAndGet(bytesRead)
                                 return bytesRead
                             }
-                        })
+                        }.buffer()
                     }
                 }
                 response.newBuilder().body(countingBody).build()
