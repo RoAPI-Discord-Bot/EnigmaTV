@@ -137,6 +137,7 @@ fun EnigmaMediaPlayer(
                 streamLoading = streamLoading,
                 onClose = onClose,
                 onLoadingChange = onLoadingChange,
+                onLoadingMessageChange = onLoadingMessageChange,
                 showNextSource = false,
                 onNextSource = onNextSource,
                 onPlaybackReady = onPlaybackReady,
