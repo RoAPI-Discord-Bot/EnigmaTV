@@ -191,7 +191,7 @@ fun ExoLivePlayer(
     var playToken by remember { mutableIntStateOf(0) }
     var retryCount by remember(playUrl) { mutableIntStateOf(0) }
     var showQualityPicker by remember { mutableStateOf(false) }
-    var stripHeaders by remember { mutableStateOf(false) }
+    var stripHeaders by remember(playUrl) { mutableStateOf(false) }
     var hasReachedReady by remember(playUrl, playToken) { mutableStateOf(false) }
     var bingeCountdown by remember(playUrl, playToken) { mutableStateOf<Int?>(null) }
     
