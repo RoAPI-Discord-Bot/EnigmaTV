@@ -78,6 +78,12 @@ import androidx.media3.exoplayer.source.SingleSampleMediaSource
 import androidx.media3.ui.PlayerView
 import androidx.media3.ui.R as MediaUiR
 import com.enigma.tv.data.ResolvedStream
+
+enum class CaptionStatus {
+    SEARCHING,
+    UNAVAILABLE,
+    AVAILABLE
+}
 import com.enigma.tv.data.StreamResolver
 import com.enigma.tv.ui.theme.BgDark
 import com.enigma.tv.ui.theme.EnigmaPurple
@@ -162,12 +168,25 @@ fun ExoLivePlayer(
 
     var fetchLabelText by remember { mutableStateOf("LOADING STREAM") }
 
-    // ── Keep screen on while the player is visible ────────────────────────────€€€€€€€€€€€€€€€€€€€€€€€€€€€€€
+    // ── Keep screen on and hide system bars while the player is visible ──────
     DisposableEffect(Unit) {
         val activity = context as? Activity
-        activity?.window?.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        val window = activity?.window
+        if (window != null) {
+            window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+            androidx.core.view.WindowCompat.setDecorFitsSystemWindows(window, false)
+            val controller = androidx.core.view.WindowInsetsControllerCompat(window, window.decorView)
+            controller.hide(androidx.core.view.WindowInsetsCompat.Type.systemBars())
+            controller.systemBarsBehavior = androidx.core.view.WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+        }
         onDispose {
-            activity?.window?.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+            val activity = context as? Activity
+            val window = activity?.window
+            if (window != null) {
+                window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+                val controller = androidx.core.view.WindowInsetsControllerCompat(window, window.decorView)
+                controller.show(androidx.core.view.WindowInsetsCompat.Type.systemBars())
+            }
         }
     }
     val scope = rememberCoroutineScope()
@@ -191,20 +210,39 @@ fun ExoLivePlayer(
 
     var sidecarSubtitle by remember { mutableStateOf<String?>(null) }
     var subtitleResolved by remember { mutableStateOf(false) }
+    var captionStatus by remember(playUrl) {
+        mutableStateOf(
+            if (!resolved.subtitleUrl.isNullOrBlank() && StreamResolver.isValidSubtitleUrl(resolved.subtitleUrl))
+                CaptionStatus.AVAILABLE
+            else
+                CaptionStatus.SEARCHING
+        )
+    }
+
     LaunchedEffect(playUrl, playToken, resolved.subtitleUrl) {
         sidecarSubtitle = null
-        subtitleResolved = false
         val subUrl = resolved.subtitleUrl?.takeIf { StreamResolver.isValidSubtitleUrl(it) }
         if (subUrl != null) {
-            // Pass the URL directly to ExoPlayer instead of pre-downloading.
-            // Pre-downloading via EnigmaSubtitleHelper was getting HTTP 403 on signed CDN URLs
-            // (e.g. CloudFront-signed hakunaymatata URLs). ExoPlayer's SingleSampleMediaSource
-            // handles the CDN request natively and setTreatLoadErrorsAsEndOfStream(true) silently
-            // absorbs any load failure â€” the video keeps playing without subtitles.
             sidecarSubtitle = subUrl
-            android.util.Log.d("EnigmaCapture", "Subtitle URL set directly (no pre-download): $subUrl")
+            captionStatus = CaptionStatus.AVAILABLE
+            subtitleResolved = true
+            return@LaunchedEffect
         }
+        
+        // Start playback immediately — do not wait for captions
+        captionStatus = CaptionStatus.SEARCHING
         subtitleResolved = true
+
+        val foundSub = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+            StreamResolver.resolveSubtitlesForStream(playUrl, resolved.referer.ifBlank { playUrl })
+        }
+        if (foundSub != null && StreamResolver.isValidSubtitleUrl(foundSub)) {
+            sidecarSubtitle = foundSub
+            captionStatus = CaptionStatus.AVAILABLE
+            android.util.Log.d("EnigmaCapture", "Background subtitle found and set: $foundSub")
+        } else {
+            captionStatus = CaptionStatus.UNAVAILABLE
+        }
     }
 
     DisposableEffect(useExternalChrome) {
@@ -376,7 +414,7 @@ fun ExoLivePlayer(
 
     val effectiveHeaders = if (stripHeaders) emptyMap() else playbackHeaders
 
-    DisposableEffect(playUrl, playToken, effectiveHeaders, subtitleResolved) {
+    DisposableEffect(playUrl, playToken, effectiveHeaders, subtitleResolved, sidecarSubtitle) {
         if (!subtitleResolved) return@DisposableEffect onDispose { }
         errorMessage = null
         hasReachedReady = false
@@ -791,16 +829,29 @@ fun ExoLivePlayer(
                         view.setShowSubtitleButton(false)
                         val ccBtn = view.findViewById<android.widget.ImageButton>(com.enigma.tv.R.id.btn_enigma_cc)
                         ccBtn?.visibility = android.view.View.VISIBLE
-                        val showCcButton = hasTextTracks
-                        if (showCcButton) {
-                            ccBtn?.alpha = 1.0f
-                            ccBtn?.setColorFilter(if (captionsEnabled) android.graphics.Color.parseColor("#9C27B0") else android.graphics.Color.WHITE)
-                            ccBtn?.setOnClickListener { captionsEnabled = !captionsEnabled }
-                        } else {
-                            ccBtn?.alpha = 0.5f
-                            ccBtn?.setColorFilter(android.graphics.Color.WHITE)
-                            ccBtn?.setOnClickListener {
-                                android.widget.Toast.makeText(context, "No captions available", android.widget.Toast.LENGTH_SHORT).show()
+                        when {
+                            hasTextTracks || captionStatus == CaptionStatus.AVAILABLE -> {
+                                ccBtn?.alpha = 1.0f
+                                ccBtn?.setColorFilter(if (captionsEnabled) android.graphics.Color.parseColor("#9C27B0") else android.graphics.Color.WHITE)
+                                ccBtn?.setOnClickListener {
+                                    captionsEnabled = !captionsEnabled
+                                    val msg = if (captionsEnabled) "Captions Enabled" else "Captions Disabled"
+                                    android.widget.Toast.makeText(context, msg, android.widget.Toast.LENGTH_SHORT).show()
+                                }
+                            }
+                            captionStatus == CaptionStatus.SEARCHING -> {
+                                ccBtn?.alpha = 0.6f
+                                ccBtn?.setColorFilter(android.graphics.Color.parseColor("#FFC107"))
+                                ccBtn?.setOnClickListener {
+                                    android.widget.Toast.makeText(context, "Searching for captions in background...", android.widget.Toast.LENGTH_SHORT).show()
+                                }
+                            }
+                            else -> { // CaptionStatus.UNAVAILABLE
+                                ccBtn?.alpha = 0.35f
+                                ccBtn?.setColorFilter(android.graphics.Color.GRAY)
+                                ccBtn?.setOnClickListener {
+                                    android.widget.Toast.makeText(context, "Captions unavailable for this title", android.widget.Toast.LENGTH_SHORT).show()
+                                }
                             }
                         }
                         // Close button

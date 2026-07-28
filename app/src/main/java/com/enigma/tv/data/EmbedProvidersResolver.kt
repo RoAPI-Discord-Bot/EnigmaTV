@@ -142,13 +142,11 @@ object EmbedProvidersResolver {
                     Log.d(TAG, "[$tmdbId] $srcName → score=${stream.quality()} hls=${stream.isHls()} sub=${stream.subtitleUrl != null}")
                     collected.add(srcName to stream)
 
-                    // Early win: if we have a perfect HLS+subtitle, no need to wait more
+                    // Early win: if we have a valid HLS stream, return immediately without waiting for subtitles
                     val best = collected.maxByOrNull { it.second.quality() }!!.second
-                    if (best.isHls() && best.subtitleUrl != null) {
-                        Log.d(TAG, "[$tmdbId] Early win: HLS+subtitle from ${collected.last().first}")
+                    if (best.isHls()) {
+                        Log.d(TAG, "[$tmdbId] Early win: HLS stream ready from ${collected.last().first}")
                         onStatus("Stream ready — loading player...")
-                        // Small delay to let any simultaneous subtitle-less result also arrive
-                        kotlinx.coroutines.delay(EARLY_WIN_DELAY_MS)
                         allJobs.forEach { it.cancel() }
                         resultsChannel.close()
                         return@coroutineScope pickBest(tmdbId, collected, foundSubtitle)
