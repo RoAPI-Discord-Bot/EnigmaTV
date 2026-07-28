@@ -78,17 +78,17 @@ import androidx.media3.exoplayer.source.SingleSampleMediaSource
 import androidx.media3.ui.PlayerView
 import androidx.media3.ui.R as MediaUiR
 import com.enigma.tv.data.ResolvedStream
+import com.enigma.tv.data.StreamResolver
+import com.enigma.tv.ui.theme.BgDark
+import com.enigma.tv.ui.theme.EnigmaPurple
+import com.enigma.tv.ui.theme.TextPrimary
+import okio.buffer
 
 enum class CaptionStatus {
     SEARCHING,
     UNAVAILABLE,
     AVAILABLE
 }
-import com.enigma.tv.data.StreamResolver
-import com.enigma.tv.ui.theme.BgDark
-import com.enigma.tv.ui.theme.EnigmaPurple
-import com.enigma.tv.ui.theme.TextPrimary
-import okio.buffer
 
 @OptIn(UnstableApi::class)
 @Composable
@@ -242,6 +242,33 @@ fun ExoLivePlayer(
             android.util.Log.d("EnigmaCapture", "Background subtitle found and set: $foundSub")
         } else {
             captionStatus = CaptionStatus.UNAVAILABLE
+        }
+    }
+
+    val filterStore = remember { com.enigma.tv.data.FilterPreferencesStore(context) }
+    val filterSettings by filterStore.settingsFlow.collectAsState(initial = com.enigma.tv.data.FilterSettings())
+
+    var bleepIntervals by remember { mutableStateOf<List<com.enigma.tv.data.BleepInterval>>(emptyList()) }
+    var sceneIntervals by remember { mutableStateOf<List<com.enigma.tv.data.ModerationSceneInterval>>(emptyList()) }
+    var isSceneBlurred by remember { mutableStateOf(false) }
+
+    LaunchedEffect(playUrl, resolved.referer) {
+        val tmdbId = resolved.referer.substringAfter("tmdb=", "").toIntOrNull()
+        if (tmdbId != null) {
+            val scenes = com.enigma.tv.data.SceneModerationRepository.getSceneIntervals(tmdbId, com.enigma.tv.data.ContentType.MOVIE)
+            sceneIntervals = scenes
+        }
+    }
+
+    LaunchedEffect(sidecarSubtitle, filterSettings.captionOffsetMs) {
+        val sub = sidecarSubtitle ?: return@LaunchedEffect
+        kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+            try {
+                val req = okhttp3.Request.Builder().url(sub).build()
+                val resp = okhttp3.OkHttpClient().newCall(req).execute()
+                val text = resp.body?.string() ?: ""
+                bleepIntervals = com.enigma.tv.data.ProfanityBleepEngine.parseSubtitleToBleepIntervals(text, filterSettings.captionOffsetMs)
+            } catch (_: Exception) {}
         }
     }
 
@@ -750,6 +777,50 @@ fun ExoLivePlayer(
         }
     }
 
+    // Profanity bleep & scene moderation monitor loop
+    LaunchedEffect(player, bleepIntervals, sceneIntervals, filterSettings) {
+        var isCurrentlyBleeping = false
+        while (true) {
+            if (hasReachedReady) {
+                val pos = player.currentPosition
+
+                // Profanity Bleep Check
+                if (filterSettings.profanityMode == "BLEEP" && bleepIntervals.isNotEmpty()) {
+                    val matchingInterval = bleepIntervals.firstOrNull { 
+                        pos >= it.startMs && pos <= it.endMs && com.enigma.tv.data.ProfanityBleepEngine.shouldBleep(it, filterSettings.profanitySensitivity) 
+                    }
+                    if (matchingInterval != null) {
+                        if (!isCurrentlyBleeping) {
+                            isCurrentlyBleeping = true
+                            player.volume = 0f
+                            val duration = (matchingInterval.endMs - pos).coerceAtLeast(100L)
+                            com.enigma.tv.data.ProfanityBleepEngine.playBleep(duration)
+                        }
+                    } else if (isCurrentlyBleeping) {
+                        isCurrentlyBleeping = false
+                        player.volume = 1f
+                    }
+                }
+
+                // Scene Moderation Check
+                if (filterSettings.sceneMode != "DISABLED" && sceneIntervals.isNotEmpty()) {
+                    val scene = sceneIntervals.firstOrNull { pos >= it.startMs && pos <= it.endMs }
+                    if (scene != null) {
+                        if (filterSettings.sceneMode == "SKIP") {
+                            player.seekTo(scene.endMs + 200L)
+                            android.widget.Toast.makeText(context, "Skipped sensitive scene", android.widget.Toast.LENGTH_SHORT).show()
+                        } else if (filterSettings.sceneMode == "BLUR") {
+                            isSceneBlurred = true
+                        }
+                    } else {
+                        isSceneBlurred = false
+                    }
+                }
+            }
+            delay(120)
+        }
+    }
+
     val videoContent: @Composable () -> Unit = {
             Box(
                 Modifier
@@ -915,6 +986,22 @@ fun ExoLivePlayer(
                     },
                     modifier = Modifier.fillMaxSize()
                 )
+
+                if (isSceneBlurred) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .background(Color.Black.copy(alpha = 0.95f)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            "Scene Hidden (Content Moderation Active)",
+                            color = Color.White,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 16.sp
+                        )
+                    }
+                }
                 
                 // Thumbnail Overlay
                 if (isScrubbing && thumbnailEntries.isNotEmpty()) {

@@ -43,7 +43,9 @@ import androidx.compose.material.icons.filled.PlayCircle
 import androidx.compose.material.icons.filled.PlaylistAdd
 import androidx.compose.material.icons.filled.PlaylistPlay
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -386,6 +388,7 @@ fun EnigmaShell(viewModel: EnigmaViewModel = viewModel()) {
                                 onOpenProfilePicker = viewModel::showProfilePickerScreen,
                                 layout = layout
                             )
+                            NavSection.SETTINGS -> SettingsContent(layout)
                             NavSection.DEV_TEST -> DevTestScreen(
                                 onClose = { viewModel.setSection(NavSection.HOME) }
                             )
@@ -778,6 +781,7 @@ private fun EnigmaDrawerContent(
         DrawerEntry(Icons.Default.PlaylistPlay, NavSection.LISTS, current, isExpanded, onSelect, onAnyItemFocused)
         DrawerEntry(androidx.compose.material.icons.Icons.Default.Download, NavSection.DOWNLOADS, current, isExpanded, onSelect, onAnyItemFocused)
         DrawerEntry(Icons.Default.Person, NavSection.PROFILE, current, isExpanded, onSelect, onAnyItemFocused)
+        DrawerEntry(Icons.Default.Settings, NavSection.SETTINGS, current, isExpanded, onSelect, onAnyItemFocused)
         Spacer(Modifier.weight(1f))
         NavigationDrawerItem(
             icon = { Icon(Icons.Default.Person, contentDescription = "Switch profile") },
@@ -1625,6 +1629,124 @@ private fun DownloadsContent(state: EnigmaUiState, vm: EnigmaViewModel, layout: 
                     }
                 }
                 Spacer(Modifier.height(8.dp))
+            }
+        }
+    }
+
+    if (layout.usePermanentDrawer()) {
+        LazyColumn(
+            contentPadding = PaddingValues(horizontal = layout.contentPaddingDp().dp, vertical = 24.dp),
+            modifier = Modifier.fillMaxSize()
+        ) { item { content() } }
+    } else {
+        ScrollableContent(padding = PaddingValues(layout.contentPaddingDp().dp)) { content() }
+    }
+}
+
+@Composable
+private fun SettingsContent(layout: ScreenLayout) {
+    val context = LocalContext.current
+    val filterStore = remember { com.enigma.tv.data.FilterPreferencesStore(context) }
+    val filterSettings by filterStore.settingsFlow.collectAsState(initial = com.enigma.tv.data.FilterSettings())
+    val scope = rememberCoroutineScope()
+
+    val content = @Composable {
+        Column(
+            modifier = Modifier.fillMaxWidth().padding(bottom = 24.dp),
+            verticalArrangement = Arrangement.spacedBy(20.dp)
+        ) {
+            Text("Settings & Content Moderation", color = TextPrimary, fontSize = 22.sp, fontWeight = FontWeight.Bold)
+
+            // Section 1: Profanity Audio Bleep Filter
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(Color.White.copy(alpha = 0.05f))
+                    .padding(16.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                Text("Profanity Audio Bleep Filter", color = TextPrimary, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                Text("Uses subtitle timestamps to mute bad words and play a 1kHz bleep tone.", color = TextSecondary, fontSize = 13.sp)
+
+                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Button(
+                        onClick = { scope.launch { filterStore.setProfanityMode(if (filterSettings.profanityMode == "BLEEP") "DISABLED" else "BLEEP") } },
+                        colors = ButtonDefaults.buttonColors(containerColor = if (filterSettings.profanityMode == "BLEEP") EnigmaPink else Color.White.copy(alpha = 0.15f))
+                    ) {
+                        Text(if (filterSettings.profanityMode == "BLEEP") "Status: BLEEP ON" else "Status: OFF")
+                    }
+                }
+
+                if (filterSettings.profanityMode == "BLEEP") {
+                    Text("Filter Sensitivity:", color = TextPrimary, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        listOf("LOW" to "Severe Only", "MEDIUM" to "Moderate+", "HIGH" to "All Bad Words").forEach { (key, label) ->
+                            val active = filterSettings.profanitySensitivity == key
+                            OutlinedButton(
+                                onClick = { scope.launch { filterStore.setProfanitySensitivity(key) } },
+                                colors = ButtonDefaults.outlinedButtonColors(containerColor = if (active) EnigmaPurple.copy(alpha = 0.4f) else Color.Transparent)
+                            ) {
+                                Text(label, color = if (active) Color.White else TextSecondary)
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Section 2: Sexual & Nudity Scene Moderation
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(Color.White.copy(alpha = 0.05f))
+                    .padding(16.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                Text("Sexual & Nudity Scene Moderation", color = TextPrimary, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                Text("Queries scene timestamp feeds by TMDB ID to blur or auto-skip sensitive scenes.", color = TextSecondary, fontSize = 13.sp)
+
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    listOf("DISABLED" to "OFF", "BLUR" to "Blur Scene", "SKIP" to "Auto-Skip Scene").forEach { (key, label) ->
+                        val active = filterSettings.sceneMode == key
+                        Button(
+                            onClick = { scope.launch { filterStore.setSceneMode(key) } },
+                            colors = ButtonDefaults.buttonColors(containerColor = if (active) EnigmaPink else Color.White.copy(alpha = 0.15f))
+                        ) {
+                            Text(label)
+                        }
+                    }
+                }
+            }
+
+            // Section 3: Subtitle Timing Offset Default
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(Color.White.copy(alpha = 0.05f))
+                    .padding(16.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                Text("Default Subtitle Offset", color = TextPrimary, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                Text(
+                    "Current offset: ${if (filterSettings.captionOffsetMs > 0) "+${filterSettings.captionOffsetMs / 1000f}s" else "${filterSettings.captionOffsetMs / 1000f}s"}",
+                    color = EnigmaPink,
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.Bold
+                )
+
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedButton(onClick = { scope.launch { filterStore.setCaptionOffsetMs((filterSettings.captionOffsetMs - 1000L).coerceAtLeast(-10000L)) } }) {
+                        Text("-1.0s", color = TextPrimary)
+                    }
+                    Button(onClick = { scope.launch { filterStore.setCaptionOffsetMs(0L) } }, colors = ButtonDefaults.buttonColors(containerColor = Color.White.copy(alpha = 0.15f))) {
+                        Text("Reset (0s)")
+                    }
+                    OutlinedButton(onClick = { scope.launch { filterStore.setCaptionOffsetMs((filterSettings.captionOffsetMs + 1000L).coerceAtMost(10000L)) } }) {
+                        Text("+1.0s", color = TextPrimary)
+                    }
+                }
             }
         }
     }

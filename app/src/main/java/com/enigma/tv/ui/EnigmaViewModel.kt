@@ -68,6 +68,7 @@ enum class NavSection(val title: String) {
     LISTS("My Lists"),
     DOWNLOADS("Downloads"),
     PROFILE("Account"),
+    SETTINGS("Settings"),
     DEV_TEST("Developer Testing")
 }
 

@@ -30,6 +30,8 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -37,6 +39,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -54,8 +57,81 @@ data class TvPlayerControls(
     val selectedSeason: Int,
     val selectedEpisode: Int,
     val onSeasonChange: (Int) -> Unit,
-    val onEpisodeChange: (Int) -> Unit
+    val onEpisodeChange: (Int) -> Unit,
+    val subtitleOffsetMs: Long = 0L,
+    val onSubtitleOffsetChange: ((Long) -> Unit)? = null
 )
+
+/** Slide-up subtitle timing sync panel — nudge captions ±0.5s or ±1.0s live */
+@Composable
+fun SubtitleSyncControlPanel(
+    visible: Boolean,
+    offsetMs: Long,
+    accent: Color,
+    onOffsetChange: (Long) -> Unit,
+    onDismiss: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    AnimatedVisibility(
+        visible = visible,
+        enter = slideInVertically { it },
+        exit = slideOutVertically { it },
+        modifier = modifier
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .navigationBarsPadding()
+                .focusGroup()
+                .background(Color.Black.copy(alpha = 0.95f), RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp))
+                .padding(horizontal = 24.dp, vertical = 16.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text("Subtitle Timing Resyncer", color = TextPrimary, fontWeight = FontWeight.Bold, fontSize = 18.sp)
+                IconButton(onClick = onDismiss) {
+                    Icon(Icons.Default.Close, contentDescription = "Close sync panel", tint = TextSecondary, modifier = Modifier.size(24.dp))
+                }
+            }
+
+            Text(
+                text = "Offset: ${if (offsetMs > 0) "+${offsetMs / 1000f}s" else "${offsetMs / 1000f}s"}",
+                color = accent,
+                fontSize = 24.sp,
+                fontWeight = FontWeight.Bold,
+                modifier = Modifier.padding(vertical = 12.dp)
+            )
+
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                OutlinedButton(onClick = { onOffsetChange((offsetMs - 1000L).coerceAtLeast(-10000L)) }) {
+                    Text("-1.0s", color = TextPrimary)
+                }
+                OutlinedButton(onClick = { onOffsetChange((offsetMs - 500L).coerceAtLeast(-10000L)) }) {
+                    Text("-0.5s", color = TextPrimary)
+                }
+                Button(
+                    onClick = { onOffsetChange(0L) },
+                    colors = ButtonDefaults.buttonColors(containerColor = accent.copy(alpha = 0.3f))
+                ) {
+                    Text("Reset (0s)", color = Color.White)
+                }
+                OutlinedButton(onClick = { onOffsetChange((offsetMs + 500L).coerceAtMost(10000L)) }) {
+                    Text("+0.5s", color = TextPrimary)
+                }
+                OutlinedButton(onClick = { onOffsetChange((offsetMs + 1000L).coerceAtMost(10000L)) }) {
+                    Text("+1.0s", color = TextPrimary)
+                }
+            }
+        }
+    }
+}
 
 /** Slide-up episode browser — only shown when user opens it; hides with player chrome. */
 @Composable
