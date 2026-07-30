@@ -1748,6 +1748,26 @@ private fun SettingsContent(layout: ScreenLayout) {
                     }
                 }
             }
+
+            // Section 4: Auto-Sync Subtitles (Beta - SpeechRecognizer)
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(Color.White.copy(alpha = 0.05f))
+                    .padding(16.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                Text("Auto-Sync Subtitles (Beta)", color = TextPrimary, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                Text("Uses Android SpeechRecognizer in real-time to transcribe audio and automatically align lagging subtitles.", color = TextSecondary, fontSize = 13.sp)
+
+                Button(
+                    onClick = { scope.launch { filterStore.setAutoSyncCaptions(!filterSettings.autoSyncCaptions) } },
+                    colors = ButtonDefaults.buttonColors(containerColor = if (filterSettings.autoSyncCaptions) EnigmaPink else Color.White.copy(alpha = 0.15f))
+                ) {
+                    Text(if (filterSettings.autoSyncCaptions) "Auto-Sync: ENABLED" else "Auto-Sync: DISABLED")
+                }
+            }
         }
     }
 

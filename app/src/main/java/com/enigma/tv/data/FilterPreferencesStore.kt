@@ -1,6 +1,7 @@
 package com.enigma.tv.data
 
 import android.content.Context
+import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
@@ -16,7 +17,8 @@ data class FilterSettings(
     val profanitySensitivity: String = "MEDIUM", // "LOW" (Severe), "MEDIUM" (Moderate+), "HIGH" (All)
     val sceneMode: String = "DISABLED", // "DISABLED", "BLUR", "SKIP"
     val sceneSensitivity: String = "MODERATE", // "MODERATE", "STRICT"
-    val captionOffsetMs: Long = 0L // -10000ms to +10000ms
+    val captionOffsetMs: Long = 0L, // -10000ms to +10000ms
+    val autoSyncCaptions: Boolean = true // Auto-adjust captions via SpeechRecognizer (Beta)
 )
 
 class FilterPreferencesStore(private val context: Context) {
@@ -25,6 +27,7 @@ class FilterPreferencesStore(private val context: Context) {
     private val sceneModeKey = stringPreferencesKey("scene_mode")
     private val sceneSensitivityKey = stringPreferencesKey("scene_sensitivity")
     private val captionOffsetKey = longPreferencesKey("caption_offset_ms")
+    private val autoSyncCaptionsKey = booleanPreferencesKey("auto_sync_captions")
 
     val settingsFlow: Flow<FilterSettings> = context.filterPreferencesDataStore.data.map { prefs ->
         FilterSettings(
@@ -32,7 +35,8 @@ class FilterPreferencesStore(private val context: Context) {
             profanitySensitivity = prefs[profanitySensitivityKey] ?: "MEDIUM",
             sceneMode = prefs[sceneModeKey] ?: "DISABLED",
             sceneSensitivity = prefs[sceneSensitivityKey] ?: "MODERATE",
-            captionOffsetMs = prefs[captionOffsetKey] ?: 0L
+            captionOffsetMs = prefs[captionOffsetKey] ?: 0L,
+            autoSyncCaptions = prefs[autoSyncCaptionsKey] ?: true
         )
     }
 
@@ -67,6 +71,12 @@ class FilterPreferencesStore(private val context: Context) {
     suspend fun setCaptionOffsetMs(offsetMs: Long) {
         context.filterPreferencesDataStore.edit { prefs ->
             prefs[captionOffsetKey] = offsetMs
+        }
+    }
+
+    suspend fun setAutoSyncCaptions(enabled: Boolean) {
+        context.filterPreferencesDataStore.edit { prefs ->
+            prefs[autoSyncCaptionsKey] = enabled
         }
     }
 }

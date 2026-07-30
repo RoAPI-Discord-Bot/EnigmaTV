@@ -1119,13 +1119,7 @@ fun ExoLivePlayer(
                             captionsEnabled = false
                             autoCaptionsActive = false
                         },
-                        onAdjustOffset = { newOffsetDelta ->
-                            val current = filterSettings.captionOffsetMs
-                            val updated = if (newOffsetDelta == 0L) 0L else current + newOffsetDelta
-                            coroutineScope.launch {
-                                filterStore.setCaptionOffsetMs(updated)
-                            }
-                        },
+                        onAdjustOffset = { },
                         onDismiss = { showCaptionDialog = false }
                     )
                 }
@@ -1398,17 +1392,6 @@ fun CaptionPickerDialog(
                 colors = ButtonDefaults.buttonColors(containerColor = if (offFocused) Color.White else Color.White.copy(alpha = 0.1f))
             ) {
                 Text("Turn Captions Off", color = if (offFocused) Color.Black else Color.White)
-            }
-
-            Spacer(Modifier.height(12.dp))
-            Text("Subtitle Sync Offset: ${captionOffsetMs / 1000f}s", color = Color.White.copy(alpha = 0.8f), fontSize = 13.sp)
-            Row(
-                modifier = Modifier.fillMaxWidth().padding(top = 6.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                Button(onClick = { onAdjustOffset(-1000L) }, modifier = Modifier.weight(1f)) { Text("-1s") }
-                Button(onClick = { onAdjustOffset(0L) }, modifier = Modifier.weight(1f)) { Text("Reset") }
-                Button(onClick = { onAdjustOffset(1000L) }, modifier = Modifier.weight(1f)) { Text("+1s") }
             }
         }
     }
