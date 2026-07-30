@@ -270,6 +270,13 @@ fun ExoLivePlayer(
         }
     }
 
+    LaunchedEffect(autoCaptionText) {
+        if (autoCaptionText.isNotBlank()) {
+            delay(5000L)
+            autoCaptionText = ""
+        }
+    }
+
     LaunchedEffect(playUrl, resolved.referer) {
         val tmdbId = resolved.referer.substringAfter("tmdb=", "").toIntOrNull()
         if (tmdbId != null) {
