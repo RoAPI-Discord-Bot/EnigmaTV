@@ -253,29 +253,6 @@ fun ExoLivePlayer(
     var isSceneBlurred by remember { mutableStateOf(false) }
 
     var showCaptionDialog by remember { mutableStateOf(false) }
-    var autoCaptionsActive by remember { mutableStateOf(false) }
-    var autoCaptionText by remember { mutableStateOf("") }
-
-    DisposableEffect(autoCaptionsActive) {
-        if (autoCaptionsActive) {
-            com.enigma.tv.data.AutoCaptionsEngine.start(context) { text ->
-                autoCaptionText = text
-            }
-        } else {
-            com.enigma.tv.data.AutoCaptionsEngine.stop()
-            autoCaptionText = ""
-        }
-        onDispose {
-            com.enigma.tv.data.AutoCaptionsEngine.stop()
-        }
-    }
-
-    LaunchedEffect(autoCaptionText) {
-        if (autoCaptionText.isNotBlank()) {
-            delay(5000L)
-            autoCaptionText = ""
-        }
-    }
 
     LaunchedEffect(playUrl, resolved.referer) {
         val tmdbId = resolved.referer.substringAfter("tmdb=", "").toIntOrNull()
@@ -927,10 +904,9 @@ fun ExoLivePlayer(
                         ccBtn?.visibility = android.view.View.VISIBLE
                         ccBtn?.isFocusable = true
                         ccBtn?.isFocusableInTouchMode = true
-                        ccBtn?.alpha = if (captionsEnabled || autoCaptionsActive) 1.0f else 0.7f
+                        ccBtn?.alpha = if (captionsEnabled) 1.0f else 0.7f
                         ccBtn?.setColorFilter(
-                            if (autoCaptionsActive) android.graphics.Color.parseColor("#E91E63")
-                            else if (captionsEnabled) android.graphics.Color.parseColor("#9C27B0")
+                            if (captionsEnabled) android.graphics.Color.parseColor("#9C27B0")
                             else android.graphics.Color.WHITE
                         )
                         ccBtn?.setOnClickListener {
@@ -1110,45 +1086,14 @@ fun ExoLivePlayer(
                 if (showCaptionDialog) {
                     CaptionPickerDialog(
                         visible = true,
+                        captionStatus = captionStatus,
                         hasFileCaptions = hasTextTracks || captionStatus == CaptionStatus.AVAILABLE,
                         captionsEnabled = captionsEnabled,
-                        autoCaptionsActive = autoCaptionsActive,
-                        captionOffsetMs = filterSettings.captionOffsetMs,
-                        onToggleFileCaptions = {
-                            captionsEnabled = !captionsEnabled
-                            autoCaptionsActive = false
-                        },
-                        onToggleAutoCaptions = {
-                            autoCaptionsActive = !autoCaptionsActive
-                            if (autoCaptionsActive) captionsEnabled = false
-                        },
-                        onDisableAll = {
-                            captionsEnabled = false
-                            autoCaptionsActive = false
-                        },
-                        onAdjustOffset = { },
+                        onToggleCaptions = { captionsEnabled = !captionsEnabled },
                         onDismiss = { showCaptionDialog = false }
                     )
                 }
 
-                if (autoCaptionsActive && autoCaptionText.isNotBlank()) {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .padding(bottom = 72.dp),
-                        contentAlignment = Alignment.BottomCenter
-                    ) {
-                        Text(
-                            text = autoCaptionText,
-                            color = Color.White,
-                            fontSize = 17.sp,
-                            fontWeight = FontWeight.Bold,
-                            modifier = Modifier
-                                .background(Color.Black.copy(alpha = 0.78f), RoundedCornerShape(8.dp))
-                                .padding(horizontal = 18.dp, vertical = 8.dp)
-                        )
-                    }
-                }
                 
                 if (streamLoading && !useExternalChrome) {
                     EnigmaLoadingRing(
@@ -1331,14 +1276,10 @@ fun QualityPickerDialog(
 @Composable
 fun CaptionPickerDialog(
     visible: Boolean,
+    captionStatus: CaptionStatus,
     hasFileCaptions: Boolean,
     captionsEnabled: Boolean,
-    autoCaptionsActive: Boolean,
-    captionOffsetMs: Long,
-    onToggleFileCaptions: () -> Unit,
-    onToggleAutoCaptions: () -> Unit,
-    onDisableAll: () -> Unit,
-    onAdjustOffset: (Long) -> Unit,
+    onToggleCaptions: () -> Unit,
     onDismiss: () -> Unit
 ) {
     if (!visible) return
@@ -1348,59 +1289,46 @@ fun CaptionPickerDialog(
                 .background(Color.Black.copy(alpha = 0.95f), RoundedCornerShape(12.dp))
                 .padding(24.dp)
         ) {
-            Text("Captions & Audio Options", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 20.sp)
+            Text("Captions & Subtitles", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 20.sp)
             Spacer(Modifier.height(16.dp))
 
-            var fileFocused by remember { mutableStateOf(false) }
-            Button(
-                onClick = {
-                    onToggleFileCaptions()
-                    onDismiss()
-                },
-                enabled = hasFileCaptions,
-                modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp).onFocusChanged { fileFocused = it.isFocused }
-                    .then(if (fileFocused) Modifier.border(2.dp, EnigmaPurple, RoundedCornerShape(8.dp)) else Modifier),
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = if (captionsEnabled && !autoCaptionsActive) EnigmaPink else if (fileFocused) Color.White else Color.White.copy(alpha = 0.1f)
-                )
-            ) {
+            if (hasFileCaptions) {
+                var btnFocused by remember { mutableStateOf(false) }
+                Button(
+                    onClick = {
+                        onToggleCaptions()
+                        onDismiss()
+                    },
+                    modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp).onFocusChanged { btnFocused = it.isFocused }
+                        .then(if (btnFocused) Modifier.border(2.dp, EnigmaPurple, RoundedCornerShape(8.dp)) else Modifier),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = if (captionsEnabled) EnigmaPink else if (btnFocused) Color.White else Color.White.copy(alpha = 0.1f)
+                    )
+                ) {
+                    Text(
+                        text = if (captionsEnabled) "? Subtitles Enabled" else "Enable Subtitles",
+                        color = if (captionsEnabled) Color.White else if (btnFocused) Color.Black else Color.White
+                    )
+                }
+            } else {
                 Text(
-                    text = if (hasFileCaptions) (if (captionsEnabled && !autoCaptionsActive) "✓ Standard Subtitles (ON)" else "Standard Subtitles (File)") else "Standard Subtitles (Unavailable)",
-                    color = if (captionsEnabled && !autoCaptionsActive) Color.White else if (fileFocused) Color.Black else Color.White
+                    text = if (captionStatus == CaptionStatus.SEARCHING) "Searching for subtitles..." else "No subtitles available for this title",
+                    color = Color.White.copy(alpha = 0.7f),
+                    fontSize = 14.sp,
+                    modifier = Modifier.padding(vertical = 8.dp)
                 )
             }
 
-            var autoFocused by remember { mutableStateOf(false) }
+            Spacer(Modifier.height(8.dp))
+            var closeFocused by remember { mutableStateOf(false) }
             Button(
-                onClick = {
-                    onToggleAutoCaptions()
-                    onDismiss()
-                },
-                modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp).onFocusChanged { autoFocused = it.isFocused }
-                    .then(if (autoFocused) Modifier.border(2.dp, EnigmaPurple, RoundedCornerShape(8.dp)) else Modifier),
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = if (autoCaptionsActive) EnigmaPink else if (autoFocused) Color.White else Color.White.copy(alpha = 0.1f)
-                )
+                onClick = onDismiss,
+                modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp).onFocusChanged { closeFocused = it.isFocused }
+                    .then(if (closeFocused) Modifier.border(2.dp, EnigmaPurple, RoundedCornerShape(8.dp)) else Modifier),
+                colors = ButtonDefaults.buttonColors(containerColor = if (closeFocused) Color.White else Color.White.copy(alpha = 0.1f))
             ) {
-                Text(
-                    text = if (autoCaptionsActive) "✓ Auto Captions (Beta - ON)" else "Auto Captions (Beta - Speech Recognizer)",
-                    color = if (autoCaptionsActive) Color.White else if (autoFocused) Color.Black else Color.White
-                )
-            }
-
-            var offFocused by remember { mutableStateOf(false) }
-            Button(
-                onClick = {
-                    onDisableAll()
-                    onDismiss()
-                },
-                modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp).onFocusChanged { offFocused = it.isFocused }
-                    .then(if (offFocused) Modifier.border(2.dp, EnigmaPurple, RoundedCornerShape(8.dp)) else Modifier),
-                colors = ButtonDefaults.buttonColors(containerColor = if (offFocused) Color.White else Color.White.copy(alpha = 0.1f))
-            ) {
-                Text("Turn Captions Off", color = if (offFocused) Color.Black else Color.White)
+                Text("Close", color = if (closeFocused) Color.Black else Color.White)
             }
         }
     }
 }
-
