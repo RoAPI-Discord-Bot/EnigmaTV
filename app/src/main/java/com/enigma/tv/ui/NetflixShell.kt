@@ -34,6 +34,8 @@ import com.enigma.tv.ui.theme.EnigmaPurple
 import com.enigma.tv.ui.theme.TextPrimary
 import com.enigma.tv.ui.theme.TextSecondary
 
+import androidx.compose.material.icons.filled.Settings
+
 @Composable
 fun NetflixBottomBar(
     current: NavSection,
@@ -54,35 +56,42 @@ fun NetflixBottomBar(
             selected = current == NavSection.HOME,
             onClick = { onSelect(NavSection.HOME) },
             icon = { Icon(Icons.Default.Home, contentDescription = "Home") },
-            label = { Text("Home", fontSize = 11.sp) },
+            label = { Text("Home", fontSize = 10.sp) },
             colors = itemColors
         )
         NavigationBarItem(
             selected = current == NavSection.LIVE,
             onClick = { onSelect(NavSection.LIVE) },
             icon = { Icon(Icons.Default.LiveTv, contentDescription = "Live") },
-            label = { Text("Live", fontSize = 11.sp) },
+            label = { Text("Live", fontSize = 10.sp) },
             colors = itemColors
         )
         NavigationBarItem(
             selected = current == NavSection.CONTINUE,
             onClick = { onSelect(NavSection.CONTINUE) },
             icon = { Icon(Icons.Default.PlayCircle, contentDescription = "Continue") },
-            label = { Text("Continue", fontSize = 11.sp) },
+            label = { Text("Continue", fontSize = 10.sp) },
             colors = itemColors
         )
         NavigationBarItem(
             selected = current == NavSection.PLAYLISTS,
             onClick = { onSelect(NavSection.PLAYLISTS) },
             icon = { Icon(Icons.Default.Favorite, contentDescription = "Playlists") },
-            label = { Text("Playlists", fontSize = 11.sp) },
+            label = { Text("Playlists", fontSize = 10.sp) },
+            colors = itemColors
+        )
+        NavigationBarItem(
+            selected = current == NavSection.SETTINGS,
+            onClick = { onSelect(NavSection.SETTINGS) },
+            icon = { Icon(Icons.Default.Settings, contentDescription = "Settings") },
+            label = { Text("Settings", fontSize = 10.sp) },
             colors = itemColors
         )
         NavigationBarItem(
             selected = current == NavSection.PROFILE,
             onClick = { onSelect(NavSection.PROFILE) },
             icon = { Icon(Icons.Default.Person, contentDescription = "Account") },
-            label = { Text("Account", fontSize = 11.sp) },
+            label = { Text("Account", fontSize = 10.sp) },
             colors = itemColors
         )
     }

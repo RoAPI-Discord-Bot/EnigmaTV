@@ -252,6 +252,24 @@ fun ExoLivePlayer(
     var sceneIntervals by remember { mutableStateOf<List<com.enigma.tv.data.ModerationSceneInterval>>(emptyList()) }
     var isSceneBlurred by remember { mutableStateOf(false) }
 
+    var showCaptionDialog by remember { mutableStateOf(false) }
+    var autoCaptionsActive by remember { mutableStateOf(false) }
+    var autoCaptionText by remember { mutableStateOf("") }
+
+    DisposableEffect(autoCaptionsActive) {
+        if (autoCaptionsActive) {
+            com.enigma.tv.data.AutoCaptionsEngine.start(context) { text ->
+                autoCaptionText = text
+            }
+        } else {
+            com.enigma.tv.data.AutoCaptionsEngine.stop()
+            autoCaptionText = ""
+        }
+        onDispose {
+            com.enigma.tv.data.AutoCaptionsEngine.stop()
+        }
+    }
+
     LaunchedEffect(playUrl, resolved.referer) {
         val tmdbId = resolved.referer.substringAfter("tmdb=", "").toIntOrNull()
         if (tmdbId != null) {
@@ -900,30 +918,16 @@ fun ExoLivePlayer(
                         view.setShowSubtitleButton(false)
                         val ccBtn = view.findViewById<android.widget.ImageButton>(com.enigma.tv.R.id.btn_enigma_cc)
                         ccBtn?.visibility = android.view.View.VISIBLE
-                        when {
-                            hasTextTracks || captionStatus == CaptionStatus.AVAILABLE -> {
-                                ccBtn?.alpha = 1.0f
-                                ccBtn?.setColorFilter(if (captionsEnabled) android.graphics.Color.parseColor("#9C27B0") else android.graphics.Color.WHITE)
-                                ccBtn?.setOnClickListener {
-                                    captionsEnabled = !captionsEnabled
-                                    val msg = if (captionsEnabled) "Captions Enabled" else "Captions Disabled"
-                                    android.widget.Toast.makeText(context, msg, android.widget.Toast.LENGTH_SHORT).show()
-                                }
-                            }
-                            captionStatus == CaptionStatus.SEARCHING -> {
-                                ccBtn?.alpha = 0.6f
-                                ccBtn?.setColorFilter(android.graphics.Color.parseColor("#FFC107"))
-                                ccBtn?.setOnClickListener {
-                                    android.widget.Toast.makeText(context, "Searching for captions in background...", android.widget.Toast.LENGTH_SHORT).show()
-                                }
-                            }
-                            else -> { // CaptionStatus.UNAVAILABLE
-                                ccBtn?.alpha = 0.35f
-                                ccBtn?.setColorFilter(android.graphics.Color.GRAY)
-                                ccBtn?.setOnClickListener {
-                                    android.widget.Toast.makeText(context, "Captions unavailable for this title", android.widget.Toast.LENGTH_SHORT).show()
-                                }
-                            }
+                        ccBtn?.isFocusable = true
+                        ccBtn?.isFocusableInTouchMode = true
+                        ccBtn?.alpha = if (captionsEnabled || autoCaptionsActive) 1.0f else 0.7f
+                        ccBtn?.setColorFilter(
+                            if (autoCaptionsActive) android.graphics.Color.parseColor("#E91E63")
+                            else if (captionsEnabled) android.graphics.Color.parseColor("#9C27B0")
+                            else android.graphics.Color.WHITE
+                        )
+                        ccBtn?.setOnClickListener {
+                            showCaptionDialog = true
                         }
                         // Close button
                         view.findViewById<android.view.View>(com.enigma.tv.R.id.btn_enigma_close)
@@ -1094,6 +1098,55 @@ fun ExoLivePlayer(
                         visible = true,
                         onDismiss = { showQualityPicker = false }
                     )
+                }
+
+                if (showCaptionDialog) {
+                    CaptionPickerDialog(
+                        visible = true,
+                        hasFileCaptions = hasTextTracks || captionStatus == CaptionStatus.AVAILABLE,
+                        captionsEnabled = captionsEnabled,
+                        autoCaptionsActive = autoCaptionsActive,
+                        captionOffsetMs = filterSettings.captionOffsetMs,
+                        onToggleFileCaptions = {
+                            captionsEnabled = !captionsEnabled
+                            autoCaptionsActive = false
+                        },
+                        onToggleAutoCaptions = {
+                            autoCaptionsActive = !autoCaptionsActive
+                            if (autoCaptionsActive) captionsEnabled = false
+                        },
+                        onDisableAll = {
+                            captionsEnabled = false
+                            autoCaptionsActive = false
+                        },
+                        onAdjustOffset = { newOffsetDelta ->
+                            val current = filterSettings.captionOffsetMs
+                            val updated = if (newOffsetDelta == 0L) 0L else current + newOffsetDelta
+                            coroutineScope.launch {
+                                filterStore.setCaptionOffsetMs(updated)
+                            }
+                        },
+                        onDismiss = { showCaptionDialog = false }
+                    )
+                }
+
+                if (autoCaptionsActive && autoCaptionText.isNotBlank()) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(bottom = 72.dp),
+                        contentAlignment = Alignment.BottomCenter
+                    ) {
+                        Text(
+                            text = autoCaptionText,
+                            color = Color.White,
+                            fontSize = 17.sp,
+                            fontWeight = FontWeight.Bold,
+                            modifier = Modifier
+                                .background(Color.Black.copy(alpha = 0.78f), RoundedCornerShape(8.dp))
+                                .padding(horizontal = 18.dp, vertical = 8.dp)
+                        )
+                    }
                 }
                 
                 if (streamLoading && !useExternalChrome) {
@@ -1268,6 +1321,94 @@ fun QualityPickerDialog(
                         Text(resolution, color = if (itemFocused) Color.Black else Color.White)
                     }
                 }
+            }
+        }
+    }
+}
+
+@OptIn(UnstableApi::class)
+@Composable
+fun CaptionPickerDialog(
+    visible: Boolean,
+    hasFileCaptions: Boolean,
+    captionsEnabled: Boolean,
+    autoCaptionsActive: Boolean,
+    captionOffsetMs: Long,
+    onToggleFileCaptions: () -> Unit,
+    onToggleAutoCaptions: () -> Unit,
+    onDisableAll: () -> Unit,
+    onAdjustOffset: (Long) -> Unit,
+    onDismiss: () -> Unit
+) {
+    if (!visible) return
+    androidx.compose.ui.window.Dialog(onDismissRequest = onDismiss) {
+        Column(
+            Modifier
+                .background(Color.Black.copy(alpha = 0.95f), RoundedCornerShape(12.dp))
+                .padding(24.dp)
+        ) {
+            Text("Captions & Audio Options", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 20.sp)
+            Spacer(Modifier.height(16.dp))
+
+            var fileFocused by remember { mutableStateOf(false) }
+            Button(
+                onClick = {
+                    onToggleFileCaptions()
+                    onDismiss()
+                },
+                enabled = hasFileCaptions,
+                modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp).onFocusChanged { fileFocused = it.isFocused }
+                    .then(if (fileFocused) Modifier.border(2.dp, EnigmaPurple, RoundedCornerShape(8.dp)) else Modifier),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = if (captionsEnabled && !autoCaptionsActive) EnigmaPink else if (fileFocused) Color.White else Color.White.copy(alpha = 0.1f)
+                )
+            ) {
+                Text(
+                    text = if (hasFileCaptions) (if (captionsEnabled && !autoCaptionsActive) "✓ Standard Subtitles (ON)" else "Standard Subtitles (File)") else "Standard Subtitles (Unavailable)",
+                    color = if (captionsEnabled && !autoCaptionsActive) Color.White else if (fileFocused) Color.Black else Color.White
+                )
+            }
+
+            var autoFocused by remember { mutableStateOf(false) }
+            Button(
+                onClick = {
+                    onToggleAutoCaptions()
+                    onDismiss()
+                },
+                modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp).onFocusChanged { autoFocused = it.isFocused }
+                    .then(if (autoFocused) Modifier.border(2.dp, EnigmaPurple, RoundedCornerShape(8.dp)) else Modifier),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = if (autoCaptionsActive) EnigmaPink else if (autoFocused) Color.White else Color.White.copy(alpha = 0.1f)
+                )
+            ) {
+                Text(
+                    text = if (autoCaptionsActive) "✓ Auto Captions (Beta - ON)" else "Auto Captions (Beta - Speech Recognizer)",
+                    color = if (autoCaptionsActive) Color.White else if (autoFocused) Color.Black else Color.White
+                )
+            }
+
+            var offFocused by remember { mutableStateOf(false) }
+            Button(
+                onClick = {
+                    onDisableAll()
+                    onDismiss()
+                },
+                modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp).onFocusChanged { offFocused = it.isFocused }
+                    .then(if (offFocused) Modifier.border(2.dp, EnigmaPurple, RoundedCornerShape(8.dp)) else Modifier),
+                colors = ButtonDefaults.buttonColors(containerColor = if (offFocused) Color.White else Color.White.copy(alpha = 0.1f))
+            ) {
+                Text("Turn Captions Off", color = if (offFocused) Color.Black else Color.White)
+            }
+
+            Spacer(Modifier.height(12.dp))
+            Text("Subtitle Sync Offset: ${captionOffsetMs / 1000f}s", color = Color.White.copy(alpha = 0.8f), fontSize = 13.sp)
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(top = 6.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Button(onClick = { onAdjustOffset(-1000L) }, modifier = Modifier.weight(1f)) { Text("-1s") }
+                Button(onClick = { onAdjustOffset(0L) }, modifier = Modifier.weight(1f)) { Text("Reset") }
+                Button(onClick = { onAdjustOffset(1000L) }, modifier = Modifier.weight(1f)) { Text("+1s") }
             }
         }
     }
