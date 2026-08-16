@@ -580,6 +580,15 @@ fun ExoLivePlayer(
                         hasReachedReady = true
                         onLoadingChange(false)
                         errorMessage = null
+
+                        val durationMs = player.duration
+                        if (!isLiveBroadcast && durationMs in 100L..180_000L && showNextSource && onNextSource != null) {
+                            android.util.Log.w("ExoLivePlayer", "Stream duration ($durationMs ms) too short for movie/show. Auto-switching server...")
+                            player.pause()
+                            onNextSource()
+                            return
+                        }
+
                         onPlaybackReady?.invoke()
                         
                         if (!initialQualityForced) {
@@ -665,7 +674,7 @@ fun ExoLivePlayer(
                     (cause as androidx.media3.datasource.HttpDataSource.InvalidResponseCodeException).responseCode
                 else -1
 
-                val isRealBlock = isHttpError && (httpCode == 403 || httpCode == 401)
+                val isRealBlock = isHttpError && (httpCode == 403 || httpCode == 401 || httpCode == 428)
 
                 if (isRealBlock && stripHeaders) {
                     // 403/401 and headers were stripped? Try WITH headers and retry.
@@ -681,9 +690,15 @@ fun ExoLivePlayer(
                     return
                 }
 
+                if (showNextSource && onNextSource != null) {
+                    android.util.Log.w("ExoLivePlayer", "Player error (HTTP $httpCode). Auto-switching to next server...")
+                    onNextSource()
+                    return
+                }
+
                 onLoadingChange(false)
                 errorMessage = when {
-                    isHttpError && (httpCode == 403 || httpCode == 401) ->
+                    isHttpError && (httpCode == 403 || httpCode == 401 || httpCode == 428) ->
                         "Stream blocked (HTTP $httpCode) â€” try next server"
                     isHttpError && httpCode in 400..499 ->
                         "Stream unavailable (HTTP $httpCode) â€” try next server"

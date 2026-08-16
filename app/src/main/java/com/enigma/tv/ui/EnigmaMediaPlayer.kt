@@ -36,10 +36,11 @@ import kotlinx.coroutines.withContext
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
 
-private enum class MediaPlayMode { Embed, Native }
+private enum class MediaPlayMode { Loading, Native, Embed }
 
 /**
- * Flux-style hybrid: embed WebView plays immediately; native Exo upgrades when a direct URL is found.
+ * Native-first player: races all server extractors concurrently while showing a clean Enigma loading ring.
+ * WebViews are never displayed visually on screen during extraction.
  */
 @Composable
 fun EnigmaMediaPlayer(
@@ -81,21 +82,17 @@ fun EnigmaMediaPlayer(
     val scope = rememberCoroutineScope()
     val activity = remember(context) { context.findActivity() }
     var resolvedStream by remember(embedUrl, resolveToken) { mutableStateOf<ResolvedStream?>(null) }
-    var mode by remember(embedUrl, resolveToken) { mutableStateOf(MediaPlayMode.Embed) }
+    var mode by remember(embedUrl, resolveToken) { mutableStateOf(MediaPlayMode.Loading) }
     var resolvingNative by remember(embedUrl, resolveToken) { mutableStateOf(true) }
     var streamFailed by remember(embedUrl, resolveToken) { mutableStateOf(false) }
     var savedPositionMs by remember { mutableStateOf(startPositionMs) }
 
-    // Start resolution immediately — show a loading spinner while we find the best stream.
-    // Once found, seamlessly switch to ExoPlayer. If resolution fails, fall back to WebView.
     LaunchedEffect(embedUrl, resolveToken, activity, tmdbId, playingType) {
         resolvingNative = true
         streamFailed = false
         resolvedStream = null
-        mode = MediaPlayMode.Embed
+        mode = MediaPlayMode.Loading
         onNativePlayerActive?.invoke(false)
-        // Keep the loading spinner visible while we race all sources concurrently.
-        // This prevents the "black screen" gap between WebView rendering and ExoPlayer starting.
         onLoadingChange(true)
         val result = withContext(Dispatchers.IO) {
             StreamPlaybackResolver.resolve(
@@ -114,13 +111,13 @@ fun EnigmaMediaPlayer(
             resolvedStream = result
             resolvingNative = false
             if (resolvedStream != null) {
-                // Seamless: ExoPlayer takes over, its buffering state controls the spinner
                 mode = MediaPlayMode.Native
                 onNativePlayerActive?.invoke(true)
-            } else {
-                // All sources failed — fall back to WebView player so user still sees something
                 onLoadingChange(false)
-                mode = MediaPlayMode.Embed
+            } else {
+                // Resolution failed for this source index — automatically try the next server source!
+                onLoadingChange(false)
+                onNextSource()
             }
         }
     }
@@ -129,6 +126,15 @@ fun EnigmaMediaPlayer(
 
     Box(contentModifier.background(BgDark)) {
         when (mode) {
+            MediaPlayMode.Loading -> {
+                EnigmaLoadingRing(
+                    modifier = Modifier.fillMaxSize(),
+                    message = "SEARCHING FOR BEST STREAM",
+                    fullscreen = true,
+                    logoSize = 80.dp,
+                    ringSize = 120.dp
+                )
+            }
             MediaPlayMode.Native -> ExoLivePlayer(
                 visible = true,
                 title = title,

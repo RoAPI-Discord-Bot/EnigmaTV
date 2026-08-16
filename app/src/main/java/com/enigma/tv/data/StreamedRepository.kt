@@ -56,10 +56,18 @@ class StreamedRepository {
         }
     }
 
+    private fun cleanText(str: String): String {
+        if (str.isBlank()) return str
+        return str.replace(Regex("""[^\x00-\x7F\u00A0-\u024F]"""), "").trim()
+    }
+
     private val api: StreamedApi = Retrofit.Builder()
         .baseUrl("https://streamed.pk/")
         .client(
             OkHttpClient.Builder()
+                .connectTimeout(15, java.util.concurrent.TimeUnit.SECONDS)
+                .readTimeout(20, java.util.concurrent.TimeUnit.SECONDS)
+                .writeTimeout(15, java.util.concurrent.TimeUnit.SECONDS)
                 .addInterceptor(HttpLoggingInterceptor().apply { level = HttpLoggingInterceptor.Level.BASIC })
                 .build()
         )

@@ -17,6 +17,12 @@ data class ResolvedStream(
 ) {
     fun playbackHeaders(): Map<String, String> {
         val headers = linkedMapOf<String, String>()
+        headers["User-Agent"] = userAgent.ifBlank { StreamResolver.USER_AGENT }
+        headers["Accept"] = "*/*"
+        headers["Accept-Language"] = "en-US,en;q=0.9"
+        headers["Sec-Fetch-Dest"] = "empty"
+        headers["Sec-Fetch-Mode"] = "cors"
+        headers["Sec-Fetch-Site"] = "cross-site"
         if (referer.isNotBlank()) headers["Referer"] = referer
         if (origin.isNotBlank()) headers["Origin"] = origin
         if (cookies.isNotBlank()) headers["Cookie"] = cookies

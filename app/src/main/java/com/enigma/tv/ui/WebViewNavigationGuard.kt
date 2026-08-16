@@ -76,6 +76,10 @@ class WebViewNavigationGuard(initialUrl: String) {
         if (isBlockedScheme(scheme)) return true
 
         val host = uri.host?.lowercase() ?: return true
+        if (isAdultContent(url, host)) {
+            onBlocked?.invoke(url)
+            return true
+        }
         if (liveTvMode && isMainFrame && looksLikeStreamApi(url)) {
             onBlocked?.invoke(url)
             return true
@@ -500,8 +504,25 @@ class WebViewNavigationGuard(initialUrl: String) {
             "clickadu.com", "onclickads.net", "chaturbate.com", "stripchat.com",
             "aliexpress.com", "amazon.com", "ebay.com", "adservice.google.com",
             "pagead2.googlesyndication.com", "outbrain.com", "taboola.com", "mgid.com",
-            "revcontent.com", "ads.yahoo.com", "static.ads-twitter.com"
+            "revcontent.com", "ads.yahoo.com", "static.ads-twitter.com",
+            "pornhub.com", "xvideos.com", "xnxx.com", "livejasmin.com", "bongacams.com",
+            "cam4.com", "redtube.com", "youporn.com", "xhamster.com", "spankbang.com",
+            "eporner.com", "tube8.com", "beeg.com", "xvideos2.com", "xnxx.tv",
+            "juicyads.com", "eroadvertising.com", "trafficjunkie.com", "popcash.net",
+            "hilltopads.com", "adcash.com", "richads.com", "rollerads.com", "bet365.com",
+            "1xbet.com", "stake.com", "exosrv.com", "realsrv.com", "adtrue.com"
         )
+
+        private fun isAdultContent(url: String, host: String): Boolean {
+            val lowerUrl = url.lowercase()
+            val ADULT_KEYWORDS = listOf(
+                "porn", "sex", "xxx", "adult", "erotic", "nude", "hentai", "camgirl",
+                "chaturbate", "stripchat", "livejasmin", "bongacams", "cam4", "redtube",
+                "youporn", "xhamster", "spankbang", "eporner", "tube8", "beeg", "xvideos",
+                "xnxx", "gambling", "casino", "betting", "poker", "slots", "1xbet", "stake"
+            )
+            return ADULT_KEYWORDS.any { lowerUrl.contains(it) && !lowerUrl.contains("tmdb=") }
+        }
 
     }
 }

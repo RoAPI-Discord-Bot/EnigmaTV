@@ -79,9 +79,11 @@ object EmbedPlayerShield {
         set: function(val) { return origInnerHTML.set.call(this, stripSandboxRegex(val)); }
       });
     }
+  try {
+    window.open = function() { return null; };
   } catch (e) {}
 
-  var AD_HOST_RE = /doubleclick|googlesyndication|popads|propeller|adsterra|exoclick|clickadu|outbrain|taboola|mgid|revcontent|chaturbate|stripchat/i;
+  var AD_HOST_RE = /doubleclick|googlesyndication|popads|propeller|adsterra|exoclick|clickadu|outbrain|taboola|mgid|revcontent|chaturbate|stripchat|pornhub|xvideos|xnxx|livejasmin|bongacams|redtube|youporn|xhamster|spankbang|eporner|juicyads|eroadvertising|trafficjunkie|popcash|hilltopads|adcash|richads|rollerads|bet365|1xbet|stake|porn|sex|xxx|adult/i;
 
   function isAdUrl(href) {
     if (!href || href.indexOf('http') !== 0) return false;
