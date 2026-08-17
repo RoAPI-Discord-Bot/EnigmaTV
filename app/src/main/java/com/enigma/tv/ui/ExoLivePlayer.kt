@@ -580,15 +580,6 @@ fun ExoLivePlayer(
                         hasReachedReady = true
                         onLoadingChange(false)
                         errorMessage = null
-
-                        val durationMs = player.duration
-                        if (!isLiveBroadcast && durationMs in 100L..180_000L && showNextSource && onNextSource != null) {
-                            android.util.Log.w("ExoLivePlayer", "Stream duration ($durationMs ms) too short for movie/show. Auto-switching server...")
-                            player.pause()
-                            onNextSource()
-                            return
-                        }
-
                         onPlaybackReady?.invoke()
                         
                         if (!initialQualityForced) {
